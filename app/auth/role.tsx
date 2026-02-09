@@ -13,14 +13,14 @@ export default function RoleSelect() {
         onPress={() => router.push("/builder/home")}
         style={{ padding: 16, backgroundColor: "#111", borderRadius: 12 }}
       >
-        <Text style={{ color: "#fff", fontWeight: "800" }}>I’m a Builder</Text>
+        <Text style={{ color: "#FDE047", fontWeight: "800" }}>I’m a Builder</Text>
       </Pressable>
 
       <Pressable
         onPress={() => router.push("/labourer/home")}
         style={{ padding: 16, backgroundColor: "#111", borderRadius: 12 }}
       >
-        <Text style={{ color: "#fff", fontWeight: "800" }}>I’m a Labourer / Tradie</Text>
+        <Text style={{ color: "#FDE047", fontWeight: "800" }}>I’m a Labourer / Tradie</Text>
       </Pressable>
     </View>
   );

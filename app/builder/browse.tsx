@@ -85,8 +85,8 @@ export default function BuilderBrowse() {
   }
 
   return (
-    <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 60, backgroundColor: "#F6F7FB" }}>
-      <Text style={{ fontSize: 24, fontWeight: "900" }}>Browse Labourers</Text>
+    <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 60, backgroundColor: "#fff" }}>
+      <Text style={{ fontSize: 24, fontWeight: "900" }}>Browse</Text>
 
       {/* Filters card */}
       <View
@@ -96,7 +96,7 @@ export default function BuilderBrowse() {
           borderRadius: 16,
           backgroundColor: "#fff",
           borderWidth: 1,
-          borderColor: "#E9E9EE",
+          borderColor: "#111111",
           gap: 12,
         }}
       >
@@ -135,7 +135,7 @@ export default function BuilderBrowse() {
             marginTop: 4,
           }}
         >
-          <Text style={{ color: "#fff", fontWeight: "900" }}>Search</Text>
+          <Text style={{ color: "#FDE047", fontWeight: "900" }}>Search</Text>
         </Pressable>
       </View>
 
@@ -162,7 +162,7 @@ export default function BuilderBrowse() {
               borderRadius: 18,
               backgroundColor: "#fff",
               borderWidth: 1,
-              borderColor: "#E9E9EE",
+              borderColor: "#111111",
               marginBottom: 12,
             }}
           >
@@ -170,7 +170,7 @@ export default function BuilderBrowse() {
               <Text style={{ fontSize: 16, fontWeight: "900" }}>
                 {item.firstName} {item.lastName}
               </Text>
-              <View style={{ paddingVertical: 6, paddingHorizontal: 10, borderRadius: 999, backgroundColor: "#F2F3F8" }}>
+              <View style={{ paddingVertical: 6, paddingHorizontal: 10, borderRadius: 999, backgroundColor: "#FDE047" }}>
                 <Text style={{ fontWeight: "800" }}>${item.pricePerHour}/hr</Text>
               </View>
             </View>
@@ -199,7 +199,7 @@ export default function BuilderBrowse() {
                   justifyContent: "center",
                 }}
               >
-                <Text style={{ color: "#fff", fontWeight: "900" }}>View</Text>
+                <Text style={{ color: "#FDE047", fontWeight: "900" }}>View</Text>
               </Pressable>
 
               <Pressable
@@ -209,10 +209,10 @@ export default function BuilderBrowse() {
                   paddingVertical: 12,
                   borderRadius: 12,
                   borderWidth: 1,
-                  borderColor: "#E6E6EA",
+                  borderColor: "#111111",
                   alignItems: "center",
                   justifyContent: "center",
-                  backgroundColor: pressed ? "#F2F3F8" : "#fff",
+                  backgroundColor: pressed ? "#FDE047" : "#FEF08A",
                 })}
               >
                 <Text style={{ fontWeight: "900" }}>Message</Text>
@@ -270,11 +270,11 @@ export default function BuilderBrowse() {
                     padding: 14,
                     borderRadius: 14,
                     borderWidth: 1,
-                    borderColor: selectedType === t ? "#111" : "#E9E9EE",
-                    backgroundColor: selectedType === t ? "#111" : "#fff",
+                    borderColor: selectedType === t ? "#111" : "#111111",
+                    backgroundColor: selectedType === t ? "#111" : "#FEF08A",
                   }}
                 >
-                  <Text style={{ fontWeight: "900", color: selectedType === t ? "#fff" : "#111" }}>
+                  <Text style={{ fontWeight: "900", color: selectedType === t ? "#FDE047" : "#111" }}>
                     {t}
                   </Text>
                 </Pressable>
@@ -292,8 +292,8 @@ const fieldStyle = {
   paddingHorizontal: 12,
   borderRadius: 12,
   borderWidth: 1,
-  borderColor: "#E6E6EA",
-  backgroundColor: "#FAFAFC",
+  borderColor: "#111111",
+  backgroundColor: "#fff",
   flexDirection: "row" as const,
   justifyContent: "space-between" as const,
   alignItems: "center" as const,

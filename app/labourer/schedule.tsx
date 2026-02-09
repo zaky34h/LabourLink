@@ -58,7 +58,7 @@ export default function LabourerSchedule() {
   }
 
   return (
-    <View style={{ flex: 1, padding: 16, paddingTop: 60, backgroundColor: "#F6F7FB" }}>
+    <View style={{ flex: 1, padding: 16, paddingTop: 60, backgroundColor: "#fff" }}>
       <Text style={{ fontSize: 26, fontWeight: "900" }}>Schedule</Text>
       <Text style={{ marginTop: 6, opacity: 0.7 }}>
         Tap dates you are available. Builders can filter by date.
@@ -66,7 +66,7 @@ export default function LabourerSchedule() {
 
       <View style={{ height: 14 }} />
 
-      <View style={{ backgroundColor: "#fff", borderRadius: 16, borderWidth: 1, borderColor: "#E9E9EE", padding: 10 }}>
+      <View style={{ backgroundColor: "#fff", borderRadius: 16, borderWidth: 1, borderColor: "#111111", padding: 10 }}>
         <Calendar onDayPress={(day) => toggleDate(day.dateString)} markedDates={markedDates} />
       </View>
 
@@ -85,7 +85,7 @@ export default function LabourerSchedule() {
           alignItems: "center",
         }}
       >
-        <Text style={{ color: "#fff", fontWeight: "900" }}>
+        <Text style={{ color: "#FDE047", fontWeight: "900" }}>
           {saving ? "Saving..." : "Save Availability"}
         </Text>
       </Pressable>

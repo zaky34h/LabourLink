@@ -69,7 +69,7 @@ export default function BuilderProfile() {
       <Text style={{ fontSize: 26, fontWeight: "900" }}>Profile</Text>
 
       {/* Stars placeholder */}
-      <View style={{ padding: 14, borderWidth: 1, borderColor: "#eee", borderRadius: 12 }}>
+      <View style={{ padding: 14, borderWidth: 1, borderColor: "#111111", borderRadius: 12 }}>
         <Text style={{ fontWeight: "800" }}>Company Stars</Text>
         <Text style={{ marginTop: 6, opacity: 0.7 }}>⭐ 0.0 (coming soon)</Text>
       </View>
@@ -84,12 +84,12 @@ export default function BuilderProfile() {
         onPress={onSave}
         style={{ padding: 16, backgroundColor: "#111", borderRadius: 12, alignItems: "center", marginTop: 6 }}
       >
-        <Text style={{ color: "#fff", fontWeight: "800" }}>Save Changes</Text>
+        <Text style={{ color: "#FDE047", fontWeight: "800" }}>Save Changes</Text>
       </Pressable>
 
       <Pressable
         onPress={logout}
-        style={{ padding: 16, borderWidth: 1, borderColor: "#ddd", borderRadius: 12, alignItems: "center" }}
+        style={{ padding: 16, borderWidth: 1, borderColor: "#111111", borderRadius: 12, alignItems: "center" }}
       >
         <Text style={{ fontWeight: "800" }}>Logout</Text>
       </Pressable>
@@ -106,7 +106,7 @@ function Field(props: any) {
         {...rest}
         style={{
           borderWidth: 1,
-          borderColor: "#ddd",
+          borderColor: "#111111",
           borderRadius: 10,
           padding: 14,
           minHeight: rest.multiline ? 90 : undefined,

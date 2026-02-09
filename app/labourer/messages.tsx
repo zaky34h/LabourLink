@@ -47,7 +47,7 @@ export default function LabourerMessages() {
   }
 
   return (
-    <View style={{ flex: 1, paddingTop: 60, paddingHorizontal: 16, backgroundColor: "#F6F7FB" }}>
+    <View style={{ flex: 1, paddingTop: 60, paddingHorizontal: 16, backgroundColor: "#fff" }}>
       <Text style={{ fontSize: 24, fontWeight: "900" }}>Messages</Text>
 
       <FlatList
@@ -68,7 +68,7 @@ export default function LabourerMessages() {
               borderRadius: 16,
               backgroundColor: "#fff",
               borderWidth: 1,
-              borderColor: "#E9E9EE",
+              borderColor: "#111111",
               marginBottom: 12,
             }}
           >

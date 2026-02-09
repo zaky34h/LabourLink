@@ -45,12 +45,12 @@ export default function LabourerProfileView() {
   const exp = labourer.experienceYears ?? 3;
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: "#F6F7FB" }} contentContainerStyle={{ padding: 16, paddingTop: 60, paddingBottom: 30, gap: 14 }}>
+    <ScrollView style={{ flex: 1, backgroundColor: "#fff" }} contentContainerStyle={{ padding: 16, paddingTop: 60, paddingBottom: 30, gap: 14 }}>
       {/* Header */}
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
         <Pressable
           onPress={() => router.back()}
-          style={{ paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, backgroundColor: "#fff", borderWidth: 1, borderColor: "#E9E9EE" }}
+          style={{ paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, backgroundColor: "#fff", borderWidth: 1, borderColor: "#111111" }}
         >
           <Text style={{ fontWeight: "900" }}>Back</Text>
         </Pressable>
@@ -59,15 +59,15 @@ export default function LabourerProfileView() {
           onPress={() => router.push(`/chat/${encodeURIComponent(labourer.email)}`)}
           style={{ marginLeft: "auto", paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, backgroundColor: "#111" }}
         >
-          <Text style={{ color: "#fff", fontWeight: "900" }}>Message</Text>
+          <Text style={{ color: "#FDE047", fontWeight: "900" }}>Message</Text>
         </Pressable>
       </View>
 
       {/* Profile card */}
-      <View style={{ backgroundColor: "#fff", borderRadius: 18, borderWidth: 1, borderColor: "#E9E9EE", padding: 16, gap: 12 }}>
+      <View style={{ backgroundColor: "#fff", borderRadius: 18, borderWidth: 1, borderColor: "#111111", padding: 16, gap: 12 }}>
         {/* Photo */}
         <View style={{ flexDirection: "row", gap: 14, alignItems: "center" }}>
-          <View style={{ width: 72, height: 72, borderRadius: 18, backgroundColor: "#F2F3F8", overflow: "hidden", borderWidth: 1, borderColor: "#E9E9EE" }}>
+          <View style={{ width: 72, height: 72, borderRadius: 18, backgroundColor: "#FDE047", overflow: "hidden", borderWidth: 1, borderColor: "#111111" }}>
             {labourer.photoUrl ? (
               <Image source={{ uri: labourer.photoUrl }} style={{ width: "100%", height: "100%" }} />
             ) : (
@@ -88,23 +88,23 @@ export default function LabourerProfileView() {
         </View>
 
         {/* About */}
-        <View style={{ paddingTop: 8, borderTopWidth: 1, borderTopColor: "#EEE" }}>
+        <View style={{ paddingTop: 8, borderTopWidth: 1, borderTopColor: "#FDE047" }}>
           <Text style={{ fontWeight: "900" }}>About</Text>
           <Text style={{ marginTop: 6, opacity: 0.8 }}>{labourer.about}</Text>
         </View>
 
         {/* Experience */}
-        <View style={{ paddingTop: 8, borderTopWidth: 1, borderTopColor: "#EEE" }}>
+        <View style={{ paddingTop: 8, borderTopWidth: 1, borderTopColor: "#FDE047" }}>
           <Text style={{ fontWeight: "900" }}>Experience</Text>
           <Text style={{ marginTop: 6, opacity: 0.8 }}>{exp} years</Text>
         </View>
 
         {/* Certifications */}
-        <View style={{ paddingTop: 8, borderTopWidth: 1, borderTopColor: "#EEE" }}>
+        <View style={{ paddingTop: 8, borderTopWidth: 1, borderTopColor: "#FDE047" }}>
           <Text style={{ fontWeight: "900" }}>Certifications</Text>
           <View style={{ marginTop: 8, gap: 8 }}>
             {certs.map((c) => (
-              <View key={c} style={{ paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, backgroundColor: "#F2F3F8" }}>
+              <View key={c} style={{ paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, backgroundColor: "#FDE047" }}>
                 <Text style={{ fontWeight: "800" }}>{c}</Text>
               </View>
             ))}
@@ -112,7 +112,7 @@ export default function LabourerProfileView() {
         </View>
 
         {/* Availability */}
-        <View style={{ paddingTop: 8, borderTopWidth: 1, borderTopColor: "#EEE" }}>
+        <View style={{ paddingTop: 8, borderTopWidth: 1, borderTopColor: "#FDE047" }}>
           <Text style={{ fontWeight: "900" }}>Availability</Text>
           <Text style={{ marginTop: 6, opacity: 0.8 }}>
             {(labourer.availableDates ?? []).length} date(s) selected

@@ -8,7 +8,7 @@ export default function BuilderTabsLayout() {
         headerShown: false,
         tabBarLabelStyle: { fontWeight: "700" },
         tabBarActiveTintColor: "#111",
-        tabBarInactiveTintColor: "#999",
+        tabBarInactiveTintColor: "#444444",
       }}
     >
       {/* Home */}
@@ -40,6 +40,17 @@ export default function BuilderTabsLayout() {
           title: "Messages",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="chatbubble" size={size} color={color} />
+          ),
+        }}
+      />
+
+      {/* Subscription */}
+      <Tabs.Screen
+        name="subscription"
+        options={{
+          title: "Subscription",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="card" size={size} color={color} />
           ),
         }}
       />

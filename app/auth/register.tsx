@@ -81,6 +81,12 @@ export default function Register() {
         about: about.trim(),
         companyName: companyName.trim(),
         address: address.trim(),
+        subscription: {
+          planName: "Starter",
+          status: "trial",
+          monthlyPrice: 0,
+          renewalDate: null,
+        },
         email: email.trim(),
         password,
       };
@@ -146,12 +152,12 @@ export default function Register() {
               padding: 12,
               borderRadius: 12,
               alignItems: "center",
-              backgroundColor: role === "builder" ? "#111" : "#fff",
+              backgroundColor: role === "builder" ? "#111" : "#FEF08A",
               borderWidth: 1,
-              borderColor: role === "builder" ? "#111" : "#ddd",
+              borderColor: role === "builder" ? "#111" : "#111111",
             }}
           >
-            <Text style={{ fontWeight: "800", color: role === "builder" ? "#fff" : "#111" }}>
+            <Text style={{ fontWeight: "800", color: role === "builder" ? "#FDE047" : "#111" }}>
               Builder
             </Text>
           </Pressable>
@@ -163,12 +169,12 @@ export default function Register() {
               padding: 12,
               borderRadius: 12,
               alignItems: "center",
-              backgroundColor: role === "labourer" ? "#111" : "#fff",
+              backgroundColor: role === "labourer" ? "#111" : "#FEF08A",
               borderWidth: 1,
-              borderColor: role === "labourer" ? "#111" : "#ddd",
+              borderColor: role === "labourer" ? "#111" : "#111111",
             }}
           >
-            <Text style={{ fontWeight: "800", color: role === "labourer" ? "#fff" : "#111" }}>
+            <Text style={{ fontWeight: "800", color: role === "labourer" ? "#FDE047" : "#111" }}>
               Labourer
             </Text>
           </Pressable>
@@ -223,8 +229,8 @@ export default function Register() {
                   paddingHorizontal: 12,
                   borderRadius: 12,
                   borderWidth: 1,
-                  borderColor: "#E6E6EA",
-                  backgroundColor: "#FAFAFC",
+                  borderColor: "#111111",
+                  backgroundColor: "#fff",
                 }}
               >
                 <Text style={{ fontWeight: "700" }}>
@@ -258,7 +264,7 @@ export default function Register() {
           onPress={onCreateAccount}
           style={{ padding: 16, backgroundColor: "#111", borderRadius: 12, alignItems: "center", marginTop: 8 }}
         >
-          <Text style={{ color: "#fff", fontWeight: "800" }}>Create Account</Text>
+          <Text style={{ color: "#FDE047", fontWeight: "800" }}>Create Account</Text>
         </Pressable>
 
         <Pressable onPress={() => router.replace("/")}>
@@ -300,7 +306,7 @@ function Field(props: any) {
         {...rest}
         style={{
           borderWidth: 1,
-          borderColor: "#ddd",
+          borderColor: "#111111",
           borderRadius: 10,
           padding: 14,
           minHeight: rest.multiline ? 90 : undefined,

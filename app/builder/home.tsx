@@ -9,7 +9,7 @@ export default function BuilderHome() {
 
   return (
     <ScrollView
-      style={{ flex: 1, backgroundColor: "#F6F7FB" }}
+      style={{ flex: 1, backgroundColor: "#fff" }}
       contentContainerStyle={{ padding: 20, paddingTop: 60, gap: 20 }}
       showsVerticalScrollIndicator={false}
     >
@@ -77,7 +77,7 @@ function StatCard({ title, value }: { title: string; value: string }) {
         padding: 16,
         borderRadius: 16,
         borderWidth: 1,
-        borderColor: "#E9E9EE",
+        borderColor: "#111111",
       }}
     >
       <Text style={{ fontSize: 24, fontWeight: "900" }}>{value}</Text>
@@ -103,14 +103,14 @@ function ActionButton({
     <Pressable
       onPress={disabled ? undefined : onPress}
       style={{
-        backgroundColor: disabled ? "#EEE" : "#111",
+        backgroundColor: disabled ? "#FDE047" : "#111",
         padding: 16,
         borderRadius: 16,
       }}
     >
       <Text
         style={{
-          color: disabled ? "#888" : "#fff",
+          color: disabled ? "#333333" : "#FDE047",
           fontWeight: "900",
           fontSize: 16,
         }}
@@ -119,7 +119,7 @@ function ActionButton({
       </Text>
       <Text
         style={{
-          color: disabled ? "#999" : "#DDD",
+          color: disabled ? "#444444" : "#FDE047",
           marginTop: 4,
           fontWeight: "600",
         }}
@@ -144,7 +144,7 @@ function ActivityItem({
         padding: 14,
         borderRadius: 14,
         borderWidth: 1,
-        borderColor: "#E9E9EE",
+        borderColor: "#111111",
       }}
     >
       <Text

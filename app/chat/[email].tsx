@@ -59,13 +59,13 @@ export default function ChatWithPeer() {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: "#F6F7FB" }}
+      style={{ flex: 1, backgroundColor: "#fff" }}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
     >
       {/* Header */}
       <View style={{ paddingTop: 60, paddingHorizontal: 16, paddingBottom: 12, flexDirection: "row", alignItems: "center", gap: 12 }}>
-        <Pressable onPress={() => router.back()} style={{ padding: 10, borderRadius: 10, backgroundColor: "#fff", borderWidth: 1, borderColor: "#E9E9EE" }}>
+        <Pressable onPress={() => router.back()} style={{ padding: 10, borderRadius: 10, backgroundColor: "#fff", borderWidth: 1, borderColor: "#111111" }}>
           <Text style={{ fontWeight: "900" }}>Back</Text>
         </Pressable>
 
@@ -96,15 +96,15 @@ export default function ChatWithPeer() {
                   paddingVertical: 10,
                   paddingHorizontal: 12,
                   borderRadius: 16,
-                  backgroundColor: mine ? "#111" : "#fff",
+                  backgroundColor: mine ? "#111" : "#FEF08A",
                   borderWidth: mine ? 0 : 1,
-                  borderColor: "#E9E9EE",
+                  borderColor: "#111111",
                 }}
               >
-                <Text style={{ color: mine ? "#fff" : "#111", fontWeight: "700" }}>
+                <Text style={{ color: mine ? "#FDE047" : "#111", fontWeight: "700" }}>
                   {item.text}
                 </Text>
-                <Text style={{ color: mine ? "#ddd" : "#777", marginTop: 6, fontSize: 11 }}>
+                <Text style={{ color: mine ? "#111111" : "#333333", marginTop: 6, fontSize: 11 }}>
                   {new Date(item.createdAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
                 </Text>
               </View>
@@ -121,7 +121,7 @@ export default function ChatWithPeer() {
       />
 
       {/* Input */}
-      <View style={{ padding: 12, paddingBottom: 20, borderTopWidth: 1, borderTopColor: "#E9E9EE", backgroundColor: "#fff" }}>
+      <View style={{ padding: 12, paddingBottom: 20, borderTopWidth: 1, borderTopColor: "#111111", backgroundColor: "#fff" }}>
         <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
           <TextInput
             value={text}
@@ -130,11 +130,11 @@ export default function ChatWithPeer() {
             style={{
               flex: 1,
               borderWidth: 1,
-              borderColor: "#E6E6EA",
+              borderColor: "#111111",
               borderRadius: 14,
               paddingHorizontal: 14,
               paddingVertical: 12,
-              backgroundColor: "#FAFAFC",
+              backgroundColor: "#fff",
               fontWeight: "600",
             }}
           />
@@ -147,7 +147,7 @@ export default function ChatWithPeer() {
               backgroundColor: "#111",
             }}
           >
-            <Text style={{ color: "#fff", fontWeight: "900" }}>Send</Text>
+            <Text style={{ color: "#FDE047", fontWeight: "900" }}>Send</Text>
           </Pressable>
         </View>
       </View>

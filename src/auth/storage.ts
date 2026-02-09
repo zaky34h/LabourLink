@@ -5,6 +5,13 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 ====================== */
 export type Role = "builder" | "labourer";
 
+export type BuilderSubscription = {
+  planName: "Starter" | "Pro" | "Enterprise";
+  status: "trial" | "active" | "past_due" | "cancelled";
+  monthlyPrice: number;
+  renewalDate: string | null; // ISO date, e.g. 2026-03-01
+};
+
 export type BuilderUser = {
   role: "builder";
   firstName: string;
@@ -12,6 +19,7 @@ export type BuilderUser = {
   companyName: string;
   about: string;
   address: string;
+  subscription?: BuilderSubscription;
   email: string;
   password: string;
 };

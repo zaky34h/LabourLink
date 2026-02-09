@@ -46,7 +46,7 @@ export default function Login() {
             keyboardType="email-address"
             style={{
               borderWidth: 1,
-              borderColor: "#ddd",
+              borderColor: "#111111",
               borderRadius: 10,
               padding: 14,
             }}
@@ -65,7 +65,7 @@ export default function Login() {
             secureTextEntry
             style={{
               borderWidth: 1,
-              borderColor: "#ddd",
+              borderColor: "#111111",
               borderRadius: 10,
               padding: 14,
             }}
@@ -101,7 +101,7 @@ export default function Login() {
             marginTop: 10,
           }}
         >
-          <Text style={{ color: "#fff", fontWeight: "800" }}>
+          <Text style={{ color: "#FDE047", fontWeight: "800" }}>
             Login
           </Text>
         </Pressable>
@@ -111,7 +111,7 @@ export default function Login() {
           style={{
             padding: 16,
             borderWidth: 1,
-            borderColor: "#ddd",
+            borderColor: "#111111",
             borderRadius: 12,
             alignItems: "center",
           }}

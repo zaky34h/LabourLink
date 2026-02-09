@@ -31,7 +31,7 @@ export default function LabourerHome() {
 
 function StatCard({ title, value }: { title: string; value: string }) {
   return (
-    <View style={{ flex: 1, padding: 14, borderWidth: 1, borderColor: "#eee", borderRadius: 12 }}>
+    <View style={{ flex: 1, padding: 14, borderWidth: 1, borderColor: "#111111", borderRadius: 12 }}>
       <Text style={{ fontWeight: "900", fontSize: 18 }}>{value}</Text>
       <Text style={{ opacity: 0.7, marginTop: 6, fontWeight: "700" }}>{title}</Text>
     </View>
