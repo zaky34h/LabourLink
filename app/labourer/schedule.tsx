@@ -25,7 +25,7 @@ export default function LabourerSchedule() {
 
   const markedDates = useMemo(() => {
     return selected.reduce((acc, d) => {
-      acc[d] = { selected: true };
+      acc[d] = { selected: true, selectedColor: "#111", selectedTextColor: "#FDE047" };
       return acc;
     }, {} as Record<string, any>);
   }, [selected]);
@@ -73,6 +73,21 @@ export default function LabourerSchedule() {
       <Text style={{ marginTop: 12, opacity: 0.7, fontWeight: "700" }}>
         Selected: {selected.length}
       </Text>
+
+      <Pressable
+        onPress={() => setSelected([])}
+        style={{
+          marginTop: 8,
+          paddingVertical: 10,
+          borderRadius: 10,
+          borderWidth: 1,
+          borderColor: "#111111",
+          alignItems: "center",
+          backgroundColor: "#fff",
+        }}
+      >
+        <Text style={{ fontWeight: "800" }}>Clear All</Text>
+      </Pressable>
 
       <Pressable
         onPress={onSave}

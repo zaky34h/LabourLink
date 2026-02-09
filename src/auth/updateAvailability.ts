@@ -1,19 +1,17 @@
-import { getUsers, saveUsers, type LabourerUser } from "./storage";
+import { apiRequest } from "../api/client";
 
 export async function updateLabourerAvailability(
-  email: string,
+  _email: string,
   availableDates: string[]
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const users = await getUsers();
-  const idx = users.findIndex((u) => u.email.toLowerCase() === email.toLowerCase());
-  if (idx === -1) return { ok: false, error: "User not found" };
-
-  const user = users[idx];
-  if (user.role !== "labourer") return { ok: false, error: "Not a labourer account" };
-
-  const updated: LabourerUser = { ...user, availableDates };
-  users[idx] = updated;
-
-  await saveUsers(users);
-  return { ok: true };
+  try {
+    await apiRequest<{ ok: true }>("/labourer/availability", {
+      method: "PATCH",
+      auth: true,
+      body: { availableDates },
+    });
+    return { ok: true };
+  } catch (error: any) {
+    return { ok: false, error: error?.message || "Could not update availability." };
+  }
 }

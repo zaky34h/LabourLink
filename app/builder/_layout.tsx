@@ -44,13 +44,13 @@ export default function BuilderTabsLayout() {
         }}
       />
 
-      {/* Subscription */}
+      {/* Offers */}
       <Tabs.Screen
-        name="subscription"
+        name="offers"
         options={{
-          title: "Subscription",
+          title: "Offers",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="card" size={size} color={color} />
+            <Ionicons name="document-text" size={size} color={color} />
           ),
         }}
       />
@@ -67,6 +67,10 @@ export default function BuilderTabsLayout() {
       />
 
       {/* 🔒 Hidden routes */}
+      <Tabs.Screen
+        name="subscription"
+        options={{ href: null }}
+      />
       <Tabs.Screen
         name="labourer/[email]"
         options={{ href: null }}

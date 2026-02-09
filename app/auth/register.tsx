@@ -32,6 +32,7 @@ export default function Register() {
   // ✅ NEW labourer fields
   const [experienceYears, setExperienceYears] = useState("");
   const [certificationsText, setCertificationsText] = useState(""); // comma separated
+  const [photoUrl, setPhotoUrl] = useState("");
 
   // Common
   const [email, setEmail] = useState("");
@@ -81,6 +82,8 @@ export default function Register() {
         about: about.trim(),
         companyName: companyName.trim(),
         address: address.trim(),
+        reviews: [],
+        companyRating: 0,
         subscription: {
           planName: "Starter",
           status: "trial",
@@ -109,6 +112,11 @@ export default function Register() {
       if (certs.length === 0)
         return Alert.alert("Missing certifications", "Add at least 1 certification (comma separated).");
 
+      const trimmedPhotoUrl = photoUrl.trim();
+      if (trimmedPhotoUrl && !/^https?:\/\//i.test(trimmedPhotoUrl)) {
+        return Alert.alert("Invalid photo URL", "Photo URL must start with http:// or https://");
+      }
+
       user = {
         role: "labourer",
         firstName: firstName.trim(),
@@ -121,9 +129,7 @@ export default function Register() {
         // ✅ NEW fields required by LabourerUser
         experienceYears: exp,
         certifications: certs,
-
-        // optional for later uploads
-        // photoUrl: undefined,
+        photoUrl: trimmedPhotoUrl || undefined,
 
         email: email.trim(),
         password,
@@ -216,6 +222,13 @@ export default function Register() {
               value={certificationsText}
               onChangeText={setCertificationsText}
               placeholder="White Card, Working at Heights, ..."
+            />
+            <Field
+              label="Photo URL (optional)"
+              value={photoUrl}
+              onChangeText={setPhotoUrl}
+              autoCapitalize="none"
+              placeholder="https://..."
             />
 
             {/* Availability Calendar */}

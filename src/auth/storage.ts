@@ -1,15 +1,26 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  apiRequest,
+  clearSessionStorage,
+  getSessionEmailStorage,
+  setSession,
+} from "../api/client";
 
-/* ======================
-   Types
-====================== */
 export type Role = "builder" | "labourer";
 
 export type BuilderSubscription = {
   planName: "Starter" | "Pro" | "Enterprise";
   status: "trial" | "active" | "past_due" | "cancelled";
   monthlyPrice: number;
-  renewalDate: string | null; // ISO date, e.g. 2026-03-01
+  renewalDate: string | null;
+};
+
+export type BuilderReview = {
+  id: string;
+  labourerEmail: string;
+  labourerName: string;
+  rating: number;
+  comment: string;
+  createdAt: number;
 };
 
 export type BuilderUser = {
@@ -19,112 +30,96 @@ export type BuilderUser = {
   companyName: string;
   about: string;
   address: string;
+  companyLogoUrl?: string;
+  companyRating?: number;
+  reviews?: BuilderReview[];
   subscription?: BuilderSubscription;
   email: string;
-  password: string;
+  password?: string;
 };
 
 export type LabourerUser = {
   role: "labourer";
   firstName: string;
   lastName: string;
-
   occupation: string;
   about: string;
-
   pricePerHour: number;
-
-  // ✅ calendar availability (YYYY-MM-DD)
   availableDates: string[];
-
-  // ✅ NEW fields for the labourer "View" page
-  certifications: string[];     // e.g. ["White Card", "Working at Heights"]
-  experienceYears: number;      // e.g. 3
-  photoUrl?: string;            // optional (later when we add uploads)
-
+  certifications: string[];
+  experienceYears: number;
+  photoUrl?: string;
   email: string;
-  password: string;
+  password?: string;
 };
 
 export type User = BuilderUser | LabourerUser;
 
-/* ======================
-   Storage keys
-====================== */
-const USERS_KEY = "labourlink_users";
-const SESSION_KEY = "labourlink_session_email";
-
-/* ======================
-   Users
-====================== */
 export async function getUsers(): Promise<User[]> {
-  const raw = await AsyncStorage.getItem(USERS_KEY);
-  return raw ? (JSON.parse(raw) as User[]) : [];
+  const res = await apiRequest<{ ok: true; users: User[] }>("/users", { auth: true });
+  return res.users;
 }
 
-export async function saveUsers(users: User[]): Promise<void> {
-  await AsyncStorage.setItem(USERS_KEY, JSON.stringify(users));
+export async function saveUsers(_users: User[]): Promise<void> {
+  throw new Error("saveUsers is no longer supported. Use backend update endpoints.");
 }
 
-/* ======================
-   Register
-====================== */
 export async function registerUser(
   newUser: User
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const users = await getUsers();
-  const exists = users.some(
-    (u) => u.email.toLowerCase() === newUser.email.toLowerCase()
-  );
-
-  if (exists) return { ok: false, error: "Email already exists" };
-
-  users.push(newUser);
-  await saveUsers(users);
-  return { ok: true };
+  try {
+    await apiRequest<{ ok: true; user: User }>("/auth/register", {
+      method: "POST",
+      body: newUser,
+    });
+    return { ok: true };
+  } catch (error: any) {
+    return { ok: false, error: error?.message || "Registration failed." };
+  }
 }
 
-/* ======================
-   Session
-====================== */
 export async function saveSession(email: string): Promise<void> {
-  await AsyncStorage.setItem(SESSION_KEY, email);
+  // Kept for compatibility; backend login sets real token.
+  await setSession("", email);
 }
 
 export async function getSessionEmail(): Promise<string | null> {
-  return AsyncStorage.getItem(SESSION_KEY);
+  return getSessionEmailStorage();
 }
 
 export async function clearSession(): Promise<void> {
-  await AsyncStorage.removeItem(SESSION_KEY);
+  try {
+    await apiRequest<{ ok: true }>("/auth/logout", { method: "POST", auth: true });
+  } catch {
+    // no-op: local clear still proceeds
+  }
+  await clearSessionStorage();
 }
 
-/* ======================
-   Login
-====================== */
 export async function loginUser(
   email: string,
   password: string
 ): Promise<{ ok: true; user: User } | { ok: false; error: string }> {
-  const users = await getUsers();
-  const user = users.find(
-    (u) => u.email.toLowerCase() === email.toLowerCase()
-  );
-
-  if (!user) return { ok: false, error: "Account not found" };
-  if (user.password !== password)
-    return { ok: false, error: "Incorrect password" };
-
-  await saveSession(user.email);
-  return { ok: true, user };
+  try {
+    const res = await apiRequest<{ ok: true; token: string; user: User }>("/auth/login", {
+      method: "POST",
+      body: { email, password },
+    });
+    await setSession(res.token, res.user.email);
+    return { ok: true, user: res.user };
+  } catch (error: any) {
+    return { ok: false, error: error?.message || "Login failed." };
+  }
 }
 
-/* ======================
-   Helpers
-====================== */
 export async function getUserByEmail(email: string): Promise<User | null> {
-  const users = await getUsers();
-  return (
-    users.find((u) => u.email.toLowerCase() === email.toLowerCase()) ?? null
-  );
+  try {
+    const res = await apiRequest<{ ok: true; user: User }>(`/users/${encodeURIComponent(email)}`, {
+      auth: true,
+    });
+    return res.user;
+  } catch {
+    return null;
+  }
 }
+
