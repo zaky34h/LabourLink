@@ -20,10 +20,20 @@ export type LabourerUser = {
   role: "labourer";
   firstName: string;
   lastName: string;
+
   occupation: string;
   about: string;
+
   pricePerHour: number;
-  availableDates: string[]; // ✅ calendar availability (YYYY-MM-DD)
+
+  // ✅ calendar availability (YYYY-MM-DD)
+  availableDates: string[];
+
+  // ✅ NEW fields for the labourer "View" page
+  certifications: string[];     // e.g. ["White Card", "Working at Heights"]
+  experienceYears: number;      // e.g. 3
+  photoUrl?: string;            // optional (later when we add uploads)
+
   email: string;
   password: string;
 };
@@ -94,7 +104,8 @@ export async function loginUser(
   );
 
   if (!user) return { ok: false, error: "Account not found" };
-  if (user.password !== password) return { ok: false, error: "Incorrect password" };
+  if (user.password !== password)
+    return { ok: false, error: "Incorrect password" };
 
   await saveSession(user.email);
   return { ok: true, user };

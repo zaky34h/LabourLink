@@ -1,45 +1,39 @@
-import { View, Text, Pressable, ActivityIndicator } from "react-native";
-import { router } from "expo-router";
-import { clearSession } from "../../src/auth/storage";
+import { View, Text } from "react-native";
 import { useCurrentUser } from "../../src/auth/useCurrentUser";
 
 export default function LabourerHome() {
-  const { user, loading } = useCurrentUser();
-
-  async function logout() {
-    await clearSession();
-    router.replace("/");
-  }
-
-  if (loading) {
-    return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator />
-      </View>
-    );
-  }
+  const { user } = useCurrentUser();
+  const name = user ? `${user.firstName} ${user.lastName}` : "Welcome";
 
   return (
-    <View style={{ flex: 1, padding: 24, paddingTop: 60, gap: 14 }}>
-      <Text style={{ fontSize: 26, fontWeight: "900" }}>Labourer Home</Text>
+    <View style={{ flex: 1, padding: 24, paddingTop: 60, gap: 10 }}>
+      <Text style={{ fontSize: 26, fontWeight: "900" }}>Home</Text>
+      <Text style={{ fontSize: 18, fontWeight: "800" }}>{name}</Text>
 
-      {user?.role === "labourer" && (
-        <View style={{ padding: 14, borderWidth: 1, borderColor: "#eee", borderRadius: 12 }}>
-          <Text style={{ fontWeight: "800" }}>
-            {user.firstName} {user.lastName}
-          </Text>
-          <Text style={{ opacity: 0.7, marginTop: 4 }}>
-            {user.occupation} • ${user.pricePerHour}/hr
-          </Text>
-        </View>
-      )}
+      <View style={{ height: 10 }} />
 
-      <Pressable
-        onPress={logout}
-        style={{ padding: 16, borderWidth: 1, borderColor: "#ddd", borderRadius: 12, alignItems: "center" }}
-      >
-        <Text style={{ fontWeight: "800" }}>Logout</Text>
-      </Pressable>
+      <View style={{ flexDirection: "row", gap: 12 }}>
+        <StatCard title="New Messages" value="0" />
+        <StatCard title="Upcoming Jobs" value="0" />
+      </View>
+
+      <View style={{ flexDirection: "row", gap: 12 }}>
+        <StatCard title="Quotes Sent" value="0" />
+        <StatCard title="Profile Views" value="0" />
+      </View>
+
+      <Text style={{ marginTop: 10, opacity: 0.7 }}>
+        Next: Schedule will control your availability calendar.
+      </Text>
+    </View>
+  );
+}
+
+function StatCard({ title, value }: { title: string; value: string }) {
+  return (
+    <View style={{ flex: 1, padding: 14, borderWidth: 1, borderColor: "#eee", borderRadius: 12 }}>
+      <Text style={{ fontWeight: "900", fontSize: 18 }}>{value}</Text>
+      <Text style={{ opacity: 0.7, marginTop: 6, fontWeight: "700" }}>{title}</Text>
     </View>
   );
 }

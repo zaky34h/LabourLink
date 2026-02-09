@@ -1,4 +1,5 @@
 import { Tabs } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 
 export default function BuilderTabsLayout() {
   return (
@@ -6,12 +7,59 @@ export default function BuilderTabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarLabelStyle: { fontWeight: "700" },
+        tabBarActiveTintColor: "#111",
+        tabBarInactiveTintColor: "#999",
       }}
     >
-      <Tabs.Screen name="home" options={{ title: "Home" }} />
-      <Tabs.Screen name="browse" options={{ title: "Browse" }} />
-      <Tabs.Screen name="messages" options={{ title: "Messages" }} />
-      <Tabs.Screen name="profile" options={{ title: "Profile" }} />
+      {/* Home */}
+      <Tabs.Screen
+        name="home"
+        options={{
+          title: "Home",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="home" size={size} color={color} />
+          ),
+        }}
+      />
+
+      {/* Browse */}
+      <Tabs.Screen
+        name="browse"
+        options={{
+          title: "Browse",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="list" size={size} color={color} />
+          ),
+        }}
+      />
+
+      {/* Messages */}
+      <Tabs.Screen
+        name="messages"
+        options={{
+          title: "Messages",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="chatbubble" size={size} color={color} />
+          ),
+        }}
+      />
+
+      {/* Profile */}
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: "Profile",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person" size={size} color={color} />
+          ),
+        }}
+      />
+
+      {/* 🔒 Hidden routes */}
+      <Tabs.Screen
+        name="labourer/[email]"
+        options={{ href: null }}
+      />
     </Tabs>
   );
 }

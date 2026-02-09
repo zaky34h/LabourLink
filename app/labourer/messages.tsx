@@ -5,7 +5,7 @@ import { useCurrentUser } from "../../src/auth/useCurrentUser";
 import { getThreadsForUser, type ChatThread } from "../../src/chat/storage";
 import { getUserByEmail } from "../../src/auth/storage";
 
-export default function BuilderMessages() {
+export default function LabourerMessages() {
   const { user } = useCurrentUser();
   const [loading, setLoading] = useState(true);
   const [threads, setThreads] = useState<ChatThread[]>([]);
@@ -57,7 +57,7 @@ export default function BuilderMessages() {
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <Text style={{ marginTop: 26, opacity: 0.7, fontWeight: "700" }}>
-            No chats yet. Browse labourers and message one.
+            No chats yet. A builder will message you once they’re interested.
           </Text>
         }
         renderItem={({ item }) => (

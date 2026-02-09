@@ -1,26 +1,25 @@
-import { View, Text, ActivityIndicator, Pressable } from "react-native";
-import { useLocalSearchParams, router } from "expo-router";
 import { useEffect, useState } from "react";
+import { View, Text, Pressable, ActivityIndicator, Image, ScrollView } from "react-native";
+import { router, useLocalSearchParams } from "expo-router";
 import { getUserByEmail, type LabourerUser } from "../../../src/auth/storage";
 
-export default function LabourerProfile() {
+export default function LabourerProfileView() {
   const { email } = useLocalSearchParams<{ email: string }>();
-  const decodedEmail = decodeURIComponent(email ?? "");
+  const labourerEmail = decodeURIComponent(email ?? "");
 
   const [loading, setLoading] = useState(true);
   const [labourer, setLabourer] = useState<LabourerUser | null>(null);
 
   async function load() {
     setLoading(true);
-    const user = await getUserByEmail(decodedEmail);
-    if (user && user.role === "labourer") setLabourer(user);
-    else setLabourer(null);
+    const u = await getUserByEmail(labourerEmail);
+    setLabourer(u?.role === "labourer" ? (u as LabourerUser) : null);
     setLoading(false);
   }
 
   useEffect(() => {
     load();
-  }, [decodedEmail]);
+  }, [labourerEmail]);
 
   if (loading) {
     return (
@@ -33,45 +32,93 @@ export default function LabourerProfile() {
   if (!labourer) {
     return (
       <View style={{ flex: 1, padding: 24, paddingTop: 60 }}>
-        <Text style={{ fontSize: 20, fontWeight: "900" }}>Not found</Text>
-        <Text style={{ marginTop: 6, opacity: 0.7 }}>
-          This labourer account doesn’t exist.
-        </Text>
-        <Pressable onPress={() => router.back()} style={{ marginTop: 16 }}>
-          <Text style={{ fontWeight: "800" }}>Go back</Text>
+        <Text style={{ fontSize: 20, fontWeight: "900" }}>Labourer not found</Text>
+        <Pressable onPress={() => router.back()} style={{ marginTop: 12 }}>
+          <Text style={{ fontWeight: "900" }}>Go back</Text>
         </Pressable>
       </View>
     );
   }
 
-  return (
-    <View style={{ flex: 1, padding: 24, paddingTop: 60, gap: 14 }}>
-      <Text style={{ fontSize: 26, fontWeight: "900" }}>
-        {labourer.firstName} {labourer.lastName}
-      </Text>
+  const fullName = `${labourer.firstName} ${labourer.lastName}`;
+  const certs = labourer.certifications ?? ["White Card (example)", "Working at Heights (example)"];
+  const exp = labourer.experienceYears ?? 3;
 
-      <View style={{ padding: 14, borderWidth: 1, borderColor: "#eee", borderRadius: 12, gap: 6 }}>
-        <Text style={{ fontWeight: "800" }}>{labourer.occupation}</Text>
-        <Text style={{ fontWeight: "800" }}>${labourer.pricePerHour}/hr</Text>
-        <Text style={{ opacity: 0.75 }}>{labourer.email}</Text>
+  return (
+    <ScrollView style={{ flex: 1, backgroundColor: "#F6F7FB" }} contentContainerStyle={{ padding: 16, paddingTop: 60, paddingBottom: 30, gap: 14 }}>
+      {/* Header */}
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+        <Pressable
+          onPress={() => router.back()}
+          style={{ paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, backgroundColor: "#fff", borderWidth: 1, borderColor: "#E9E9EE" }}
+        >
+          <Text style={{ fontWeight: "900" }}>Back</Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => router.push(`/chat/${encodeURIComponent(labourer.email)}`)}
+          style={{ marginLeft: "auto", paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, backgroundColor: "#111" }}
+        >
+          <Text style={{ color: "#fff", fontWeight: "900" }}>Message</Text>
+        </Pressable>
       </View>
 
-      <Text style={{ fontSize: 16, fontWeight: "800" }}>About</Text>
-      <Text style={{ opacity: 0.8 }}>{labourer.about}</Text>
+      {/* Profile card */}
+      <View style={{ backgroundColor: "#fff", borderRadius: 18, borderWidth: 1, borderColor: "#E9E9EE", padding: 16, gap: 12 }}>
+        {/* Photo */}
+        <View style={{ flexDirection: "row", gap: 14, alignItems: "center" }}>
+          <View style={{ width: 72, height: 72, borderRadius: 18, backgroundColor: "#F2F3F8", overflow: "hidden", borderWidth: 1, borderColor: "#E9E9EE" }}>
+            {labourer.photoUrl ? (
+              <Image source={{ uri: labourer.photoUrl }} style={{ width: "100%", height: "100%" }} />
+            ) : (
+              <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+                <Text style={{ fontWeight: "900", fontSize: 22 }}>
+                  {labourer.firstName[0]}
+                  {labourer.lastName[0]}
+                </Text>
+              </View>
+            )}
+          </View>
 
-      <Pressable
-        onPress={() => router.push(`/chat/${encodeURIComponent(labourer.email)}`)}
-        style={{ marginTop: 10, padding: 16, backgroundColor: "#111", borderRadius: 12, alignItems: "center" }}
-      >
-        <Text style={{ color: "#fff", fontWeight: "800" }}>Message</Text>
-      </Pressable>
+          <View style={{ flex: 1, gap: 4 }}>
+            <Text style={{ fontSize: 20, fontWeight: "900" }}>{fullName}</Text>
+            <Text style={{ fontWeight: "800", opacity: 0.8 }}>{labourer.occupation}</Text>
+            <Text style={{ opacity: 0.75 }}>${labourer.pricePerHour}/hr</Text>
+          </View>
+        </View>
 
-      <Pressable
-        onPress={() => router.back()}
-        style={{ padding: 16, borderWidth: 1, borderColor: "#ddd", borderRadius: 12, alignItems: "center" }}
-      >
-        <Text style={{ fontWeight: "800" }}>Back</Text>
-      </Pressable>
-    </View>
+        {/* About */}
+        <View style={{ paddingTop: 8, borderTopWidth: 1, borderTopColor: "#EEE" }}>
+          <Text style={{ fontWeight: "900" }}>About</Text>
+          <Text style={{ marginTop: 6, opacity: 0.8 }}>{labourer.about}</Text>
+        </View>
+
+        {/* Experience */}
+        <View style={{ paddingTop: 8, borderTopWidth: 1, borderTopColor: "#EEE" }}>
+          <Text style={{ fontWeight: "900" }}>Experience</Text>
+          <Text style={{ marginTop: 6, opacity: 0.8 }}>{exp} years</Text>
+        </View>
+
+        {/* Certifications */}
+        <View style={{ paddingTop: 8, borderTopWidth: 1, borderTopColor: "#EEE" }}>
+          <Text style={{ fontWeight: "900" }}>Certifications</Text>
+          <View style={{ marginTop: 8, gap: 8 }}>
+            {certs.map((c) => (
+              <View key={c} style={{ paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, backgroundColor: "#F2F3F8" }}>
+                <Text style={{ fontWeight: "800" }}>{c}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* Availability */}
+        <View style={{ paddingTop: 8, borderTopWidth: 1, borderTopColor: "#EEE" }}>
+          <Text style={{ fontWeight: "900" }}>Availability</Text>
+          <Text style={{ marginTop: 6, opacity: 0.8 }}>
+            {(labourer.availableDates ?? []).length} date(s) selected
+          </Text>
+        </View>
+      </View>
+    </ScrollView>
   );
 }

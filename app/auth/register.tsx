@@ -5,12 +5,12 @@ import {
   TextInput,
   Pressable,
   Alert,
-  ScrollView,
   Modal,
 } from "react-native";
 import { router } from "expo-router";
 import { Calendar } from "react-native-calendars";
 import { registerUser, type Role, type User } from "../../src/auth/storage";
+import { FormScreen } from "../../src/ui/FormScreen";
 
 export default function Register() {
   const [role, setRole] = useState<Role>("builder");
@@ -29,6 +29,10 @@ export default function Register() {
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [calendarOpen, setCalendarOpen] = useState(false);
 
+  // ✅ NEW labourer fields
+  const [experienceYears, setExperienceYears] = useState("");
+  const [certificationsText, setCertificationsText] = useState(""); // comma separated
+
   // Common
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -43,6 +47,13 @@ export default function Register() {
         ? prev.filter((d) => d !== dateString)
         : [...prev, dateString]
     );
+  }
+
+  function parseCertifications(input: string) {
+    return input
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean);
   }
 
   async function onCreateAccount() {
@@ -76,12 +87,21 @@ export default function Register() {
     } else {
       if (!occupation.trim())
         return Alert.alert("Missing info", "Please enter your occupation.");
+
       const rate = Number(pricePerHour);
       if (!Number.isFinite(rate) || rate <= 0)
         return Alert.alert("Invalid rate", "Price per hour must be a number greater than 0.");
 
       if (availableDates.length === 0)
         return Alert.alert("Availability missing", "Please select at least 1 available date.");
+
+      const exp = Number(experienceYears);
+      if (!Number.isFinite(exp) || exp < 0)
+        return Alert.alert("Invalid experience", "Experience must be a number 0 or higher.");
+
+      const certs = parseCertifications(certificationsText);
+      if (certs.length === 0)
+        return Alert.alert("Missing certifications", "Add at least 1 certification (comma separated).");
 
       user = {
         role: "labourer",
@@ -91,6 +111,14 @@ export default function Register() {
         occupation: occupation.trim(),
         pricePerHour: rate,
         availableDates,
+
+        // ✅ NEW fields required by LabourerUser
+        experienceYears: exp,
+        certifications: certs,
+
+        // optional for later uploads
+        // photoUrl: undefined,
+
         email: email.trim(),
         password,
       };
@@ -100,124 +128,143 @@ export default function Register() {
     if (!res.ok) return Alert.alert("Couldn’t create account", res.error);
 
     Alert.alert("Account created", "Now log in.", [
-      { text: "OK", onPress: () => router.replace("/") }, // "/" = Login (app/index.tsx)
+      { text: "OK", onPress: () => router.replace("/") },
     ]);
   }
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 24, paddingTop: 60, gap: 14 }}>
-      <Text style={{ fontSize: 26, fontWeight: "900" }}>Create Account</Text>
+    <FormScreen>
+      <View style={{ padding: 24, paddingTop: 60, gap: 14 }}>
+        <Text style={{ fontSize: 26, fontWeight: "900" }}>Create Account</Text>
 
-      {/* Role toggle */}
-      <View style={{ flexDirection: "row", gap: 10 }}>
+        {/* Role toggle */}
+        <View style={{ flexDirection: "row", gap: 10 }}>
+          <Pressable
+            onPress={() => setRole("builder")}
+            style={{
+              flex: 1,
+              padding: 12,
+              borderRadius: 12,
+              alignItems: "center",
+              backgroundColor: role === "builder" ? "#111" : "#fff",
+              borderWidth: 1,
+              borderColor: role === "builder" ? "#111" : "#ddd",
+            }}
+          >
+            <Text style={{ fontWeight: "800", color: role === "builder" ? "#fff" : "#111" }}>
+              Builder
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => setRole("labourer")}
+            style={{
+              flex: 1,
+              padding: 12,
+              borderRadius: 12,
+              alignItems: "center",
+              backgroundColor: role === "labourer" ? "#111" : "#fff",
+              borderWidth: 1,
+              borderColor: role === "labourer" ? "#111" : "#ddd",
+            }}
+          >
+            <Text style={{ fontWeight: "800", color: role === "labourer" ? "#fff" : "#111" }}>
+              Labourer
+            </Text>
+          </Pressable>
+        </View>
+
+        {/* Common fields */}
+        <Field label="First Name" value={firstName} onChangeText={setFirstName} />
+        <Field label="Last Name" value={lastName} onChangeText={setLastName} />
+        <Field label="About Yourself" value={about} onChangeText={setAbout} multiline />
+
+        {/* Role-specific fields */}
+        {role === "builder" ? (
+          <>
+            <Field label="Company Name" value={companyName} onChangeText={setCompanyName} />
+            <Field label="Address" value={address} onChangeText={setAddress} />
+          </>
+        ) : (
+          <>
+            <Field label="Occupation" value={occupation} onChangeText={setOccupation} />
+
+            <Field
+              label="Price Per Hour"
+              value={pricePerHour}
+              onChangeText={setPricePerHour}
+              keyboardType="numeric"
+            />
+
+            {/* ✅ New Labourer fields */}
+            <Field
+              label="Experience (Years)"
+              value={experienceYears}
+              onChangeText={setExperienceYears}
+              keyboardType="numeric"
+              placeholder="e.g. 3"
+            />
+
+            <Field
+              label="Certifications (comma separated)"
+              value={certificationsText}
+              onChangeText={setCertificationsText}
+              placeholder="White Card, Working at Heights, ..."
+            />
+
+            {/* Availability Calendar */}
+            <View style={{ gap: 8 }}>
+              <Text style={{ fontWeight: "700" }}>Availability (Calendar)</Text>
+
+              <Pressable
+                onPress={() => setCalendarOpen(true)}
+                style={{
+                  paddingVertical: 12,
+                  paddingHorizontal: 12,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: "#E6E6EA",
+                  backgroundColor: "#FAFAFC",
+                }}
+              >
+                <Text style={{ fontWeight: "700" }}>
+                  {availableDates.length === 0
+                    ? "Select available dates"
+                    : `${availableDates.length} date(s) selected`}
+                </Text>
+              </Pressable>
+
+              {availableDates.length > 0 && (
+                <Text style={{ opacity: 0.7 }}>
+                  {availableDates.slice(0, 4).join(", ")}
+                  {availableDates.length > 4 ? " ..." : ""}
+                </Text>
+              )}
+            </View>
+          </>
+        )}
+
+        {/* Common login fields */}
+        <Field
+          label="Email Address"
+          value={email}
+          onChangeText={setEmail}
+          autoCapitalize="none"
+          keyboardType="email-address"
+        />
+        <Field label="Password" value={password} onChangeText={setPassword} secureTextEntry />
+
         <Pressable
-          onPress={() => setRole("builder")}
-          style={{
-            flex: 1,
-            padding: 12,
-            borderRadius: 12,
-            alignItems: "center",
-            backgroundColor: role === "builder" ? "#111" : "#fff",
-            borderWidth: 1,
-            borderColor: role === "builder" ? "#111" : "#ddd",
-          }}
+          onPress={onCreateAccount}
+          style={{ padding: 16, backgroundColor: "#111", borderRadius: 12, alignItems: "center", marginTop: 8 }}
         >
-          <Text style={{ fontWeight: "800", color: role === "builder" ? "#fff" : "#111" }}>
-            Builder
-          </Text>
+          <Text style={{ color: "#fff", fontWeight: "800" }}>Create Account</Text>
         </Pressable>
 
-        <Pressable
-          onPress={() => setRole("labourer")}
-          style={{
-            flex: 1,
-            padding: 12,
-            borderRadius: 12,
-            alignItems: "center",
-            backgroundColor: role === "labourer" ? "#111" : "#fff",
-            borderWidth: 1,
-            borderColor: role === "labourer" ? "#111" : "#ddd",
-          }}
-        >
-          <Text style={{ fontWeight: "800", color: role === "labourer" ? "#fff" : "#111" }}>
-            Labourer
-          </Text>
+        <Pressable onPress={() => router.replace("/")}>
+          <Text style={{ textAlign: "center", fontWeight: "700" }}>Back to Login</Text>
         </Pressable>
       </View>
-
-      {/* Common fields */}
-      <Field label="First Name" value={firstName} onChangeText={setFirstName} />
-      <Field label="Last Name" value={lastName} onChangeText={setLastName} />
-      <Field label="About Yourself" value={about} onChangeText={setAbout} multiline />
-
-      {/* Role-specific fields */}
-      {role === "builder" ? (
-        <>
-          <Field label="Company Name" value={companyName} onChangeText={setCompanyName} />
-          <Field label="Address" value={address} onChangeText={setAddress} />
-        </>
-      ) : (
-        <>
-          <Field label="Occupation" value={occupation} onChangeText={setOccupation} />
-          <Field
-            label="Price Per Hour"
-            value={pricePerHour}
-            onChangeText={setPricePerHour}
-            keyboardType="numeric"
-          />
-
-          {/* Availability Calendar */}
-          <View style={{ gap: 8 }}>
-            <Text style={{ fontWeight: "700" }}>Availability (Calendar)</Text>
-
-            <Pressable
-              onPress={() => setCalendarOpen(true)}
-              style={{
-                paddingVertical: 12,
-                paddingHorizontal: 12,
-                borderRadius: 12,
-                borderWidth: 1,
-                borderColor: "#E6E6EA",
-                backgroundColor: "#FAFAFC",
-              }}
-            >
-              <Text style={{ fontWeight: "700" }}>
-                {availableDates.length === 0
-                  ? "Select available dates"
-                  : `${availableDates.length} date(s) selected`}
-              </Text>
-            </Pressable>
-
-            {availableDates.length > 0 && (
-              <Text style={{ opacity: 0.7 }}>
-                {availableDates.slice(0, 4).join(", ")}
-                {availableDates.length > 4 ? " ..." : ""}
-              </Text>
-            )}
-          </View>
-        </>
-      )}
-
-      {/* Common login fields */}
-      <Field
-        label="Email Address"
-        value={email}
-        onChangeText={setEmail}
-        autoCapitalize="none"
-        keyboardType="email-address"
-      />
-      <Field label="Password" value={password} onChangeText={setPassword} secureTextEntry />
-
-      <Pressable
-        onPress={onCreateAccount}
-        style={{ padding: 16, backgroundColor: "#111", borderRadius: 12, alignItems: "center", marginTop: 8 }}
-      >
-        <Text style={{ color: "#fff", fontWeight: "800" }}>Create Account</Text>
-      </Pressable>
-
-      <Pressable onPress={() => router.replace("/")}>
-        <Text style={{ textAlign: "center", fontWeight: "700" }}>Back to Login</Text>
-      </Pressable>
 
       {/* Calendar modal */}
       <Modal visible={calendarOpen} animationType="slide" transparent>
@@ -240,7 +287,7 @@ export default function Register() {
           </View>
         </View>
       </Modal>
-    </ScrollView>
+    </FormScreen>
   );
 }
 
