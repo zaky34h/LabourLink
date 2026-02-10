@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { router } from "expo-router";
 import { Calendar } from "react-native-calendars";
-import { registerUser, type Role, type User } from "../../src/auth/storage";
+import { loginUser, registerUser, type Role, type User } from "../../src/auth/storage";
 import { FormScreen } from "../../src/ui/FormScreen";
 
 export default function Register() {
@@ -84,12 +84,6 @@ export default function Register() {
         address: address.trim(),
         reviews: [],
         companyRating: 0,
-        subscription: {
-          planName: "Starter",
-          status: "trial",
-          monthlyPrice: 0,
-          renewalDate: null,
-        },
         email: email.trim(),
         password,
       };
@@ -139,9 +133,15 @@ export default function Register() {
     const res = await registerUser(user);
     if (!res.ok) return Alert.alert("Couldn’t create account", res.error);
 
-    Alert.alert("Account created", "Now log in.", [
-      { text: "OK", onPress: () => router.replace("/") },
-    ]);
+    const loginRes = await loginUser(email.trim(), password);
+    if (!loginRes.ok) {
+      return Alert.alert("Account created", "Please log in.", [
+        { text: "OK", onPress: () => router.replace("/") },
+      ]);
+    }
+
+    if (loginRes.user.role === "builder") router.replace("/builder/home");
+    else router.replace("/labourer/home");
   }
 
   return (

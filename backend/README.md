@@ -60,6 +60,11 @@ Set `EXPO_PUBLIC_API_BASE_URL` in `.env`:
 - `POST /auth/login`
 - `POST /auth/logout`
 - `GET /auth/me`
+- `GET /subscription`
+- `POST /subscription/start-trial`
+- `POST /subscription/activate`
+- `POST /subscription/cancel`
+- `POST /subscription/sync`
 - `GET /users`
 - `GET /users/:email`
 - `PATCH /builder/profile`

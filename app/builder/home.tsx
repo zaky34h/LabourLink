@@ -3,14 +3,25 @@ import { View, Text, Pressable, ScrollView, Modal, TextInput, Alert, RefreshCont
 import { router, useFocusEffect } from "expo-router";
 import { Calendar } from "react-native-calendars";
 import { useCurrentUser } from "../../src/auth/useCurrentUser";
+import { clearSession } from "../../src/auth/storage";
 import { getUserByEmail, type LabourerUser } from "../../src/auth/storage";
 import { getThreadsForUser } from "../../src/chat/storage";
 import { createWorkOffer } from "../../src/offers/storage";
+import { SubscriptionPaywallModal } from "../../src/subscription/SubscriptionPaywallModal";
+import {
+  getSubscriptionProducts,
+  hasActiveSubscriptionAccess,
+  openSubscriptionCustomerCenter,
+  refreshSubscriptionFromRevenueCat,
+  restoreAppleSubscriptionFlow,
+  startAppleSubscriptionFlow,
+} from "../../src/subscription/storage";
 
 export default function BuilderHome() {
-  const { user } = useCurrentUser();
+  const { user, reload } = useCurrentUser();
   const [activeChats, setActiveChats] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(false);
   const [offerModalOpen, setOfferModalOpen] = useState(false);
   const [labourers, setLabourers] = useState<LabourerUser[]>([]);
   const [selectedLabourerEmail, setSelectedLabourerEmail] = useState("");
@@ -28,6 +39,7 @@ export default function BuilderHome() {
 
   const company = user?.role === "builder" ? user.companyName : "Builder";
   const selectedLabourer = labourers.find((l) => l.email === selectedLabourerEmail);
+  const showSubscriptionModal = Boolean(user && !hasActiveSubscriptionAccess(user.subscription));
 
   function closeOfferOverlays() {
     setOfferModalOpen(false);
@@ -79,6 +91,49 @@ export default function BuilderHome() {
     setRefreshing(true);
     await loadDashboardData();
     setRefreshing(false);
+  }
+
+  async function onStartTrial() {
+    if (!user?.email) return;
+    setSubscriptionLoading(true);
+    try {
+      await startAppleSubscriptionFlow(user.email);
+      await reload();
+    } finally {
+      setSubscriptionLoading(false);
+    }
+  }
+
+  async function onSubscribe() {
+    await onStartTrial();
+  }
+
+  async function onRestore() {
+    if (!user?.email) return;
+    setSubscriptionLoading(true);
+    try {
+      await restoreAppleSubscriptionFlow(user.email);
+      await reload();
+    } finally {
+      setSubscriptionLoading(false);
+    }
+  }
+
+  async function onCustomerCenter() {
+    if (!user?.email) return;
+    setSubscriptionLoading(true);
+    try {
+      await openSubscriptionCustomerCenter(user.email);
+      await refreshSubscriptionFromRevenueCat(user.email);
+      await reload();
+    } finally {
+      setSubscriptionLoading(false);
+    }
+  }
+
+  async function onLogout() {
+    await clearSession();
+    router.replace("/");
   }
 
   function resetOfferForm() {
@@ -210,6 +265,10 @@ export default function BuilderHome() {
       let isCancelled = false;
 
       async function runLoad() {
+        if (user?.email) {
+          await refreshSubscriptionFromRevenueCat(user.email).catch(() => null);
+          await getSubscriptionProducts(user.email).catch(() => []);
+        }
         await loadDashboardData();
         if (isCancelled) return;
       }
@@ -231,12 +290,13 @@ export default function BuilderHome() {
   }, [offerModalOpen]);
 
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: "#fff" }}
-      contentContainerStyle={{ padding: 20, paddingTop: 60, gap: 20 }}
-      showsVerticalScrollIndicator={false}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-    >
+    <>
+      <ScrollView
+        style={{ flex: 1, backgroundColor: "#fff" }}
+        contentContainerStyle={{ padding: 20, paddingTop: 60, gap: 20 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
       {/* Header */}
       <View style={{ gap: 6 }}>
         <Text style={{ fontSize: 14, fontWeight: "700", color: "#111111" }}>
@@ -503,7 +563,18 @@ export default function BuilderHome() {
           </View>
         </View>
       </Modal>
-    </ScrollView>
+      </ScrollView>
+      <SubscriptionPaywallModal
+        visible={showSubscriptionModal}
+        loading={subscriptionLoading}
+        subscription={user?.subscription}
+        onStartTrial={onStartTrial}
+        onSubscribe={onSubscribe}
+        onRestore={onRestore}
+        onCustomerCenter={onCustomerCenter}
+        onLogout={onLogout}
+      />
+    </>
   );
 }
 

@@ -8,7 +8,7 @@ import {
 export type Role = "builder" | "labourer";
 
 export type BuilderSubscription = {
-  planName: "Starter" | "Pro" | "Enterprise";
+  planName: string;
   status: "trial" | "active" | "past_due" | "cancelled";
   monthlyPrice: number;
   renewalDate: string | null;
@@ -51,6 +51,7 @@ export type LabourerUser = {
   photoUrl?: string;
   bsb?: string;
   accountNumber?: string;
+  subscription?: BuilderSubscription;
   email: string;
   password?: string;
 };

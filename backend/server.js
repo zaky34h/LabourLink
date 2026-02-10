@@ -40,6 +40,30 @@ function makeThreadId(a, b) {
   return [normalizeEmail(a), normalizeEmail(b)].sort().join("__");
 }
 
+function defaultSubscription() {
+  return {
+    planName: "LabourLink Pro",
+    status: "past_due",
+    monthlyPrice: 50,
+    renewalDate: null,
+  };
+}
+
+function normalizeSubscription(input) {
+  const fallback = defaultSubscription();
+  if (!input || typeof input !== "object") return fallback;
+  const status = String(input.status || fallback.status);
+  const allowedStatus = new Set(["trial", "active", "past_due", "cancelled"]);
+  return {
+    planName: String(input.planName || fallback.planName),
+    status: allowedStatus.has(status) ? status : fallback.status,
+    monthlyPrice: Number.isFinite(Number(input.monthlyPrice))
+      ? Number(input.monthlyPrice)
+      : fallback.monthlyPrice,
+    renewalDate: input.renewalDate ? String(input.renewalDate) : null,
+  };
+}
+
 function isExpoPushToken(token) {
   return /^ExponentPushToken\[.+\]$/.test(token) || /^ExpoPushToken\[.+\]$/.test(token);
 }
@@ -359,7 +383,7 @@ function rowToUser(row) {
       companyLogoUrl: row.company_logo_url || undefined,
       companyRating: row.company_rating ?? 0,
       reviews: row.reviews || [],
-      subscription: row.subscription || undefined,
+      subscription: normalizeSubscription(row.subscription),
     };
   }
 
@@ -374,6 +398,7 @@ function rowToUser(row) {
     photoUrl: row.photo_url || undefined,
     bsb: row.bsb || undefined,
     accountNumber: row.account_number || undefined,
+    subscription: normalizeSubscription(row.subscription),
   };
 }
 
@@ -523,6 +548,7 @@ const server = http.createServer(async (req, res) => {
       if (existsRes.rows.length) return json(res, 409, { ok: false, error: "Email already exists" });
 
       const ts = now();
+      const initialSubscription = defaultSubscription();
       if (body.role === "builder") {
         await pool.query(
           `INSERT INTO users (
@@ -541,7 +567,7 @@ const server = http.createServer(async (req, res) => {
             body.companyLogoUrl || null,
             Number(body.companyRating || 0),
             JSON.stringify(body.reviews || []),
-            JSON.stringify(body.subscription || null),
+            JSON.stringify(initialSubscription),
             hashPassword(body.password),
             ts,
             ts,
@@ -552,8 +578,8 @@ const server = http.createServer(async (req, res) => {
           `INSERT INTO users (
             email, role, first_name, last_name, occupation, about, price_per_hour,
             available_dates, certifications, experience_years, photo_url, bsb, account_number,
-            password_hash, created_at, updated_at
-          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+            subscription, password_hash, created_at, updated_at
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
           [
             email,
             "labourer",
@@ -568,6 +594,7 @@ const server = http.createServer(async (req, res) => {
             body.photoUrl || null,
             body.bsb || null,
             body.accountNumber || null,
+            JSON.stringify(initialSubscription),
             hashPassword(body.password),
             ts,
             ts,
@@ -608,6 +635,101 @@ const server = http.createServer(async (req, res) => {
       const user = await requireAuth(req, res);
       if (!user) return;
       return json(res, 200, { ok: true, user });
+    }
+
+    if (req.method === "GET" && pathname === "/subscription") {
+      const authUser = await requireAuth(req, res);
+      if (!authUser) return;
+      const userRes = await pool.query("SELECT subscription FROM users WHERE email = $1 LIMIT 1", [
+        normalizeEmail(authUser.email),
+      ]);
+      if (!userRes.rows.length) return json(res, 404, { ok: false, error: "User not found." });
+      return json(res, 200, { ok: true, subscription: normalizeSubscription(userRes.rows[0].subscription) });
+    }
+
+    if (req.method === "POST" && pathname === "/subscription/start-trial") {
+      const authUser = await requireAuth(req, res);
+      if (!authUser) return;
+      const trialEndsAt = new Date(now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      const nextSub = {
+        planName: "LabourLink Pro",
+        status: "trial",
+        monthlyPrice: 50,
+        renewalDate: trialEndsAt,
+      };
+      await pool.query(
+        `UPDATE users
+         SET subscription = $1, updated_at = $2
+         WHERE email = $3`,
+        [JSON.stringify(nextSub), now(), normalizeEmail(authUser.email)]
+      );
+      return json(res, 200, { ok: true, subscription: nextSub });
+    }
+
+    if (req.method === "POST" && pathname === "/subscription/activate") {
+      const authUser = await requireAuth(req, res);
+      if (!authUser) return;
+      const renewsAt = new Date(now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      const nextSub = {
+        planName: "LabourLink Pro",
+        status: "active",
+        monthlyPrice: 50,
+        renewalDate: renewsAt,
+      };
+      await pool.query(
+        `UPDATE users
+         SET subscription = $1, updated_at = $2
+         WHERE email = $3`,
+        [JSON.stringify(nextSub), now(), normalizeEmail(authUser.email)]
+      );
+      return json(res, 200, { ok: true, subscription: nextSub });
+    }
+
+    if (req.method === "POST" && pathname === "/subscription/cancel") {
+      const authUser = await requireAuth(req, res);
+      if (!authUser) return;
+      const nextSub = {
+        planName: "LabourLink Pro",
+        status: "cancelled",
+        monthlyPrice: 50,
+        renewalDate: null,
+      };
+      await pool.query(
+        `UPDATE users
+         SET subscription = $1, updated_at = $2
+         WHERE email = $3`,
+        [JSON.stringify(nextSub), now(), normalizeEmail(authUser.email)]
+      );
+      return json(res, 200, { ok: true, subscription: nextSub });
+    }
+
+    if (req.method === "POST" && pathname === "/subscription/sync") {
+      const authUser = await requireAuth(req, res);
+      if (!authUser) return;
+      const body = await parseBody(req);
+      const status = String(body.status || "").trim().toLowerCase();
+      if (!["trial", "active", "past_due", "cancelled"].includes(status)) {
+        return json(res, 400, { ok: false, error: "Invalid subscription status." });
+      }
+
+      const planName = String(body.planName || "LabourLink Pro");
+      const monthlyPrice = Number.isFinite(Number(body.monthlyPrice)) ? Number(body.monthlyPrice) : 50;
+      const renewalDate = body.renewalDate ? String(body.renewalDate) : null;
+      const nextSub = normalizeSubscription({
+        planName,
+        status,
+        monthlyPrice,
+        renewalDate,
+      });
+
+      await pool.query(
+        `UPDATE users
+         SET subscription = $1, updated_at = $2
+         WHERE email = $3`,
+        [JSON.stringify(nextSub), now(), normalizeEmail(authUser.email)]
+      );
+
+      return json(res, 200, { ok: true, subscription: nextSub });
     }
 
     if (req.method === "POST" && pathname === "/push/register") {
