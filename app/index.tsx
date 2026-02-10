@@ -1,4 +1,4 @@
-import { View, Text, TextInput, Pressable, Alert, Image } from "react-native";
+import { View, Text, TextInput, Pressable, Image, Alert } from "react-native";
 import { useEffect, useState } from "react";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -159,34 +159,23 @@ export default function Login() {
           </Text>
         </Pressable>
 
-        {/* Google sign-in */}
+        {/* Create account */}
         <Pressable
+          onPress={() => router.push("/auth/register")}
           style={{
             padding: 16,
             borderWidth: 1,
             borderColor: "#111111",
             borderRadius: 12,
             alignItems: "center",
+            backgroundColor: "#FDE047",
           }}
-          onPress={() =>
-            Alert.alert(
-              "Google Sign-In",
-              "We’ll add real Google Sign-In later."
-            )
-          }
         >
-          <Text style={{ fontWeight: "700" }}>
-            Sign in with Google
-          </Text>
-        </Pressable>
-
-        {/* Create account */}
-        <Pressable onPress={() => router.push("/auth/register")}>
           <Text
             style={{
               textAlign: "center",
               fontWeight: "700",
-              marginTop: 6,
+              color: "#111111",
             }}
           >
             Create an account
