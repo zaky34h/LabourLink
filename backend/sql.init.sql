@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS users (
   certifications JSONB,
   experience_years INTEGER,
   photo_url TEXT,
+  bsb TEXT,
+  account_number TEXT,
   password_hash TEXT NOT NULL,
   created_at BIGINT NOT NULL,
   updated_at BIGINT NOT NULL
@@ -33,6 +35,28 @@ CREATE TABLE IF NOT EXISTS messages (
   to_email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
   text TEXT NOT NULL,
   created_at BIGINT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS chat_typing (
+  from_email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+  to_email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+  is_typing BOOLEAN NOT NULL,
+  updated_at BIGINT NOT NULL,
+  PRIMARY KEY (from_email, to_email)
+);
+
+CREATE TABLE IF NOT EXISTS chat_thread_reads (
+  email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+  peer_email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+  last_read_at BIGINT NOT NULL,
+  PRIMARY KEY (email, peer_email)
+);
+
+CREATE TABLE IF NOT EXISTS chat_thread_closures (
+  email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+  peer_email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+  closed_at BIGINT NOT NULL,
+  PRIMARY KEY (email, peer_email)
 );
 
 CREATE TABLE IF NOT EXISTS offers (
@@ -54,5 +78,43 @@ CREATE TABLE IF NOT EXISTS offers (
   updated_at BIGINT NOT NULL,
   labourer_signature TEXT,
   labourer_responded_at BIGINT,
+  completed_at BIGINT,
+  labourer_company_rating INTEGER,
   pdf_content TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS notifications (
+  id TEXT PRIMARY KEY,
+  recipient_email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+  type TEXT NOT NULL,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  data JSONB,
+  is_read BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at BIGINT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS user_push_tokens (
+  token TEXT PRIMARY KEY,
+  email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS payments (
+  id TEXT PRIMARY KEY,
+  offer_id TEXT UNIQUE NOT NULL REFERENCES offers(id) ON DELETE CASCADE,
+  builder_email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+  labourer_email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+  builder_company_name TEXT NOT NULL,
+  labourer_name TEXT NOT NULL,
+  labourer_bsb TEXT,
+  labourer_account_number TEXT,
+  amount_owed DOUBLE PRECISION NOT NULL,
+  details TEXT NOT NULL,
+  status TEXT NOT NULL,
+  receipt_content TEXT,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
+  paid_at BIGINT
 );

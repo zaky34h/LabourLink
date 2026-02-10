@@ -1,4 +1,5 @@
-import { View, Text, ActivityIndicator } from "react-native";
+import { useState } from "react";
+import { View, Text, ActivityIndicator, ScrollView, RefreshControl } from "react-native";
 import { useCurrentUser } from "../../src/auth/useCurrentUser";
 
 const defaultSubscription = {
@@ -9,7 +10,14 @@ const defaultSubscription = {
 };
 
 export default function BuilderSubscription() {
-  const { user, loading } = useCurrentUser();
+  const { user, loading, reload } = useCurrentUser();
+  const [refreshing, setRefreshing] = useState(false);
+
+  async function onRefresh() {
+    setRefreshing(true);
+    await reload();
+    setRefreshing(false);
+  }
 
   if (loading) {
     return (
@@ -36,7 +44,11 @@ export default function BuilderSubscription() {
     : "No renewal set";
 
   return (
-    <View style={{ flex: 1, padding: 24, paddingTop: 60, backgroundColor: "#fff" }}>
+    <ScrollView
+      style={{ flex: 1, backgroundColor: "#fff" }}
+      contentContainerStyle={{ padding: 24, paddingTop: 60, paddingBottom: 20 }}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+    >
       <Text style={{ fontSize: 26, fontWeight: "900" }}>Subscription</Text>
 
       <View
@@ -58,7 +70,7 @@ export default function BuilderSubscription() {
         />
         <Row label="Renewal" value={renewalLabel} />
       </View>
-    </View>
+    </ScrollView>
   );
 }
 

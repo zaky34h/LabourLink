@@ -11,7 +11,15 @@ import {
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useCurrentUser } from "../../src/auth/useCurrentUser";
-import { getMessagesWithPeer, sendMessage, type ChatMessage } from "../../src/chat/storage";
+import {
+  getMessagesWithPeer,
+  getTypingStatus,
+  markThreadRead,
+  closeThread,
+  sendMessage,
+  setTypingStatus,
+  type ChatMessage,
+} from "../../src/chat/storage";
 import { getUserByEmail } from "../../src/auth/storage";
 
 export default function ChatWithPeer() {
@@ -22,22 +30,76 @@ export default function ChatWithPeer() {
   const [peerName, setPeerName] = useState<string>(peerEmail);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [text, setText] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+  const [meTyping, setMeTyping] = useState(false);
+  const [peerTyping, setPeerTyping] = useState(false);
 
   const listRef = useRef<FlatList<ChatMessage>>(null);
+  const lastTypingSentRef = useRef(false);
+  const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loadErrorShownRef = useRef(false);
 
   async function load() {
     if (!user?.email) return;
-    const msgs = await getMessagesWithPeer(user.email, peerEmail);
-    setMessages(msgs);
+    try {
+      const [msgs, typing] = await Promise.all([
+        getMessagesWithPeer(user.email, peerEmail),
+        getTypingStatus(peerEmail),
+      ]);
+      setMessages(msgs);
+      setMeTyping(typing.meTyping);
+      setPeerTyping(typing.peerTyping);
+      loadErrorShownRef.current = false;
 
-    const peer = await getUserByEmail(peerEmail);
-    if (peer) setPeerName(`${peer.firstName} ${peer.lastName}`);
+      const peer = await getUserByEmail(peerEmail);
+      if (peer) setPeerName(`${peer.firstName} ${peer.lastName}`);
+      await markThreadRead(peerEmail);
+    } catch (error: any) {
+      if (!loadErrorShownRef.current) {
+        Alert.alert("Couldn’t load chat", error?.message || "Please try again.");
+        loadErrorShownRef.current = true;
+      }
+    }
   }
 
   useEffect(() => {
     load();
-    // (local-only) refresh when returning
+    const interval = setInterval(load, 1500);
+    return () => {
+      clearInterval(interval);
+    };
   }, [user?.email, peerEmail]);
+
+  useEffect(() => {
+    const nextTyping = text.trim().length > 0;
+
+    if (typingTimerRef.current) {
+      clearTimeout(typingTimerRef.current);
+      typingTimerRef.current = null;
+    }
+
+    typingTimerRef.current = setTimeout(async () => {
+      if (!user?.email) return;
+      if (lastTypingSentRef.current === nextTyping) return;
+      lastTypingSentRef.current = nextTyping;
+      const res = await setTypingStatus(peerEmail, nextTyping);
+      if (res.ok) setMeTyping(nextTyping);
+    }, 250);
+
+    return () => {
+      if (typingTimerRef.current) {
+        clearTimeout(typingTimerRef.current);
+        typingTimerRef.current = null;
+      }
+    };
+  }, [text, peerEmail, user?.email]);
+
+  useEffect(() => {
+    return () => {
+      if (!lastTypingSentRef.current) return;
+      setTypingStatus(peerEmail, false);
+    };
+  }, [peerEmail]);
 
   const myEmail = user?.email ?? "";
 
@@ -50,11 +112,42 @@ export default function ChatWithPeer() {
     if (!res.ok) return Alert.alert("Can’t send", res.error);
 
     setText("");
+    setMeTyping(false);
+    lastTypingSentRef.current = false;
+    await setTypingStatus(peerEmail, false);
     await load();
 
     setTimeout(() => {
       listRef.current?.scrollToEnd({ animated: true });
     }, 50);
+  }
+
+  async function onRefresh() {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  }
+
+  function onCloseChat() {
+    Alert.alert(
+      "Close chat?",
+      "This will remove the conversation from your messages list until a new message is sent.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Close Chat",
+          style: "destructive",
+          onPress: async () => {
+            const res = await closeThread(peerEmail);
+            if (!res.ok) {
+              Alert.alert("Couldn’t close chat", res.error);
+              return;
+            }
+            router.back();
+          },
+        },
+      ]
+    );
   }
 
   return (
@@ -63,28 +156,48 @@ export default function ChatWithPeer() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
     >
-      {/* Header */}
-      <View style={{ paddingTop: 60, paddingHorizontal: 16, paddingBottom: 12, flexDirection: "row", alignItems: "center", gap: 12 }}>
-        <Pressable onPress={() => router.back()} style={{ padding: 10, borderRadius: 10, backgroundColor: "#fff", borderWidth: 1, borderColor: "#111111" }}>
-          <Text style={{ fontWeight: "900" }}>Back</Text>
-        </Pressable>
-
-        <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 18, fontWeight: "900" }} numberOfLines={1}>
-            {peerName}
-          </Text>
-          <Text style={{ opacity: 0.65 }} numberOfLines={1}>
-            {peerEmail}
-          </Text>
-        </View>
-      </View>
-
       {/* Messages */}
       <FlatList
         ref={listRef}
         data={grouped}
         keyExtractor={(m) => m.id}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 12 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 12, paddingTop: 60, flexGrow: 1 }}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
+        ListHeaderComponent={
+          <View style={{ paddingBottom: 12, flexDirection: "row", alignItems: "center", gap: 12 }}>
+            <Pressable onPress={() => router.back()} style={{ padding: 10, borderRadius: 10, backgroundColor: "#fff", borderWidth: 1, borderColor: "#111111" }}>
+              <Text style={{ fontWeight: "900" }}>Back</Text>
+            </Pressable>
+
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 18, fontWeight: "900" }} numberOfLines={1}>
+                {peerName}
+              </Text>
+              <Text style={{ opacity: 0.65 }} numberOfLines={1}>
+                {peerEmail}
+              </Text>
+              {peerTyping ? (
+                <Text style={{ marginTop: 2, color: "#B45309", fontWeight: "700", fontSize: 12 }}>
+                  Typing...
+                </Text>
+              ) : null}
+            </View>
+            <Pressable
+              onPress={onCloseChat}
+              style={{
+                paddingVertical: 8,
+                paddingHorizontal: 10,
+                borderRadius: 10,
+                borderWidth: 1,
+                borderColor: "#111111",
+                backgroundColor: "#fff",
+              }}
+            >
+              <Text style={{ fontWeight: "900", fontSize: 12 }}>Close Chat</Text>
+            </Pressable>
+          </View>
+        }
         onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
         renderItem={({ item }) => {
           const mine = item.from.toLowerCase() === myEmail.toLowerCase();
@@ -104,7 +217,7 @@ export default function ChatWithPeer() {
                 <Text style={{ color: mine ? "#FDE047" : "#111", fontWeight: "700" }}>
                   {item.text}
                 </Text>
-                <Text style={{ color: mine ? "#111111" : "#333333", marginTop: 6, fontSize: 11 }}>
+                <Text style={{ color: mine ? "#FDE047" : "#333333", marginTop: 6, fontSize: 11 }}>
                   {new Date(item.createdAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
                 </Text>
               </View>
@@ -122,6 +235,11 @@ export default function ChatWithPeer() {
 
       {/* Input */}
       <View style={{ padding: 12, paddingBottom: 20, borderTopWidth: 1, borderTopColor: "#111111", backgroundColor: "#fff" }}>
+        {meTyping ? (
+          <Text style={{ marginBottom: 8, opacity: 0.65, fontWeight: "700", fontSize: 12 }}>
+            You are typing...
+          </Text>
+        ) : null}
         <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
           <TextInput
             value={text}

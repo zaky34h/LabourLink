@@ -21,9 +21,22 @@ import {
   type WorkOffer,
 } from "../../src/offers/storage";
 
+function extractShiftRange(notes: string) {
+  const match = String(notes || "").match(/Shift:\s*([0-2]?\d:\d{2})\s*-\s*([0-2]?\d:\d{2})/i);
+  return match ? `${match[1]} - ${match[2]}` : "Not specified";
+}
+
+function removeShiftFromNotes(notes: string) {
+  const cleaned = String(notes || "")
+    .replace(/Shift:\s*[0-2]?\d:\d{2}\s*-\s*[0-2]?\d:\d{2}\s*/i, "")
+    .trim();
+  return cleaned || "None";
+}
+
 export default function LabourerOffers() {
   const { user } = useCurrentUser();
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [offers, setOffers] = useState<WorkOffer[]>([]);
   const [selectedOffer, setSelectedOffer] = useState<WorkOffer | null>(null);
   const [signature, setSignature] = useState("");
@@ -31,16 +44,23 @@ export default function LabourerOffers() {
   const [pdfBusy, setPdfBusy] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<WorkOffer["status"]>("pending");
 
-  async function load() {
+  async function load(options?: { silent?: boolean }) {
+    const silent = options?.silent ?? false;
     if (!user?.email || user.role !== "labourer") {
       setOffers([]);
       setLoading(false);
       return;
     }
-    setLoading(true);
+    if (!silent) setLoading(true);
     const data = await getOffersForLabourer(user.email);
     setOffers(data);
-    setLoading(false);
+    if (!silent) setLoading(false);
+  }
+
+  async function onRefresh() {
+    setRefreshing(true);
+    await load({ silent: true });
+    setRefreshing(false);
   }
 
   useFocusEffect(
@@ -107,7 +127,12 @@ export default function LabourerOffers() {
   }
 
   const filtered = useMemo(
-    () => offers.filter((o) => o.status === selectedStatus),
+    () =>
+      offers.filter((o) =>
+        selectedStatus === "approved"
+          ? o.status === "approved" || o.status === "completed"
+          : o.status === selectedStatus
+      ),
     [offers, selectedStatus]
   );
 
@@ -120,32 +145,38 @@ export default function LabourerOffers() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#fff", paddingTop: 60, paddingHorizontal: 16 }}>
-      <Text style={{ fontSize: 24, fontWeight: "900" }}>Offers</Text>
-
-      <View style={{ flexDirection: "row", gap: 8, marginTop: 14 }}>
-        <FilterButton
-          label="Pending"
-          active={selectedStatus === "pending"}
-          onPress={() => setSelectedStatus("pending")}
-        />
-        <FilterButton
-          label="Signed"
-          active={selectedStatus === "approved"}
-          onPress={() => setSelectedStatus("approved")}
-        />
-        <FilterButton
-          label="Declined"
-          active={selectedStatus === "declined"}
-          onPress={() => setSelectedStatus("declined")}
-        />
-      </View>
-
+    <View style={{ flex: 1, backgroundColor: "#fff" }}>
       <FlatList
-        style={{ marginTop: 12 }}
+        style={{ flex: 1, backgroundColor: "#fff" }}
+        contentContainerStyle={{ paddingTop: 60, paddingHorizontal: 16, paddingBottom: 16, flexGrow: 1 }}
         data={filtered}
         keyExtractor={(item) => item.id}
         showsVerticalScrollIndicator={false}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
+        ListHeaderComponent={
+          <View>
+            <Text style={{ fontSize: 24, fontWeight: "900" }}>Offers</Text>
+            <View style={{ flexDirection: "row", gap: 8, marginTop: 14 }}>
+              <FilterButton
+                label="Pending"
+                active={selectedStatus === "pending"}
+                onPress={() => setSelectedStatus("pending")}
+              />
+              <FilterButton
+                label="Signed"
+                active={selectedStatus === "approved"}
+                onPress={() => setSelectedStatus("approved")}
+              />
+              <FilterButton
+                label="Declined"
+                active={selectedStatus === "declined"}
+                onPress={() => setSelectedStatus("declined")}
+              />
+            </View>
+            <View style={{ height: 12 }} />
+          </View>
+        }
         ListEmptyComponent={
           <Text style={{ marginTop: 24, opacity: 0.7, fontWeight: "700" }}>
             No {selectedStatus} offers yet.
@@ -177,7 +208,7 @@ export default function LabourerOffers() {
               ${item.rate}/hr • Est {item.estimatedHours}h
             </Text>
             <Text style={{ marginTop: 6, opacity: 0.6, fontSize: 12 }}>
-              Received {new Date(item.createdAt).toLocaleString()}
+              Received {new Date(item.createdAt).toLocaleDateString()}
             </Text>
           </Pressable>
         )}
@@ -203,25 +234,11 @@ export default function LabourerOffers() {
                 <Detail label="Builder" value={selectedOffer.builderCompanyName} />
                 <Detail label="Status" value={selectedOffer.status.toUpperCase()} />
                 <Detail label="Date Range" value={`${selectedOffer.startDate} to ${selectedOffer.endDate}`} />
-                <Detail label="Hours" value={`${selectedOffer.hours}`} />
+                <Detail label="Hours" value={extractShiftRange(selectedOffer.notes)} />
                 <Detail label="Rate" value={`$${selectedOffer.rate}/hr`} />
                 <Detail label="Estimated Hours" value={`${selectedOffer.estimatedHours}`} />
                 <Detail label="Site Address" value={selectedOffer.siteAddress} />
-                <Detail label="Notes" value={selectedOffer.notes || "None"} />
-
-                <Text style={{ fontWeight: "900", marginTop: 10 }}>Generated PDF (Preview)</Text>
-                <View
-                  style={{
-                    borderWidth: 1,
-                    borderColor: "#111111",
-                    borderRadius: 12,
-                    padding: 12,
-                    marginTop: 6,
-                    backgroundColor: "#fff",
-                  }}
-                >
-                  <Text style={{ fontSize: 12, lineHeight: 18 }}>{selectedOffer.pdfContent}</Text>
-                </View>
+                <Detail label="Notes" value={removeShiftFromNotes(selectedOffer.notes)} />
 
                 <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
                   <Pressable
@@ -340,8 +357,8 @@ export default function LabourerOffers() {
 function Detail({ label, value }: { label: string; value: string }) {
   return (
     <View style={{ marginTop: 8 }}>
-      <Text style={{ fontWeight: "800" }}>{label}</Text>
-      <Text style={{ opacity: 0.8, marginTop: 2 }}>{value}</Text>
+      <Text style={{ fontWeight: "900", fontSize: 16 }}>{label}</Text>
+      <Text style={{ opacity: 0.9, marginTop: 4, fontSize: 17 }}>{value}</Text>
     </View>
   );
 }

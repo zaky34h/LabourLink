@@ -49,6 +49,8 @@ export type LabourerUser = {
   certifications: string[];
   experienceYears: number;
   photoUrl?: string;
+  bsb?: string;
+  accountNumber?: string;
   email: string;
   password?: string;
 };
@@ -122,4 +124,3 @@ export async function getUserByEmail(email: string): Promise<User | null> {
     return null;
   }
 }
-

@@ -1,7 +1,11 @@
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { View } from "react-native";
+import { useUnreadMessagesBadge } from "../../src/chat/useUnreadMessagesBadge";
 
 export default function BuilderTabsLayout() {
+  const hasUnreadMessages = useUnreadMessagesBadge();
+
   return (
     <Tabs
       screenOptions={{
@@ -38,9 +42,7 @@ export default function BuilderTabsLayout() {
         name="messages"
         options={{
           title: "Messages",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="chatbubble" size={size} color={color} />
-          ),
+          tabBarIcon: ({ color, size }) => <MessageTabIcon color={color} size={size} showDot={hasUnreadMessages} />,
         }}
       />
 
@@ -51,6 +53,16 @@ export default function BuilderTabsLayout() {
           title: "Offers",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="document-text" size={size} color={color} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="pay"
+        options={{
+          title: "Pay",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="card" size={size} color={color} />
           ),
         }}
       />
@@ -76,5 +88,34 @@ export default function BuilderTabsLayout() {
         options={{ href: null }}
       />
     </Tabs>
+  );
+}
+
+function MessageTabIcon({
+  color,
+  size,
+  showDot,
+}: {
+  color: string;
+  size: number;
+  showDot: boolean;
+}) {
+  return (
+    <View style={{ width: size + 10, height: size + 10, alignItems: "center", justifyContent: "center" }}>
+      <Ionicons name="chatbubble" size={size} color={color} />
+      {showDot ? (
+        <View
+          style={{
+            position: "absolute",
+            right: 0,
+            top: 1,
+            width: 8,
+            height: 8,
+            borderRadius: 4,
+            backgroundColor: "#DC2626",
+          }}
+        />
+      ) : null}
+    </View>
   );
 }

@@ -4,7 +4,7 @@ import { apiRequest } from "../api/client";
 
 let cachedLabourLinkLogoUri: string | null | undefined;
 
-export type WorkOfferStatus = "pending" | "declined" | "approved";
+export type WorkOfferStatus = "pending" | "declined" | "approved" | "completed";
 
 export type WorkOffer = {
   id: string;
@@ -25,6 +25,8 @@ export type WorkOffer = {
   updatedAt: number;
   labourerSignature?: string;
   labourerRespondedAt?: number;
+  completedAt?: number;
+  labourerCompanyRating?: number;
   pdfContent: string;
   pdfUri?: string;
 };
@@ -44,7 +46,7 @@ export type CreateWorkOfferInput = {
 async function getLabourLinkLogoUri() {
   if (cachedLabourLinkLogoUri !== undefined) return cachedLabourLinkLogoUri;
   try {
-    const asset = Asset.fromModule(require("../../assets/icon.png"));
+    const asset = Asset.fromModule(require("../../assets/labourlink-logo.png"));
     if (!asset.localUri) await asset.downloadAsync();
     cachedLabourLinkLogoUri = asset.localUri ?? asset.uri ?? null;
   } catch {
@@ -64,10 +66,19 @@ function escapeHtml(v: string) {
 
 function makePdfHtml(offer: WorkOffer, logoUri?: string | null) {
   const safeNotes = offer.notes.trim() ? offer.notes : "None";
-  const safeSignature = offer.labourerSignature || "Pending";
+  const shiftMatch = safeNotes.match(/Shift:\s*([0-2]?\d:\d{2})\s*-\s*([0-2]?\d:\d{2})/i);
+  const hoursDisplay = shiftMatch ? `${shiftMatch[1]} - ${shiftMatch[2]}` : "Not specified";
+  const notesWithoutShift = safeNotes
+    .replace(/Shift:\s*[0-2]?\d:\d{2}\s*-\s*[0-2]?\d:\d{2}\s*/i, "")
+    .trim();
+  const displayNotes = notesWithoutShift || "None";
+  const signedByLabourer =
+    offer.status === "approved" && offer.labourerSignature?.trim()
+      ? offer.labourerSignature.trim()
+      : "";
   const logoImg = logoUri
     ? `<img class="brand-logo" src="${escapeHtml(logoUri)}" alt="LabourLink Logo" />`
-    : `<div class="brand-logo-fallback">LL</div>`;
+    : `<div class="brand-logo-fallback">LabourLink</div>`;
 
   return `
 <!DOCTYPE html>
@@ -76,36 +87,41 @@ function makePdfHtml(offer: WorkOffer, logoUri?: string | null) {
     <meta charset="utf-8" />
     <style>
       body { font-family: Arial, sans-serif; padding: 24px; color: #111; }
-      h1 { font-size: 24px; margin: 0 0 8px 0; }
-      .meta { color: #555; margin-bottom: 18px; font-size: 12px; }
+      h1 { font-size: 34px; margin: 8px 0 4px 0; line-height: 1.1; }
       .section { margin-top: 14px; }
       .label { font-weight: 700; margin-top: 6px; }
       .box { border: 1px solid #111; border-radius: 10px; padding: 12px; }
-      .status { display: inline-block; padding: 4px 8px; border-radius: 999px; background: #fde047; font-weight: 700; }
       .muted { color: #666; }
-      .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
-      .brand-logo { width: 60px; height: 60px; border-radius: 12px; object-fit: cover; border: 1px solid #111; }
+      .brand-wrap { margin-bottom: 14px; }
+      .brand-logo { width: 240px; height: 120px; object-fit: contain; }
       .brand-logo-fallback {
-        width: 60px;
-        height: 60px;
-        border-radius: 12px;
+        width: 240px;
+        height: 120px;
         border: 1px solid #111;
         display: flex;
         align-items: center;
-        justify-content: center;
-        background: #fde047;
+        justify-content: flex-start;
+        background: #fff;
         font-weight: 900;
+        padding-left: 12px;
       }
+      .signature-box { border: 2px solid #111; border-radius: 10px; padding: 12px; margin-top: 14px; }
+      .signature-title { font-weight: 800; font-size: 13px; letter-spacing: 0.3px; }
+      .signature-value { margin-top: 8px; font-size: 18px; font-weight: 700; }
+      .page-break { page-break-before: always; break-before: page; }
+      .legal h2 { font-size: 16px; margin: 10px 0 6px 0; }
+      .legal p { margin: 0 0 8px 0; color: #333; font-size: 12px; line-height: 1.45; }
     </style>
   </head>
   <body>
-    <div class="header">
-      <h1>LabourLink Work Offer</h1>
+    <div class="brand-wrap">
       ${logoImg}
+      <h1>Work Offer</h1>
     </div>
-    <div class="meta">Offer ID: ${escapeHtml(offer.id)} • Created: ${escapeHtml(new Date(offer.createdAt).toLocaleString())}</div>
 
     <div class="box">
+      <div class="label">Date Created</div>
+      <div>${escapeHtml(new Date(offer.createdAt).toLocaleDateString())}</div>
       <div class="label">Builder Company</div>
       <div>${escapeHtml(offer.builderCompanyName)}</div>
       <div class="label">Builder Email</div>
@@ -123,7 +139,7 @@ function makePdfHtml(offer: WorkOffer, logoUri?: string | null) {
       <div class="label">Date Range</div>
       <div>${escapeHtml(offer.startDate)} to ${escapeHtml(offer.endDate)}</div>
       <div class="label">Hours</div>
-      <div>${escapeHtml(String(offer.hours))}</div>
+      <div>${escapeHtml(hoursDisplay)}</div>
       <div class="label">Rate</div>
       <div>$${escapeHtml(String(offer.rate))}/hr</div>
       <div class="label">Estimated Hours</div>
@@ -131,22 +147,30 @@ function makePdfHtml(offer: WorkOffer, logoUri?: string | null) {
       <div class="label">Site Address</div>
       <div>${escapeHtml(offer.siteAddress)}</div>
       <div class="label">Notes</div>
-      <div>${escapeHtml(safeNotes)}</div>
+      <div>${escapeHtml(displayNotes)}</div>
     </div>
+    ${
+      signedByLabourer
+        ? `<div class="signature-box">
+            <div class="signature-title">Labourer Signature</div>
+            <div class="signature-value">${escapeHtml(signedByLabourer)}</div>
+          </div>`
+        : ""
+    }
 
-    <div class="section">
-      <div class="label">Status</div>
-      <div class="status">${escapeHtml(offer.status.toUpperCase())}</div>
-    </div>
-
-    <div class="section">
-      <div class="label">Labourer Signature</div>
-      <div>${escapeHtml(safeSignature)}</div>
-      ${
-        offer.labourerRespondedAt
-          ? `<div class="muted">Responded: ${escapeHtml(new Date(offer.labourerRespondedAt).toLocaleString())}</div>`
-          : ""
-      }
+    <div class="section legal page-break">
+      <h2>Terms and Conditions</h2>
+      <p>
+        By signing this offer, both parties agree to perform and pay for the listed work in good faith,
+        follow all applicable workplace safety laws, and resolve disputes professionally before escalation.
+        Any agreed scope, timing, or rate changes should be recorded in writing.
+      </p>
+      <h2>Privacy Policy</h2>
+      <p>
+        LabourLink stores and processes only the information needed to create, manage, and evidence this work offer.
+        Contact details and offer records are used for job coordination, compliance, and support, and are not sold to
+        third parties.
+      </p>
     </div>
   </body>
 </html>`;
@@ -211,6 +235,25 @@ export async function respondToWorkOffer(
     return { ok: true };
   } catch (error: any) {
     return { ok: false, error: error?.message || "Could not respond to offer." };
+  }
+}
+
+export async function completeWorkOffer(
+  offerId: string,
+  rating: number
+): Promise<{ ok: true; offer: WorkOffer } | { ok: false; error: string }> {
+  try {
+    const res = await apiRequest<{ ok: true; offer: WorkOffer }>(
+      `/offers/${encodeURIComponent(offerId)}/complete`,
+      {
+        method: "POST",
+        auth: true,
+        body: { rating },
+      }
+    );
+    return { ok: true, offer: res.offer };
+  } catch (error: any) {
+    return { ok: false, error: error?.message || "Could not complete work." };
   }
 }
 

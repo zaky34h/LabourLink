@@ -7,10 +7,23 @@ function stripTrailingSlash(v: string) {
   return v.endsWith("/") ? v.slice(0, -1) : v;
 }
 
-export function getApiBaseUrl() {
+function getApiBaseUrls() {
+  const configuredList = process.env.EXPO_PUBLIC_API_BASE_URLS;
+  if (configuredList && configuredList.trim()) {
+    return configuredList
+      .split(",")
+      .map((x: string) => stripTrailingSlash(x.trim()))
+      .filter(Boolean);
+  }
+
   const configured = process.env.EXPO_PUBLIC_API_BASE_URL;
-  if (configured && configured.trim()) return stripTrailingSlash(configured.trim());
-  return "http://localhost:4000";
+  if (configured && configured.trim()) return [stripTrailingSlash(configured.trim())];
+
+  return ["http://localhost:4000"];
+}
+
+export function getApiBaseUrl() {
+  return getApiBaseUrls()[0];
 }
 
 export async function getSessionToken(): Promise<string | null> {
@@ -38,11 +51,23 @@ type RequestOptions = {
   auth?: boolean;
 };
 
+function formatNetworkError(baseUrl: string, originalError: unknown): Error {
+  const message =
+    originalError instanceof Error && originalError.message
+      ? originalError.message
+      : "Network request failed";
+
+  return new Error(
+    `Could not reach API at ${baseUrl}. ${message}. Ensure the backend is running (npm run api) and EXPO_PUBLIC_API_BASE_URL points to a reachable host.`
+  );
+}
+
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const method = options.method ?? "GET";
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
+  const baseUrls = getApiBaseUrls();
 
   if (options.auth) {
     const token = await getSessionToken();
@@ -50,11 +75,29 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${getApiBaseUrl()}${path}`, {
-    method,
-    headers,
-    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
-  });
+  let res: Response | null = null;
+  let lastNetworkError: unknown = null;
+  let lastTriedBaseUrl = baseUrls[0];
+
+  for (const baseUrl of baseUrls) {
+    lastTriedBaseUrl = baseUrl;
+    try {
+      res = await fetch(`${baseUrl}${path}`, {
+        method,
+        headers,
+        body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+      });
+      break;
+    } catch (error) {
+      lastNetworkError = error;
+    }
+  }
+
+  if (!res) {
+    const attempted = baseUrls.join(", ");
+    const baseMessage = formatNetworkError(lastTriedBaseUrl, lastNetworkError).message;
+    throw new Error(`${baseMessage} Tried: ${attempted}.`);
+  }
 
   let payload: any = {};
   try {
@@ -69,4 +112,3 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
 
   return payload as T;
 }
-

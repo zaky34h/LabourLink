@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { View, Text, Pressable, ScrollView } from "react-native";
+import { View, Text, Pressable, ScrollView, RefreshControl } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useCurrentUser } from "../../src/auth/useCurrentUser";
 import { getThreadsForUser } from "../../src/chat/storage";
@@ -10,39 +10,46 @@ export default function LabourerHome() {
   const [activeChats, setActiveChats] = useState(0);
   const [pendingOffers, setPendingOffers] = useState(0);
   const [approvedOffers, setApprovedOffers] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
   const name = user ? `${user.firstName} ${user.lastName}` : "Welcome";
   const selectedDates = user?.role === "labourer" ? user.availableDates?.length ?? 0 : 0;
+
+  async function loadStats() {
+    if (!user?.email || user.role !== "labourer") {
+      setActiveChats(0);
+      setPendingOffers(0);
+      setApprovedOffers(0);
+      return;
+    }
+
+    const [threads, offers] = await Promise.all([
+      getThreadsForUser(user.email),
+      getOffersForLabourer(user.email),
+    ]);
+
+    setActiveChats(threads.length);
+    const pending = offers.filter((o: WorkOffer) => o.status === "pending").length;
+    const approved = offers.filter((o: WorkOffer) => o.status === "approved").length;
+    setPendingOffers(pending);
+    setApprovedOffers(approved);
+  }
+
+  async function onRefresh() {
+    setRefreshing(true);
+    await loadStats();
+    setRefreshing(false);
+  }
 
   useFocusEffect(
     useCallback(() => {
       let isCancelled = false;
 
-      async function loadStats() {
-        if (!user?.email || user.role !== "labourer") {
-          if (!isCancelled) {
-            setActiveChats(0);
-            setPendingOffers(0);
-            setApprovedOffers(0);
-          }
-          return;
-        }
-
-        const [threads, offers] = await Promise.all([
-          getThreadsForUser(user.email),
-          getOffersForLabourer(user.email),
-        ]);
-
+      async function runLoad() {
+        await loadStats();
         if (isCancelled) return;
-
-        setActiveChats(threads.length);
-
-        const pending = offers.filter((o: WorkOffer) => o.status === "pending").length;
-        const approved = offers.filter((o: WorkOffer) => o.status === "approved").length;
-        setPendingOffers(pending);
-        setApprovedOffers(approved);
       }
 
-      loadStats();
+      runLoad();
       return () => {
         isCancelled = true;
       };
@@ -54,6 +61,7 @@ export default function LabourerHome() {
       style={{ flex: 1, backgroundColor: "#fff" }}
       contentContainerStyle={{ padding: 20, paddingTop: 60, gap: 20 }}
       showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
       <View style={{ gap: 6 }}>
         <Text style={{ fontSize: 14, fontWeight: "700", color: "#111111" }}>

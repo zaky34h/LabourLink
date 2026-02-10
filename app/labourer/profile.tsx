@@ -27,6 +27,8 @@ export default function LabourerProfile() {
   const [pricePerHour, setPricePerHour] = useState("");
   const [experienceYears, setExperienceYears] = useState("");
   const [certificationsText, setCertificationsText] = useState("");
+  const [bsb, setBsb] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
 
   useEffect(() => {
     if (user?.role === "labourer") {
@@ -38,6 +40,8 @@ export default function LabourerProfile() {
       setPricePerHour(String(user.pricePerHour ?? ""));
       setExperienceYears(String(user.experienceYears ?? ""));
       setCertificationsText((user.certifications ?? []).join(", "));
+      setBsb(user.bsb ?? "");
+      setAccountNumber(user.accountNumber ?? "");
     }
   }, [user]);
 
@@ -106,6 +110,8 @@ export default function LabourerProfile() {
       experienceYears: exp,
       certifications,
       photoUrl: photoUrl.trim() || undefined,
+      bsb: bsb.trim() || undefined,
+      accountNumber: accountNumber.trim() || undefined,
     });
     setSaving(false);
 
@@ -216,6 +222,13 @@ export default function LabourerProfile() {
         value={certificationsText}
         onChangeText={setCertificationsText}
       />
+      <Field label="BSB" value={bsb} onChangeText={setBsb} keyboardType="number-pad" />
+      <Field
+        label="Account Number"
+        value={accountNumber}
+        onChangeText={setAccountNumber}
+        keyboardType="number-pad"
+      />
       <Field label="About" value={about} onChangeText={setAbout} multiline />
 
       <View style={{ padding: 14, borderWidth: 1, borderColor: "#111111", borderRadius: 12, gap: 6 }}>
@@ -266,4 +279,3 @@ function Field(props: any) {
     </View>
   );
 }
-

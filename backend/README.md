@@ -68,8 +68,14 @@ Set `EXPO_PUBLIC_API_BASE_URL` in `.env`:
 - `GET /chat/threads`
 - `GET /chat/messages/:peerEmail`
 - `POST /chat/messages`
+- `POST /chat/typing`
+- `GET /chat/typing/:peerEmail`
 - `POST /offers`
 - `GET /offers/builder`
 - `GET /offers/labourer`
 - `GET /offers/:id`
 - `POST /offers/:id/respond`
+- `GET /notifications`
+- `PATCH /notifications/:id/read`
+- `POST /push/register`
+- `POST /push/unregister`

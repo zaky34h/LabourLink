@@ -15,6 +15,7 @@ const PAGE_SIZE = 10;
 
 export default function BuilderBrowse() {
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   const [allLabourers, setAllLabourers] = useState<LabourerUser[]>([]);
   const [results, setResults] = useState<LabourerUser[]>([]);
@@ -27,14 +28,21 @@ export default function BuilderBrowse() {
 
   const [page, setPage] = useState(1);
 
-  async function load() {
-    setLoading(true);
+  async function load(options?: { silent?: boolean }) {
+    const silent = options?.silent ?? false;
+    if (!silent) setLoading(true);
     const users = await getUsers();
     const labourers = users.filter((u) => u.role === "labourer") as LabourerUser[];
     setAllLabourers(labourers);
     setResults(labourers);
     setPage(1);
-    setLoading(false);
+    if (!silent) setLoading(false);
+  }
+
+  async function onRefresh() {
+    setRefreshing(true);
+    await load({ silent: true });
+    setRefreshing(false);
   }
 
   useEffect(() => {
@@ -85,71 +93,73 @@ export default function BuilderBrowse() {
   }
 
   return (
-    <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 60, backgroundColor: "#fff" }}>
-      <Text style={{ fontSize: 24, fontWeight: "900" }}>Browse</Text>
-
-      {/* Filters card */}
-      <View
-        style={{
-          marginTop: 14,
-          padding: 14,
-          borderRadius: 16,
-          backgroundColor: "#fff",
-          borderWidth: 1,
-          borderColor: "#111111",
-          gap: 12,
-        }}
-      >
-        {/* Date */}
-        <View style={{ gap: 8 }}>
-          <Text style={{ fontWeight: "800" }}>Date</Text>
-          <Pressable
-            onPress={() => setCalendarOpen(true)}
-            style={fieldStyle}
-          >
-            <Text style={{ fontWeight: "700" }}>{formatNiceDate(selectedDate)}</Text>
-            <Text style={{ opacity: 0.7 }}>📅</Text>
-          </Pressable>
-        </View>
-
-        {/* Type (pressable field + modal) */}
-        <View style={{ gap: 8 }}>
-          <Text style={{ fontWeight: "800" }}>Type</Text>
-          <Pressable
-            onPress={() => setTypeOpen(true)}
-            style={fieldStyle}
-          >
-            <Text style={{ fontWeight: "700" }}>{selectedType}</Text>
-            <Text style={{ opacity: 0.7 }}>▾</Text>
-          </Pressable>
-        </View>
-
-        {/* Search */}
-        <Pressable
-          onPress={onSearch}
-          style={{
-            padding: 14,
-            borderRadius: 14,
-            backgroundColor: "#111",
-            alignItems: "center",
-            marginTop: 4,
-          }}
-        >
-          <Text style={{ color: "#FDE047", fontWeight: "900" }}>Search</Text>
-        </Pressable>
-      </View>
-
-      <Text style={{ marginTop: 14, opacity: 0.7, fontWeight: "700" }}>
-        Showing {Math.min(pagedResults.length, results.length)} of {results.length}
-      </Text>
-
+    <View style={{ flex: 1, backgroundColor: "#fff" }}>
       <FlatList
-        style={{ marginTop: 10 }}
+        style={{ flex: 1, backgroundColor: "#fff" }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 60, paddingBottom: 16, flexGrow: 1 }}
         data={pagedResults}
         keyExtractor={(x) => x.email}
         showsVerticalScrollIndicator={false}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
         onEndReached={loadMore}
         onEndReachedThreshold={0.4}
+        ListHeaderComponent={
+          <View>
+            <Text style={{ fontSize: 24, fontWeight: "900" }}>Browse</Text>
+
+            <View
+              style={{
+                marginTop: 14,
+                padding: 14,
+                borderRadius: 16,
+                backgroundColor: "#fff",
+                borderWidth: 1,
+                borderColor: "#111111",
+                gap: 12,
+              }}
+            >
+              <View style={{ gap: 8 }}>
+                <Text style={{ fontWeight: "800" }}>Date</Text>
+                <Pressable
+                  onPress={() => setCalendarOpen(true)}
+                  style={fieldStyle}
+                >
+                  <Text style={{ fontWeight: "700" }}>{formatNiceDate(selectedDate)}</Text>
+                  <Text style={{ opacity: 0.7 }}>📅</Text>
+                </Pressable>
+              </View>
+
+              <View style={{ gap: 8 }}>
+                <Text style={{ fontWeight: "800" }}>Type</Text>
+                <Pressable
+                  onPress={() => setTypeOpen(true)}
+                  style={fieldStyle}
+                >
+                  <Text style={{ fontWeight: "700" }}>{selectedType}</Text>
+                  <Text style={{ opacity: 0.7 }}>▾</Text>
+                </Pressable>
+              </View>
+
+              <Pressable
+                onPress={onSearch}
+                style={{
+                  padding: 14,
+                  borderRadius: 14,
+                  backgroundColor: "#111",
+                  alignItems: "center",
+                  marginTop: 4,
+                }}
+              >
+                <Text style={{ color: "#FDE047", fontWeight: "900" }}>Search</Text>
+              </Pressable>
+            </View>
+
+            <Text style={{ marginTop: 14, marginBottom: 10, opacity: 0.7, fontWeight: "700" }}>
+              Showing {Math.min(pagedResults.length, results.length)} of {results.length}
+            </Text>
+          </View>
+        }
         ListEmptyComponent={
           <Text style={{ marginTop: 26, opacity: 0.7 }}>
             No labourers available for that date/type.

@@ -5,9 +5,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 export function FormScreen({ children }: { children: React.ReactNode }) {
   return (
-    <SafeAreaView style={{ flex: 1 }} edges={["top", "bottom"]}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }} edges={["top", "bottom"]}>
       <KeyboardAvoidingView
-        style={{ flex: 1 }}
+        style={{ flex: 1, backgroundColor: "#fff" }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
       >
@@ -16,7 +16,7 @@ export function FormScreen({ children }: { children: React.ReactNode }) {
           keyboardShouldPersistTaps="handled"
           extraScrollHeight={20}
           // ✅ THIS is the key: lets children take full screen height
-          contentContainerStyle={{ flexGrow: 1, paddingBottom: 40 }}
+          contentContainerStyle={{ flexGrow: 1, paddingBottom: 40, backgroundColor: "#fff" }}
         >
           {children}
         </KeyboardAwareScrollView>

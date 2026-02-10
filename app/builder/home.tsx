@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { View, Text, Pressable, ScrollView, Modal, TextInput, Alert } from "react-native";
+import { View, Text, Pressable, ScrollView, Modal, TextInput, Alert, RefreshControl } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { Calendar } from "react-native-calendars";
 import { useCurrentUser } from "../../src/auth/useCurrentUser";
@@ -10,6 +10,7 @@ import { createWorkOffer } from "../../src/offers/storage";
 export default function BuilderHome() {
   const { user } = useCurrentUser();
   const [activeChats, setActiveChats] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
   const [offerModalOpen, setOfferModalOpen] = useState(false);
   const [labourers, setLabourers] = useState<LabourerUser[]>([]);
   const [selectedLabourerEmail, setSelectedLabourerEmail] = useState("");
@@ -59,6 +60,25 @@ export default function BuilderHome() {
     if (!selectedLabourerEmail && deduped.length > 0) {
       setSelectedLabourerEmail(deduped[0].email);
     }
+  }
+
+  async function loadDashboardData() {
+    if (!user?.email) {
+      setActiveChats(0);
+      setLabourers([]);
+      setSelectedLabourerEmail("");
+      return;
+    }
+
+    const threads = await getThreadsForUser(user.email);
+    setActiveChats(threads.length);
+    await loadChattedLabourers();
+  }
+
+  async function onRefresh() {
+    setRefreshing(true);
+    await loadDashboardData();
+    setRefreshing(false);
   }
 
   function resetOfferForm() {
@@ -189,18 +209,12 @@ export default function BuilderHome() {
     useCallback(() => {
       let isCancelled = false;
 
-      async function loadActiveChats() {
-        if (!user?.email) {
-          if (!isCancelled) setActiveChats(0);
-          return;
-        }
-
-        const threads = await getThreadsForUser(user.email);
-        if (!isCancelled) setActiveChats(threads.length);
+      async function runLoad() {
+        await loadDashboardData();
+        if (isCancelled) return;
       }
 
-      loadActiveChats();
-      loadChattedLabourers();
+      runLoad();
       closeOfferOverlays();
 
       return () => {
@@ -221,6 +235,7 @@ export default function BuilderHome() {
       style={{ flex: 1, backgroundColor: "#fff" }}
       contentContainerStyle={{ padding: 20, paddingTop: 60, gap: 20 }}
       showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
       {/* Header */}
       <View style={{ gap: 6 }}>
@@ -270,14 +285,6 @@ export default function BuilderHome() {
           tone="yellow"
           onPress={openOfferModal}
         />
-      </View>
-
-      {/* Activity */}
-      <View style={{ gap: 12 }}>
-        <Text style={{ fontSize: 18, fontWeight: "900" }}>Recent Activity</Text>
-
-        <ActivityItem text="No recent activity yet" />
-        <ActivityItem text="Browse labourers to get started" muted />
       </View>
 
       <Modal visible={offerModalOpen} animationType="slide" transparent>
@@ -567,35 +574,6 @@ function ActionButton({
         {subtitle}
       </Text>
     </Pressable>
-  );
-}
-
-function ActivityItem({
-  text,
-  muted,
-}: {
-  text: string;
-  muted?: boolean;
-}) {
-  return (
-    <View
-      style={{
-        backgroundColor: "#fff",
-        padding: 14,
-        borderRadius: 14,
-        borderWidth: 1,
-        borderColor: "#111111",
-      }}
-    >
-      <Text
-        style={{
-          fontWeight: "700",
-          opacity: muted ? 0.5 : 0.85,
-        }}
-      >
-        {text}
-      </Text>
-    </View>
   );
 }
 

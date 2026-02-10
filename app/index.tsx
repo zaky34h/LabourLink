@@ -1,17 +1,65 @@
-import { View, Text, TextInput, Pressable, Alert } from "react-native";
-import { useState } from "react";
+import { View, Text, TextInput, Pressable, Alert, Image } from "react-native";
+import { useEffect, useState } from "react";
 import { router } from "expo-router";
-import { loginUser } from "../src/auth/storage";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getSessionEmail, getUserByEmail, loginUser } from "../src/auth/storage";
+import { clearSessionStorage } from "../src/api/client";
 import { FormScreen } from "../src/ui/FormScreen";
+
+const REMEMBER_ME_KEY = "labourlink_remember_me";
+const REMEMBERED_EMAIL_KEY = "labourlink_remembered_email";
 
 export default function Login() {
   const [rememberMe, setRememberMe] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+  useEffect(() => {
+    let active = true;
+
+    async function bootstrapRememberMe() {
+      const rememberFlag = (await AsyncStorage.getItem(REMEMBER_ME_KEY)) === "1";
+      if (!active) return;
+      setRememberMe(rememberFlag);
+
+      const rememberedEmail = await AsyncStorage.getItem(REMEMBERED_EMAIL_KEY);
+      if (active && rememberedEmail) setEmail(rememberedEmail);
+
+      if (!rememberFlag) {
+        await clearSessionStorage();
+        return;
+      }
+
+      const sessionEmail = await getSessionEmail();
+      if (!sessionEmail) return;
+
+      const user = await getUserByEmail(sessionEmail);
+      if (!user) return;
+      if (!active) return;
+
+      if (user.role === "builder") router.replace("/builder/home");
+      else router.replace("/labourer/home");
+    }
+
+    bootstrapRememberMe();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   async function onLogin() {
     const res = await loginUser(email.trim(), password);
     if (!res.ok) return Alert.alert("Login failed", res.error);
+
+    if (rememberMe) {
+      await AsyncStorage.multiSet([
+        [REMEMBER_ME_KEY, "1"],
+        [REMEMBERED_EMAIL_KEY, email.trim()],
+      ]);
+    } else {
+      await AsyncStorage.multiRemove([REMEMBERED_EMAIL_KEY]);
+      await AsyncStorage.setItem(REMEMBER_ME_KEY, "0");
+    }
 
     if (res.user.role === "builder") router.replace("/builder/home");
     else router.replace("/labourer/home");
@@ -23,15 +71,20 @@ export default function Login() {
       <View
         style={{
           flex: 1,
-          justifyContent: "center",
           padding: 24,
+          paddingTop: 48,
           gap: 18,
+          backgroundColor: "#fff",
         }}
       >
         {/* Logo / Title */}
-        <Text style={{ fontSize: 34, fontWeight: "900" }}>
-          Labour<Text style={{ color: "#FACC15" }}>Link</Text>
-        </Text>
+        <View style={{ alignItems: "center", marginBottom: 8 }}>
+          <Image
+            source={require("../assets/labourlink-logo.png")}
+            style={{ width: 300, height: 150 }}
+            resizeMode="contain"
+          />
+        </View>
 
         {/* Email */}
         <View>

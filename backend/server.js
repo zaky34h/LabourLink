@@ -1,4 +1,5 @@
 const http = require("http");
+const https = require("https");
 const crypto = require("crypto");
 const { URL } = require("url");
 const { Pool } = require("pg");
@@ -37,6 +38,94 @@ function makeId(prefix = "id") {
 
 function makeThreadId(a, b) {
   return [normalizeEmail(a), normalizeEmail(b)].sort().join("__");
+}
+
+function isExpoPushToken(token) {
+  return /^ExponentPushToken\[.+\]$/.test(token) || /^ExpoPushToken\[.+\]$/.test(token);
+}
+
+function sendExpoPushRequest(messages) {
+  return new Promise((resolve) => {
+    const payload = JSON.stringify(messages);
+    const req = https.request(
+      "https://exp.host/--/api/v2/push/send",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          "Content-Length": Buffer.byteLength(payload),
+        },
+      },
+      (res) => {
+        let data = "";
+        res.on("data", (chunk) => {
+          data += chunk;
+        });
+        res.on("end", () => {
+          resolve({ statusCode: res.statusCode || 0, body: data });
+        });
+      }
+    );
+
+    req.on("error", () => resolve({ statusCode: 0, body: "" }));
+    req.write(payload);
+    req.end();
+  });
+}
+
+async function sendPushToUser(email, title, body, data = {}) {
+  const recipientEmail = normalizeEmail(email);
+  const rowsRes = await pool.query(
+    `SELECT token FROM user_push_tokens WHERE lower(email) = $1`,
+    [recipientEmail]
+  );
+
+  const tokens = rowsRes.rows
+    .map((r) => String(r.token || ""))
+    .filter((t) => t && isExpoPushToken(t));
+
+  if (!tokens.length) return;
+
+  const chunks = [];
+  for (let i = 0; i < tokens.length; i += 100) {
+    chunks.push(tokens.slice(i, i + 100));
+  }
+
+  for (const chunk of chunks) {
+    const messages = chunk.map((to) => ({
+      to,
+      sound: "default",
+      title,
+      body,
+      data,
+      priority: "high",
+    }));
+    const result = await sendExpoPushRequest(messages);
+    if (!result.statusCode || result.statusCode >= 400) {
+      // no-op: keep notification record even if push delivery failed
+    }
+  }
+}
+
+async function createNotification(recipientEmail, type, title, body, data = {}) {
+  const normalizedRecipient = normalizeEmail(recipientEmail);
+  await pool.query(
+    `INSERT INTO notifications (
+      id, recipient_email, type, title, body, data, is_read, created_at
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+    [
+      makeId("notif"),
+      normalizedRecipient,
+      String(type || ""),
+      String(title || ""),
+      String(body || ""),
+      JSON.stringify(data || {}),
+      false,
+      now(),
+    ]
+  );
+  await sendPushToUser(normalizedRecipient, String(title || ""), String(body || ""), data);
 }
 
 function json(res, statusCode, payload) {
@@ -125,11 +214,15 @@ async function initDb() {
       certifications JSONB,
       experience_years INTEGER,
       photo_url TEXT,
+      bsb TEXT,
+      account_number TEXT,
       password_hash TEXT NOT NULL,
       created_at BIGINT NOT NULL,
       updated_at BIGINT NOT NULL
     );
   `);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS bsb TEXT;`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS account_number TEXT;`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS sessions (
@@ -146,6 +239,34 @@ async function initDb() {
       to_email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
       text TEXT NOT NULL,
       created_at BIGINT NOT NULL
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS chat_typing (
+      from_email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+      to_email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+      is_typing BOOLEAN NOT NULL,
+      updated_at BIGINT NOT NULL,
+      PRIMARY KEY (from_email, to_email)
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS chat_thread_reads (
+      email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+      peer_email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+      last_read_at BIGINT NOT NULL,
+      PRIMARY KEY (email, peer_email)
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS chat_thread_closures (
+      email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+      peer_email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+      closed_at BIGINT NOT NULL,
+      PRIMARY KEY (email, peer_email)
     );
   `);
 
@@ -169,7 +290,54 @@ async function initDb() {
       updated_at BIGINT NOT NULL,
       labourer_signature TEXT,
       labourer_responded_at BIGINT,
+      completed_at BIGINT,
+      labourer_company_rating INTEGER,
       pdf_content TEXT NOT NULL
+    );
+  `);
+
+  await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS completed_at BIGINT;`);
+  await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS labourer_company_rating INTEGER;`);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id TEXT PRIMARY KEY,
+      recipient_email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+      type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL,
+      data JSONB,
+      is_read BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at BIGINT NOT NULL
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS user_push_tokens (
+      token TEXT PRIMARY KEY,
+      email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+      created_at BIGINT NOT NULL,
+      updated_at BIGINT NOT NULL
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS payments (
+      id TEXT PRIMARY KEY,
+      offer_id TEXT UNIQUE NOT NULL REFERENCES offers(id) ON DELETE CASCADE,
+      builder_email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+      labourer_email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+      builder_company_name TEXT NOT NULL,
+      labourer_name TEXT NOT NULL,
+      labourer_bsb TEXT,
+      labourer_account_number TEXT,
+      amount_owed DOUBLE PRECISION NOT NULL,
+      details TEXT NOT NULL,
+      status TEXT NOT NULL,
+      receipt_content TEXT,
+      created_at BIGINT NOT NULL,
+      updated_at BIGINT NOT NULL,
+      paid_at BIGINT
     );
   `);
 }
@@ -204,6 +372,8 @@ function rowToUser(row) {
     certifications: row.certifications || [],
     experienceYears: Number(row.experience_years || 0),
     photoUrl: row.photo_url || undefined,
+    bsb: row.bsb || undefined,
+    accountNumber: row.account_number || undefined,
   };
 }
 
@@ -227,8 +397,81 @@ function rowToOffer(row) {
     updatedAt: Number(row.updated_at),
     labourerSignature: row.labourer_signature || undefined,
     labourerRespondedAt: row.labourer_responded_at ? Number(row.labourer_responded_at) : undefined,
+    completedAt: row.completed_at ? Number(row.completed_at) : undefined,
+    labourerCompanyRating: row.labourer_company_rating ? Number(row.labourer_company_rating) : undefined,
     pdfContent: row.pdf_content,
   };
+}
+
+function rowToPayment(row) {
+  return {
+    id: row.id,
+    offerId: row.offer_id,
+    builderEmail: row.builder_email,
+    labourerEmail: row.labourer_email,
+    builderCompanyName: row.builder_company_name,
+    labourerName: row.labourer_name,
+    labourerBsb: row.labourer_bsb || "",
+    labourerAccountNumber: row.labourer_account_number || "",
+    amountOwed: Number(row.amount_owed || 0),
+    details: row.details || "",
+    status: row.status,
+    receiptContent: row.receipt_content || undefined,
+    createdAt: Number(row.created_at),
+    updatedAt: Number(row.updated_at),
+    paidAt: row.paid_at ? Number(row.paid_at) : undefined,
+  };
+}
+
+async function ensurePaymentsForCompletedOffersByRole(role, email) {
+  const normalizedEmail = normalizeEmail(email);
+  const filterColumn = role === "builder" ? "builder_email" : "labourer_email";
+  const completedOffersRes = await pool.query(
+    `SELECT * FROM offers
+     WHERE lower(${filterColumn}) = $1 AND status = 'completed'
+     ORDER BY created_at DESC`,
+    [normalizedEmail]
+  );
+
+  for (const row of completedOffersRes.rows) {
+    const offer = rowToOffer(row);
+    const existingRes = await pool.query("SELECT id FROM payments WHERE offer_id = $1 LIMIT 1", [offer.id]);
+    if (existingRes.rows.length) continue;
+
+    const labourerUserRes = await pool.query("SELECT * FROM users WHERE email = $1 LIMIT 1", [
+      normalizeEmail(offer.labourerEmail),
+    ]);
+    const labourerUser = labourerUserRes.rows[0] || null;
+    const amount = Number(offer.estimatedHours) * Number(offer.rate);
+    const details = `Work offer ${offer.id}: ${offer.startDate} to ${offer.endDate}`;
+
+    await pool.query(
+      `INSERT INTO payments (
+        id, offer_id, builder_email, labourer_email, builder_company_name, labourer_name,
+        labourer_bsb, labourer_account_number, amount_owed, details, status,
+        receipt_content, created_at, updated_at, paid_at
+      ) VALUES (
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15
+      )`,
+      [
+        makeId("pay"),
+        offer.id,
+        normalizeEmail(offer.builderEmail),
+        normalizeEmail(offer.labourerEmail),
+        offer.builderCompanyName,
+        offer.labourerName,
+        labourerUser?.bsb || null,
+        labourerUser?.account_number || null,
+        Number.isFinite(amount) ? amount : 0,
+        details,
+        "pending",
+        null,
+        offer.completedAt || offer.updatedAt || now(),
+        now(),
+        null,
+      ]
+    );
+  }
 }
 
 async function getSessionUser(req) {
@@ -308,9 +551,9 @@ const server = http.createServer(async (req, res) => {
         await pool.query(
           `INSERT INTO users (
             email, role, first_name, last_name, occupation, about, price_per_hour,
-            available_dates, certifications, experience_years, photo_url,
+            available_dates, certifications, experience_years, photo_url, bsb, account_number,
             password_hash, created_at, updated_at
-          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
           [
             email,
             "labourer",
@@ -323,6 +566,8 @@ const server = http.createServer(async (req, res) => {
             JSON.stringify(body.certifications || []),
             Number(body.experienceYears || 0),
             body.photoUrl || null,
+            body.bsb || null,
+            body.accountNumber || null,
             hashPassword(body.password),
             ts,
             ts,
@@ -363,6 +608,37 @@ const server = http.createServer(async (req, res) => {
       const user = await requireAuth(req, res);
       if (!user) return;
       return json(res, 200, { ok: true, user });
+    }
+
+    if (req.method === "POST" && pathname === "/push/register") {
+      const authUser = await requireAuth(req, res);
+      if (!authUser) return;
+      const body = await parseBody(req);
+      const token = String(body.token || "").trim();
+      if (!token) return json(res, 400, { ok: false, error: "Push token is required." });
+      if (!isExpoPushToken(token)) return json(res, 400, { ok: false, error: "Invalid Expo push token." });
+
+      await pool.query(
+        `INSERT INTO user_push_tokens (token, email, created_at, updated_at)
+         VALUES ($1,$2,$3,$4)
+         ON CONFLICT (token)
+         DO UPDATE SET email = EXCLUDED.email, updated_at = EXCLUDED.updated_at`,
+        [token, normalizeEmail(authUser.email), now(), now()]
+      );
+      return json(res, 200, { ok: true });
+    }
+
+    if (req.method === "POST" && pathname === "/push/unregister") {
+      const authUser = await requireAuth(req, res);
+      if (!authUser) return;
+      const body = await parseBody(req);
+      const token = String(body.token || "").trim();
+      if (!token) return json(res, 400, { ok: false, error: "Push token is required." });
+      await pool.query(
+        `DELETE FROM user_push_tokens WHERE token = $1 AND lower(email) = $2`,
+        [token, normalizeEmail(authUser.email)]
+      );
+      return json(res, 200, { ok: true });
     }
 
     if (req.method === "GET" && pathname === "/users") {
@@ -428,8 +704,10 @@ const server = http.createServer(async (req, res) => {
              experience_years = COALESCE($6, experience_years),
              certifications = COALESCE($7, certifications),
              photo_url = COALESCE($8, photo_url),
-             updated_at = $9
-         WHERE email = $10`,
+             bsb = COALESCE($9, bsb),
+             account_number = COALESCE($10, account_number),
+             updated_at = $11
+         WHERE email = $12`,
         [
           patch.firstName ?? null,
           patch.lastName ?? null,
@@ -439,6 +717,8 @@ const server = http.createServer(async (req, res) => {
           Number.isFinite(Number(patch.experienceYears)) ? Number(patch.experienceYears) : null,
           Array.isArray(patch.certifications) ? JSON.stringify(patch.certifications) : null,
           patch.photoUrl ?? null,
+          patch.bsb ?? null,
+          patch.accountNumber ?? null,
           now(),
           normalizeEmail(authUser.email),
         ]
@@ -468,6 +748,27 @@ const server = http.createServer(async (req, res) => {
       const authUser = await requireAuth(req, res);
       if (!authUser) return;
       const myEmail = normalizeEmail(authUser.email);
+      const readsRes = await pool.query(
+        `SELECT peer_email, last_read_at
+         FROM chat_thread_reads
+         WHERE lower(email) = $1`,
+        [myEmail]
+      );
+      const lastReadByPeer = new Map();
+      for (const row of readsRes.rows) {
+        lastReadByPeer.set(normalizeEmail(row.peer_email), Number(row.last_read_at || 0));
+      }
+      const closuresRes = await pool.query(
+        `SELECT peer_email, closed_at
+         FROM chat_thread_closures
+         WHERE lower(email) = $1`,
+        [myEmail]
+      );
+      const closedAtByPeer = new Map();
+      for (const row of closuresRes.rows) {
+        closedAtByPeer.set(normalizeEmail(row.peer_email), Number(row.closed_at || 0));
+      }
+
       const msgRes = await pool.query(
         `SELECT id, from_email, to_email, text, created_at
          FROM messages
@@ -476,23 +777,58 @@ const server = http.createServer(async (req, res) => {
         [myEmail]
       );
       const latestByThread = new Map();
+      const unreadByThread = new Map();
       for (const m of msgRes.rows) {
         const tid = makeThreadId(m.from_email, m.to_email);
+        const fromEmail = normalizeEmail(m.from_email);
+        const toEmail = normalizeEmail(m.to_email);
+        const peerEmail = fromEmail === myEmail ? toEmail : fromEmail;
+        const closedAt = closedAtByPeer.get(peerEmail) ?? 0;
+        if (Number(m.created_at) <= closedAt) continue;
         if (!latestByThread.has(tid)) latestByThread.set(tid, m);
+        const lastReadAt = lastReadByPeer.get(peerEmail) ?? 0;
+        const isIncomingUnread = toEmail === myEmail && Number(m.created_at) > lastReadAt;
+        if (isIncomingUnread) {
+          unreadByThread.set(tid, (unreadByThread.get(tid) || 0) + 1);
+        }
       }
       const threads = [];
       for (const [threadId, m] of latestByThread.entries()) {
         const peerEmail =
           normalizeEmail(m.from_email) === myEmail ? m.to_email : m.from_email;
+        const unreadCount = Number(unreadByThread.get(threadId) || 0);
         threads.push({
           threadId,
           peerEmail,
           lastMessageText: m.text,
           lastMessageAt: Number(m.created_at),
+          unreadCount,
         });
       }
       threads.sort((a, b) => b.lastMessageAt - a.lastMessageAt);
       return json(res, 200, { ok: true, threads });
+    }
+
+    if (req.method === "POST" && pathname === "/chat/close") {
+      const authUser = await requireAuth(req, res);
+      if (!authUser) return;
+      const body = await parseBody(req);
+      const myEmail = normalizeEmail(authUser.email);
+      const peerEmail = normalizeEmail(body.peerEmail);
+      if (!peerEmail) return json(res, 400, { ok: false, error: "Peer email is required." });
+
+      const peerRes = await pool.query("SELECT email FROM users WHERE email = $1 LIMIT 1", [peerEmail]);
+      if (!peerRes.rows.length) return json(res, 404, { ok: false, error: "Peer not found." });
+
+      await pool.query(
+        `INSERT INTO chat_thread_closures (email, peer_email, closed_at)
+         VALUES ($1,$2,$3)
+         ON CONFLICT (email, peer_email)
+         DO UPDATE SET closed_at = EXCLUDED.closed_at`,
+        [myEmail, peerEmail, now()]
+      );
+
+      return json(res, 200, { ok: true });
     }
 
     if (req.method === "GET" && pathname.startsWith("/chat/messages/")) {
@@ -540,7 +876,99 @@ const server = http.createServer(async (req, res) => {
          VALUES ($1,$2,$3,$4,$5)`,
         [makeId("msg"), normalizeEmail(authUser.email), toEmail, text, now()]
       );
+      await createNotification(
+        toEmail,
+        "message_received",
+        "New message",
+        `${authUser.firstName} ${authUser.lastName} sent you a message.`,
+        { fromEmail: normalizeEmail(authUser.email), toEmail }
+      );
+      await pool.query(
+        `INSERT INTO chat_typing (from_email, to_email, is_typing, updated_at)
+         VALUES ($1,$2,$3,$4)
+         ON CONFLICT (from_email, to_email)
+         DO UPDATE SET is_typing = EXCLUDED.is_typing, updated_at = EXCLUDED.updated_at`,
+        [normalizeEmail(authUser.email), toEmail, false, now()]
+      );
       return json(res, 200, { ok: true });
+    }
+
+    if (req.method === "POST" && pathname === "/chat/typing") {
+      const authUser = await requireAuth(req, res);
+      if (!authUser) return;
+      const body = await parseBody(req);
+      const toEmail = normalizeEmail(body.toEmail);
+      const isTyping = Boolean(body.isTyping);
+      if (!toEmail) return json(res, 400, { ok: false, error: "Recipient is required." });
+
+      const toRes = await pool.query("SELECT * FROM users WHERE email = $1 LIMIT 1", [toEmail]);
+      if (!toRes.rows.length) return json(res, 404, { ok: false, error: "Recipient not found." });
+      const toUser = rowToUser(toRes.rows[0]);
+      if (toUser.role === authUser.role) {
+        return json(res, 400, { ok: false, error: "Builders can only chat with labourers (and vice versa)." });
+      }
+
+      await pool.query(
+        `INSERT INTO chat_typing (from_email, to_email, is_typing, updated_at)
+         VALUES ($1,$2,$3,$4)
+         ON CONFLICT (from_email, to_email)
+         DO UPDATE SET is_typing = EXCLUDED.is_typing, updated_at = EXCLUDED.updated_at`,
+        [normalizeEmail(authUser.email), toEmail, isTyping, now()]
+      );
+      return json(res, 200, { ok: true });
+    }
+
+    if (req.method === "POST" && pathname === "/chat/read") {
+      const authUser = await requireAuth(req, res);
+      if (!authUser) return;
+      const body = await parseBody(req);
+      const myEmail = normalizeEmail(authUser.email);
+      const peerEmail = normalizeEmail(body.peerEmail);
+      if (!peerEmail) return json(res, 400, { ok: false, error: "Peer email is required." });
+
+      const peerRes = await pool.query("SELECT email FROM users WHERE email = $1 LIMIT 1", [peerEmail]);
+      if (!peerRes.rows.length) return json(res, 404, { ok: false, error: "Peer not found." });
+
+      await pool.query(
+        `INSERT INTO chat_thread_reads (email, peer_email, last_read_at)
+         VALUES ($1,$2,$3)
+         ON CONFLICT (email, peer_email)
+         DO UPDATE SET last_read_at = EXCLUDED.last_read_at`,
+        [myEmail, peerEmail, now()]
+      );
+      return json(res, 200, { ok: true });
+    }
+
+    if (req.method === "GET" && pathname.startsWith("/chat/typing/")) {
+      const authUser = await requireAuth(req, res);
+      if (!authUser) return;
+      const myEmail = normalizeEmail(authUser.email);
+      const peerEmail = normalizeEmail(decodeURIComponent(pathname.replace("/chat/typing/", "")));
+      if (!peerEmail) return json(res, 400, { ok: false, error: "Peer email is required." });
+
+      const freshAfter = now() - 10000;
+      const typingRes = await pool.query(
+        `SELECT from_email, to_email, is_typing, updated_at
+         FROM chat_typing
+         WHERE (
+           (lower(from_email) = $1 AND lower(to_email) = $2)
+           OR (lower(from_email) = $2 AND lower(to_email) = $1)
+         )
+         AND updated_at >= $3`,
+        [myEmail, peerEmail, freshAfter]
+      );
+
+      let meTyping = false;
+      let peerTyping = false;
+      for (const row of typingRes.rows) {
+        const from = normalizeEmail(row.from_email);
+        const to = normalizeEmail(row.to_email);
+        const active = Boolean(row.is_typing);
+        if (from === myEmail && to === peerEmail) meTyping = active;
+        if (from === peerEmail && to === myEmail) peerTyping = active;
+      }
+
+      return json(res, 200, { ok: true, meTyping, peerTyping, eitherTyping: meTyping || peerTyping });
     }
 
     if (req.method === "POST" && pathname === "/offers") {
@@ -578,6 +1006,8 @@ const server = http.createServer(async (req, res) => {
         updatedAt: createdAt,
         labourerSignature: null,
         labourerRespondedAt: null,
+        completedAt: null,
+        labourerCompanyRating: null,
       };
       const pdfContent = createOfferPdfContent(offer);
 
@@ -586,9 +1016,9 @@ const server = http.createServer(async (req, res) => {
           id, builder_email, builder_company_name, builder_logo_url,
           labourer_email, labourer_name, start_date, end_date, hours, rate, estimated_hours,
           site_address, notes, status, created_at, updated_at, labourer_signature,
-          labourer_responded_at, pdf_content
+          labourer_responded_at, completed_at, labourer_company_rating, pdf_content
         ) VALUES (
-          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19
+          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21
         )`,
         [
           offer.id,
@@ -609,8 +1039,17 @@ const server = http.createServer(async (req, res) => {
           offer.updatedAt,
           offer.labourerSignature,
           offer.labourerRespondedAt,
+          offer.completedAt,
+          offer.labourerCompanyRating,
           pdfContent,
         ]
+      );
+      await createNotification(
+        labourerEmail,
+        "offer_sent",
+        "New work offer",
+        `${authUser.companyName} sent you a work offer.`,
+        { offerId: offer.id, builderEmail: normalizeEmail(authUser.email) }
       );
 
       const createdRes = await pool.query("SELECT * FROM offers WHERE id = $1", [offer.id]);
@@ -704,9 +1143,309 @@ const server = http.createServer(async (req, res) => {
           offerId,
         ]
       );
+      if (status === "approved") {
+        await createNotification(
+          offer.builderEmail,
+          "offer_signed",
+          "Offer signed",
+          `${authUser.firstName} ${authUser.lastName} signed your work offer.`,
+          { offerId: offer.id, labourerEmail: normalizeEmail(authUser.email) }
+        );
+      }
 
       const refreshed = await pool.query("SELECT * FROM offers WHERE id = $1", [offerId]);
       return json(res, 200, { ok: true, offer: rowToOffer(refreshed.rows[0]) });
+    }
+
+    if (req.method === "POST" && pathname.startsWith("/offers/") && pathname.endsWith("/complete")) {
+      const authUser = await requireAuth(req, res);
+      if (!authUser) return;
+      if (authUser.role !== "labourer") {
+        return json(res, 403, { ok: false, error: "Only labourers can complete work." });
+      }
+
+      const body = await parseBody(req);
+      const rating = Number(body.rating);
+      if (!Number.isFinite(rating) || rating < 1 || rating > 5) {
+        return json(res, 400, { ok: false, error: "Rating must be between 1 and 5." });
+      }
+
+      const offerId = pathname.replace("/offers/", "").replace("/complete", "");
+      const offerRes = await pool.query("SELECT * FROM offers WHERE id = $1 LIMIT 1", [offerId]);
+      if (!offerRes.rows.length) return json(res, 404, { ok: false, error: "Offer not found." });
+      const offer = rowToOffer(offerRes.rows[0]);
+
+      if (normalizeEmail(offer.labourerEmail) !== normalizeEmail(authUser.email)) {
+        return json(res, 403, { ok: false, error: "You cannot complete this offer." });
+      }
+      if (offer.status !== "approved") {
+        return json(res, 400, { ok: false, error: "Only approved offers can be completed." });
+      }
+      const today = new Date().toISOString().slice(0, 10);
+      if (today < String(offer.endDate)) {
+        return json(res, 400, { ok: false, error: "You can complete this work after the end date." });
+      }
+
+      const completedAt = now();
+      await pool.query(
+        `UPDATE offers
+         SET status = $1,
+             completed_at = $2,
+             labourer_company_rating = $3,
+             updated_at = $4
+         WHERE id = $5`,
+        ["completed", completedAt, Math.round(rating), completedAt, offerId]
+      );
+
+      const paymentAmount = Number(offer.estimatedHours) * Number(offer.rate);
+      const paymentDetails = `Work offer ${offerId}: ${offer.startDate} to ${offer.endDate}`;
+      const labourerUserRes = await pool.query("SELECT * FROM users WHERE email = $1 LIMIT 1", [
+        normalizeEmail(offer.labourerEmail),
+      ]);
+      const labourerUser = labourerUserRes.rows[0] || null;
+      if (!String(labourerUser?.bsb || "").trim() || !String(labourerUser?.account_number || "").trim()) {
+        return json(res, 400, { ok: false, error: "Please add your BSB and account number in profile before completing work." });
+      }
+      await pool.query(
+        `INSERT INTO payments (
+          id, offer_id, builder_email, labourer_email, builder_company_name, labourer_name,
+          labourer_bsb, labourer_account_number, amount_owed, details, status,
+          receipt_content, created_at, updated_at, paid_at
+        ) VALUES (
+          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15
+        )
+        ON CONFLICT (offer_id)
+        DO UPDATE SET
+          labourer_bsb = EXCLUDED.labourer_bsb,
+          labourer_account_number = EXCLUDED.labourer_account_number,
+          amount_owed = EXCLUDED.amount_owed,
+          details = EXCLUDED.details,
+          updated_at = EXCLUDED.updated_at`,
+        [
+          makeId("pay"),
+          offerId,
+          normalizeEmail(offer.builderEmail),
+          normalizeEmail(offer.labourerEmail),
+          offer.builderCompanyName,
+          offer.labourerName,
+          labourerUser?.bsb || null,
+          labourerUser?.account_number || null,
+          Number.isFinite(paymentAmount) ? paymentAmount : 0,
+          paymentDetails,
+          "pending",
+          null,
+          completedAt,
+          completedAt,
+          null,
+        ]
+      );
+
+      await pool.query(
+        `INSERT INTO messages (id, from_email, to_email, text, created_at)
+         VALUES ($1,$2,$3,$4,$5)`,
+        [
+          makeId("msg"),
+          normalizeEmail(offer.labourerEmail),
+          normalizeEmail(offer.builderEmail),
+          "Work completed. Please process payment in the Pay tab.",
+          completedAt,
+        ]
+      );
+
+      const builderRes = await pool.query("SELECT * FROM users WHERE email = $1 LIMIT 1", [
+        normalizeEmail(offer.builderEmail),
+      ]);
+      if (builderRes.rows.length) {
+        const builderRow = builderRes.rows[0];
+        const existingReviews = Array.isArray(builderRow.reviews) ? builderRow.reviews : [];
+        const nextReview = {
+          id: makeId("review"),
+          labourerEmail: normalizeEmail(authUser.email),
+          labourerName: `${authUser.firstName} ${authUser.lastName}`,
+          rating: Math.round(rating),
+          comment: `Rated after completing offer ${offerId}.`,
+          createdAt: completedAt,
+        };
+        const updatedReviews = [...existingReviews, nextReview];
+        const total = updatedReviews.reduce((sum, r) => sum + Number(r.rating || 0), 0);
+        const companyRating = updatedReviews.length ? total / updatedReviews.length : 0;
+
+        await pool.query(
+          `UPDATE users
+           SET reviews = $1,
+               company_rating = $2,
+               updated_at = $3
+           WHERE email = $4`,
+          [
+            JSON.stringify(updatedReviews),
+            companyRating,
+            completedAt,
+            normalizeEmail(offer.builderEmail),
+          ]
+        );
+      }
+
+      await createNotification(
+        offer.builderEmail,
+        "work_completed",
+        "Work completed - payment required",
+        `${authUser.firstName} ${authUser.lastName} marked work complete. Please process payment.`,
+        { offerId, rating: Math.round(rating), labourerEmail: normalizeEmail(authUser.email) }
+      );
+
+      const refreshed = await pool.query("SELECT * FROM offers WHERE id = $1", [offerId]);
+      return json(res, 200, { ok: true, offer: rowToOffer(refreshed.rows[0]) });
+    }
+
+    if (req.method === "GET" && pathname === "/payments/builder") {
+      const authUser = await requireAuth(req, res);
+      if (!authUser) return;
+      if (authUser.role !== "builder") return json(res, 403, { ok: false, error: "Not a builder account." });
+      await ensurePaymentsForCompletedOffersByRole("builder", authUser.email);
+      const rowsRes = await pool.query(
+        `SELECT * FROM payments WHERE lower(builder_email) = $1 ORDER BY created_at DESC`,
+        [normalizeEmail(authUser.email)]
+      );
+      return json(res, 200, { ok: true, payments: rowsRes.rows.map(rowToPayment) });
+    }
+
+    if (req.method === "GET" && pathname === "/payments/labourer") {
+      const authUser = await requireAuth(req, res);
+      if (!authUser) return;
+      if (authUser.role !== "labourer") return json(res, 403, { ok: false, error: "Not a labourer account." });
+      await ensurePaymentsForCompletedOffersByRole("labourer", authUser.email);
+      const rowsRes = await pool.query(
+        `SELECT * FROM payments WHERE lower(labourer_email) = $1 ORDER BY created_at DESC`,
+        [normalizeEmail(authUser.email)]
+      );
+      return json(res, 200, { ok: true, payments: rowsRes.rows.map(rowToPayment) });
+    }
+
+    if (req.method === "PATCH" && pathname.startsWith("/payments/") && !pathname.endsWith("/pay")) {
+      const authUser = await requireAuth(req, res);
+      if (!authUser) return;
+      if (authUser.role !== "builder") return json(res, 403, { ok: false, error: "Only builders can edit payments." });
+      const paymentId = pathname.replace("/payments/", "");
+      const patch = await parseBody(req);
+      const amountOwed = Number(patch.amountOwed);
+      const details = String(patch.details || "").trim();
+
+      const payRes = await pool.query("SELECT * FROM payments WHERE id = $1 LIMIT 1", [paymentId]);
+      if (!payRes.rows.length) return json(res, 404, { ok: false, error: "Payment not found." });
+      const payment = rowToPayment(payRes.rows[0]);
+      if (normalizeEmail(payment.builderEmail) !== normalizeEmail(authUser.email)) {
+        return json(res, 403, { ok: false, error: "Forbidden." });
+      }
+      if (payment.status !== "pending") {
+        return json(res, 400, { ok: false, error: "Only pending payments can be edited." });
+      }
+      if (!Number.isFinite(amountOwed) || amountOwed <= 0) {
+        return json(res, 400, { ok: false, error: "Amount owed must be greater than 0." });
+      }
+      if (!details) return json(res, 400, { ok: false, error: "Details are required." });
+
+      await pool.query(
+        `UPDATE payments
+         SET amount_owed = $1,
+             details = $2,
+             updated_at = $3
+         WHERE id = $4`,
+        [amountOwed, details, now(), paymentId]
+      );
+      const refreshed = await pool.query("SELECT * FROM payments WHERE id = $1", [paymentId]);
+      return json(res, 200, { ok: true, payment: rowToPayment(refreshed.rows[0]) });
+    }
+
+    if (req.method === "POST" && pathname.startsWith("/payments/") && pathname.endsWith("/pay")) {
+      const authUser = await requireAuth(req, res);
+      if (!authUser) return;
+      if (authUser.role !== "builder") return json(res, 403, { ok: false, error: "Only builders can mark paid." });
+      const paymentId = pathname.replace("/payments/", "").replace("/pay", "");
+
+      const payRes = await pool.query("SELECT * FROM payments WHERE id = $1 LIMIT 1", [paymentId]);
+      if (!payRes.rows.length) return json(res, 404, { ok: false, error: "Payment not found." });
+      const payment = rowToPayment(payRes.rows[0]);
+      if (normalizeEmail(payment.builderEmail) !== normalizeEmail(authUser.email)) {
+        return json(res, 403, { ok: false, error: "Forbidden." });
+      }
+      if (payment.status !== "pending") return json(res, 400, { ok: false, error: "Payment already processed." });
+
+      const paidAt = now();
+      const receipt = [
+        "LabourLink Payment Receipt",
+        `Receipt Date: ${new Date(paidAt).toLocaleString()}`,
+        `Payment ID: ${payment.id}`,
+        `Offer ID: ${payment.offerId}`,
+        "",
+        `Builder: ${payment.builderCompanyName}`,
+        `Builder Email: ${payment.builderEmail}`,
+        `Labourer: ${payment.labourerName}`,
+        `Labourer Email: ${payment.labourerEmail}`,
+        `BSB: ${payment.labourerBsb || "-"}`,
+        `Account Number: ${payment.labourerAccountNumber || "-"}`,
+        "",
+        `Amount Paid: $${Number(payment.amountOwed).toFixed(2)}`,
+        `Details: ${payment.details}`,
+      ].join("\n");
+
+      await pool.query(
+        `UPDATE payments
+         SET status = $1,
+             paid_at = $2,
+             receipt_content = $3,
+             updated_at = $4
+         WHERE id = $5`,
+        ["paid", paidAt, receipt, paidAt, paymentId]
+      );
+
+      await createNotification(
+        payment.labourerEmail,
+        "payment_received",
+        "Payment marked as paid",
+        `${payment.builderCompanyName} marked your payment as paid.`,
+        { paymentId, offerId: payment.offerId }
+      );
+
+      const refreshed = await pool.query("SELECT * FROM payments WHERE id = $1", [paymentId]);
+      return json(res, 200, { ok: true, payment: rowToPayment(refreshed.rows[0]) });
+    }
+
+    if (req.method === "GET" && pathname === "/notifications") {
+      const authUser = await requireAuth(req, res);
+      if (!authUser) return;
+      const rowsRes = await pool.query(
+        `SELECT id, recipient_email, type, title, body, data, is_read, created_at
+         FROM notifications
+         WHERE lower(recipient_email) = $1
+         ORDER BY created_at DESC
+         LIMIT 100`,
+        [normalizeEmail(authUser.email)]
+      );
+
+      const notifications = rowsRes.rows.map((row) => ({
+        id: row.id,
+        recipientEmail: row.recipient_email,
+        type: row.type,
+        title: row.title,
+        body: row.body,
+        data: row.data || {},
+        isRead: Boolean(row.is_read),
+        createdAt: Number(row.created_at),
+      }));
+      return json(res, 200, { ok: true, notifications });
+    }
+
+    if (req.method === "PATCH" && pathname.startsWith("/notifications/") && pathname.endsWith("/read")) {
+      const authUser = await requireAuth(req, res);
+      if (!authUser) return;
+      const notificationId = pathname.replace("/notifications/", "").replace("/read", "");
+      await pool.query(
+        `UPDATE notifications
+         SET is_read = TRUE
+         WHERE id = $1 AND lower(recipient_email) = $2`,
+        [notificationId, normalizeEmail(authUser.email)]
+      );
+      return json(res, 200, { ok: true });
     }
 
     return json(res, 404, { ok: false, error: "Not found" });
