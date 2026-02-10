@@ -6,9 +6,7 @@ type Props = {
   loading: boolean;
   subscription?: BuilderSubscription | null;
   onStartTrial: () => Promise<void>;
-  onSubscribe: () => Promise<void>;
   onRestore: () => Promise<void>;
-  onCustomerCenter?: () => Promise<void>;
   onLogout: () => Promise<void>;
 };
 
@@ -17,9 +15,7 @@ export function SubscriptionPaywallModal({
   loading,
   subscription,
   onStartTrial,
-  onSubscribe,
   onRestore,
-  onCustomerCenter,
   onLogout,
 }: Props) {
   const renewalLabel = subscription?.renewalDate
@@ -79,21 +75,6 @@ export function SubscriptionPaywallModal({
 
           <Pressable
             disabled={loading}
-            onPress={() => run(onSubscribe, "Couldn’t activate subscription")}
-            style={{
-              borderRadius: 12,
-              paddingVertical: 12,
-              alignItems: "center",
-              borderWidth: 1,
-              borderColor: "#111111",
-              opacity: loading ? 0.65 : 1,
-            }}
-          >
-            <Text style={{ fontWeight: "900" }}>Continue with Apple Purchase</Text>
-          </Pressable>
-
-          <Pressable
-            disabled={loading}
             onPress={() => run(onRestore, "Couldn’t restore")}
             style={{
               borderRadius: 12,
@@ -103,20 +84,6 @@ export function SubscriptionPaywallModal({
           >
             <Text style={{ fontWeight: "800" }}>Restore Purchase</Text>
           </Pressable>
-
-          {onCustomerCenter ? (
-            <Pressable
-              disabled={loading}
-              onPress={() => run(onCustomerCenter, "Couldn’t open subscription settings")}
-              style={{
-                borderRadius: 12,
-                paddingVertical: 10,
-                alignItems: "center",
-              }}
-            >
-              <Text style={{ fontWeight: "800" }}>Manage Subscription</Text>
-            </Pressable>
-          ) : null}
 
           <Pressable
             disabled={loading}

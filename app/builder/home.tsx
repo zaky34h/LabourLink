@@ -11,7 +11,6 @@ import { SubscriptionPaywallModal } from "../../src/subscription/SubscriptionPay
 import {
   getSubscriptionProducts,
   hasActiveSubscriptionAccess,
-  openSubscriptionCustomerCenter,
   refreshSubscriptionFromRevenueCat,
   restoreAppleSubscriptionFlow,
   startAppleSubscriptionFlow,
@@ -104,10 +103,6 @@ export default function BuilderHome() {
     }
   }
 
-  async function onSubscribe() {
-    await onStartTrial();
-  }
-
   async function onRestore() {
     if (!user?.email) return;
     setSubscriptionLoading(true);
@@ -119,21 +114,12 @@ export default function BuilderHome() {
     }
   }
 
-  async function onCustomerCenter() {
-    if (!user?.email) return;
-    setSubscriptionLoading(true);
-    try {
-      await openSubscriptionCustomerCenter(user.email);
-      await refreshSubscriptionFromRevenueCat(user.email);
-      await reload();
-    } finally {
-      setSubscriptionLoading(false);
-    }
-  }
-
   async function onLogout() {
-    await clearSession();
-    router.replace("/");
+    try {
+      await clearSession();
+    } finally {
+      router.replace("/");
+    }
   }
 
   function resetOfferForm() {
@@ -569,9 +555,7 @@ export default function BuilderHome() {
         loading={subscriptionLoading}
         subscription={user?.subscription}
         onStartTrial={onStartTrial}
-        onSubscribe={onSubscribe}
         onRestore={onRestore}
-        onCustomerCenter={onCustomerCenter}
         onLogout={onLogout}
       />
     </>
