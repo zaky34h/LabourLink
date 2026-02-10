@@ -5,7 +5,7 @@
     "scheme": "labourlink",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/labourlink-app-icon.png",
+    "icon": "./assets/labourlink-app-icon-safe.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
@@ -19,7 +19,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/labourlink-app-icon.png",
+        "foregroundImage": "./assets/labourlink-app-icon-safe.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
