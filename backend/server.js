@@ -748,6 +748,8 @@ const server = http.createServer(async (req, res) => {
       const authUser = await requireAuth(req, res);
       if (!authUser) return;
       const myEmail = normalizeEmail(authUser.email);
+      const view = String(url.searchParams.get("view") || "active").toLowerCase();
+      const historyMode = view === "history";
       const readsRes = await pool.query(
         `SELECT peer_email, last_read_at
          FROM chat_thread_reads
@@ -759,14 +761,19 @@ const server = http.createServer(async (req, res) => {
         lastReadByPeer.set(normalizeEmail(row.peer_email), Number(row.last_read_at || 0));
       }
       const closuresRes = await pool.query(
-        `SELECT peer_email, closed_at
+        `SELECT email, peer_email, closed_at
          FROM chat_thread_closures
-         WHERE lower(email) = $1`,
+         WHERE lower(email) = $1 OR lower(peer_email) = $1`,
         [myEmail]
       );
       const closedAtByPeer = new Map();
       for (const row of closuresRes.rows) {
-        closedAtByPeer.set(normalizeEmail(row.peer_email), Number(row.closed_at || 0));
+        const rowEmail = normalizeEmail(row.email);
+        const rowPeerEmail = normalizeEmail(row.peer_email);
+        const otherEmail = rowEmail === myEmail ? rowPeerEmail : rowEmail;
+        const closedAt = Number(row.closed_at || 0);
+        const prev = Number(closedAtByPeer.get(otherEmail) || 0);
+        if (closedAt > prev) closedAtByPeer.set(otherEmail, closedAt);
       }
 
       const msgRes = await pool.query(
@@ -784,11 +791,19 @@ const server = http.createServer(async (req, res) => {
         const toEmail = normalizeEmail(m.to_email);
         const peerEmail = fromEmail === myEmail ? toEmail : fromEmail;
         const closedAt = closedAtByPeer.get(peerEmail) ?? 0;
-        if (Number(m.created_at) <= closedAt) continue;
+        const createdAt = Number(m.created_at);
+
+        if (historyMode) {
+          // History is "threads I closed"; show them even if newer messages exist.
+          if (closedAt <= 0) continue;
+        } else {
+          if (createdAt <= closedAt) continue;
+        }
+
         if (!latestByThread.has(tid)) latestByThread.set(tid, m);
         const lastReadAt = lastReadByPeer.get(peerEmail) ?? 0;
         const isIncomingUnread = toEmail === myEmail && Number(m.created_at) > lastReadAt;
-        if (isIncomingUnread) {
+        if (!historyMode && isIncomingUnread) {
           unreadByThread.set(tid, (unreadByThread.get(tid) || 0) + 1);
         }
       }
@@ -805,6 +820,20 @@ const server = http.createServer(async (req, res) => {
           unreadCount,
         });
       }
+      if (historyMode) {
+        for (const [peerEmail, closedAt] of closedAtByPeer.entries()) {
+          const threadId = makeThreadId(myEmail, peerEmail);
+          const exists = threads.some((t) => t.threadId === threadId);
+          if (exists) continue;
+          threads.push({
+            threadId,
+            peerEmail,
+            lastMessageText: "Chat closed",
+            lastMessageAt: Number(closedAt || 0),
+            unreadCount: 0,
+          });
+        }
+      }
       threads.sort((a, b) => b.lastMessageAt - a.lastMessageAt);
       return json(res, 200, { ok: true, threads });
     }
@@ -820,12 +849,13 @@ const server = http.createServer(async (req, res) => {
       const peerRes = await pool.query("SELECT email FROM users WHERE email = $1 LIMIT 1", [peerEmail]);
       if (!peerRes.rows.length) return json(res, 404, { ok: false, error: "Peer not found." });
 
+      const closedAt = now();
       await pool.query(
         `INSERT INTO chat_thread_closures (email, peer_email, closed_at)
-         VALUES ($1,$2,$3)
+         VALUES ($1,$2,$3), ($2,$1,$3)
          ON CONFLICT (email, peer_email)
          DO UPDATE SET closed_at = EXCLUDED.closed_at`,
-        [myEmail, peerEmail, now()]
+        [myEmail, peerEmail, closedAt]
       );
 
       return json(res, 200, { ok: true });
@@ -1375,7 +1405,6 @@ const server = http.createServer(async (req, res) => {
         "LabourLink Payment Receipt",
         `Receipt Date: ${new Date(paidAt).toLocaleString()}`,
         `Payment ID: ${payment.id}`,
-        `Offer ID: ${payment.offerId}`,
         "",
         `Builder: ${payment.builderCompanyName}`,
         `Builder Email: ${payment.builderEmail}`,
@@ -1385,7 +1414,6 @@ const server = http.createServer(async (req, res) => {
         `Account Number: ${payment.labourerAccountNumber || "-"}`,
         "",
         `Amount Paid: $${Number(payment.amountOwed).toFixed(2)}`,
-        `Details: ${payment.details}`,
       ].join("\n");
 
       await pool.query(

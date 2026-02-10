@@ -4,6 +4,12 @@ import { useFocusEffect } from "expo-router";
 import * as Sharing from "expo-sharing";
 import { generateReceiptPdf, getLabourerPayments, type PaymentRecord } from "../../src/payments/storage";
 
+function cleanPaymentDetails(details: string) {
+  return String(details || "")
+    .replace(/^Work offer\s+[^:]+:\s*/i, "")
+    .trim();
+}
+
 export default function LabourerPay() {
   const [loading, setLoading] = useState(true);
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
@@ -47,9 +53,6 @@ export default function LabourerPay() {
       ListHeaderComponent={
         <View>
           <Text style={{ fontSize: 24, fontWeight: "900" }}>Pay</Text>
-          <Text style={{ marginTop: 4, opacity: 0.7, fontWeight: "700" }}>
-            Pending: {pending.length} • Paid: {paid.length}
-          </Text>
           <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
             <Pressable
               onPress={() => setSelectedTab("pending")}
@@ -91,9 +94,8 @@ export default function LabourerPay() {
       renderItem={({ item }) => (
         <View style={{ borderWidth: 1, borderColor: "#111111", borderRadius: 14, padding: 12, marginBottom: 10 }}>
           <Text style={{ fontSize: 17, fontWeight: "900" }}>{item.builderCompanyName}</Text>
-          <Text style={{ marginTop: 4, opacity: 0.8 }}>Offer: {item.offerId}</Text>
           <Text style={{ marginTop: 8, fontWeight: "900" }}>${item.amountOwed.toFixed(2)}</Text>
-          <Text style={{ marginTop: 4, opacity: 0.8 }}>{item.details}</Text>
+          <Text style={{ marginTop: 4, opacity: 0.8 }}>{cleanPaymentDetails(item.details)}</Text>
           <Text style={{ marginTop: 6, fontWeight: "800", color: item.status === "paid" ? "#166534" : "#B45309" }}>
             {item.status.toUpperCase()}
           </Text>

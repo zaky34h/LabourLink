@@ -9,12 +9,14 @@ export default function BuilderMessages() {
   const { user } = useCurrentUser();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedTab, setSelectedTab] = useState<"active" | "history">("active");
   const [threads, setThreads] = useState<ChatThread[]>([]);
   const [names, setNames] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
 
-  async function load(options?: { silent?: boolean }) {
+  async function load(options?: { silent?: boolean; view?: "active" | "history" }) {
     const silent = options?.silent ?? false;
+    const view = options?.view ?? selectedTab;
     if (!user?.email) {
       setThreads([]);
       setNames({});
@@ -24,7 +26,7 @@ export default function BuilderMessages() {
     }
     if (!silent) setLoading(true);
     try {
-      const t = await getThreadsForUser(user.email);
+      const t = await getThreadsForUser(user.email, view);
       setThreads(t);
 
       const map: Record<string, string> = {};
@@ -52,7 +54,7 @@ export default function BuilderMessages() {
   useFocusEffect(
     useCallback(() => {
       load();
-    }, [user?.email])
+    }, [user?.email, selectedTab])
   );
 
   if (loading) {
@@ -75,6 +77,56 @@ export default function BuilderMessages() {
       ListHeaderComponent={
         <View>
           <Text style={{ fontSize: 24, fontWeight: "900" }}>Messages</Text>
+          <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
+            <Pressable
+              onPress={async () => {
+                setSelectedTab("active");
+                await load({ silent: true, view: "active" });
+              }}
+              style={{
+                flex: 1,
+                paddingVertical: 10,
+                borderRadius: 10,
+                borderWidth: 1,
+                borderColor: "#111111",
+                backgroundColor: selectedTab === "active" ? "#111111" : "#ffffff",
+                alignItems: "center",
+              }}
+            >
+              <Text
+                style={{
+                  fontWeight: "900",
+                  color: selectedTab === "active" ? "#FDE047" : "#111111",
+                }}
+              >
+                Active
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={async () => {
+                setSelectedTab("history");
+                await load({ silent: true, view: "history" });
+              }}
+              style={{
+                flex: 1,
+                paddingVertical: 10,
+                borderRadius: 10,
+                borderWidth: 1,
+                borderColor: "#111111",
+                backgroundColor: selectedTab === "history" ? "#111111" : "#ffffff",
+                alignItems: "center",
+              }}
+            >
+              <Text
+                style={{
+                  fontWeight: "900",
+                  color: selectedTab === "history" ? "#FDE047" : "#111111",
+                }}
+              >
+                History
+              </Text>
+            </Pressable>
+          </View>
           {error ? (
             <Text style={{ marginTop: 8, color: "#B91C1C", fontWeight: "700" }}>{error}</Text>
           ) : null}
@@ -83,7 +135,9 @@ export default function BuilderMessages() {
       }
       ListEmptyComponent={
         <Text style={{ marginTop: 26, opacity: 0.7, fontWeight: "700" }}>
-          No chats yet. Browse labourers and message one.
+          {selectedTab === "active"
+            ? "No active chats yet. Browse labourers and message one."
+            : "No chat history yet."}
         </Text>
       }
       renderItem={({ item }) => (

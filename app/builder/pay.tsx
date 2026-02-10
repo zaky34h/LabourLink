@@ -4,6 +4,12 @@ import { useFocusEffect } from "expo-router";
 import * as Sharing from "expo-sharing";
 import { generateReceiptPdf, getBuilderPayments, markPaymentPaid, type PaymentRecord, updatePayment } from "../../src/payments/storage";
 
+function cleanPaymentDetails(details: string) {
+  return String(details || "")
+    .replace(/^Work offer\s+[^:]+:\s*/i, "")
+    .trim();
+}
+
 export default function BuilderPay() {
   const [loading, setLoading] = useState(true);
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
@@ -71,9 +77,6 @@ export default function BuilderPay() {
       ListHeaderComponent={
         <View>
           <Text style={{ fontSize: 24, fontWeight: "900" }}>Pay</Text>
-          <Text style={{ marginTop: 4, opacity: 0.7, fontWeight: "700" }}>
-            Pending: {pending.length} • Paid: {paid.length}
-          </Text>
           <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
             <Pressable
               onPress={() => setSelectedTab("pending")}
@@ -117,7 +120,6 @@ export default function BuilderPay() {
         return (
           <View style={{ borderWidth: 1, borderColor: "#111111", borderRadius: 14, padding: 12, marginBottom: 10 }}>
             <Text style={{ fontSize: 17, fontWeight: "900" }}>{item.labourerName}</Text>
-            <Text style={{ marginTop: 4, opacity: 0.8 }}>Offer: {item.offerId}</Text>
             <Text style={{ marginTop: 4, opacity: 0.8 }}>BSB: {item.labourerBsb || "Not set"}</Text>
             <Text style={{ marginTop: 2, opacity: 0.8 }}>Account: {item.labourerAccountNumber || "Not set"}</Text>
 
@@ -148,7 +150,7 @@ export default function BuilderPay() {
             ) : (
               <>
                 <Text style={{ marginTop: 8, fontWeight: "900" }}>${item.amountOwed.toFixed(2)}</Text>
-                <Text style={{ marginTop: 4, opacity: 0.8 }}>{item.details}</Text>
+                <Text style={{ marginTop: 4, opacity: 0.8 }}>{cleanPaymentDetails(item.details)}</Text>
                 <Text style={{ marginTop: 4, fontWeight: "800", color: item.status === "paid" ? "#166534" : "#B45309" }}>
                   {item.status.toUpperCase()}
                 </Text>

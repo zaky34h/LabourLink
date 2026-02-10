@@ -253,7 +253,7 @@ export default function BuilderHome() {
 
       <View style={{ flexDirection: "row", gap: 12 }}>
         <StatCard title="Saved Labourers" value="0" />
-        <StatCard title="Upcoming Jobs" value="0" />
+        <StatCard title="Pending Pay" value="0" />
       </View>
 
       {/* Quick Actions */}
