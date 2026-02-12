@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { View, Text, Pressable, ActivityIndicator, Image, ScrollView, Alert } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
+import { Calendar } from "react-native-calendars";
 import { getUserByEmail, type LabourerUser } from "../../../src/auth/storage";
 import { useCurrentUser } from "../../../src/auth/useCurrentUser";
 import { isLabourerSaved, saveLabourer, unsaveLabourer } from "../../../src/saved-labourers/storage";
@@ -76,6 +77,18 @@ export default function LabourerProfileView() {
   const fullName = `${labourer.firstName} ${labourer.lastName}`;
   const certs = labourer.certifications ?? ["White Card (example)", "Working at Heights (example)"];
   const exp = labourer.experienceYears ?? 3;
+  const currentMonthAvailableDates = (labourer.availableDates ?? [])
+    .filter((d) => isCurrentMonthDate(d))
+    .sort((a, b) => a.localeCompare(b));
+  const currentMonthCalendarDate = getCurrentMonthAnchorIso();
+  const markedDates = currentMonthAvailableDates.reduce((acc, d) => {
+    acc[d] = {
+      selected: true,
+      selectedColor: "#111",
+      selectedTextColor: "#FDE047",
+    };
+    return acc;
+  }, {} as Record<string, any>);
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: "#fff" }} contentContainerStyle={{ padding: 16, paddingTop: 60, paddingBottom: 30, gap: 14 }}>
@@ -166,11 +179,46 @@ export default function LabourerProfileView() {
         {/* Availability */}
         <View style={{ paddingTop: 8, borderTopWidth: 1, borderTopColor: "#FDE047" }}>
           <Text style={{ fontWeight: "900" }}>Availability</Text>
-          <Text style={{ marginTop: 6, opacity: 0.8 }}>
-            {(labourer.availableDates ?? []).length} date(s) selected
+          <Text style={{ marginTop: 6, opacity: 0.8, fontWeight: "700" }}>
+            Current month: {currentMonthAvailableDates.length} date(s)
           </Text>
+          <View style={{ marginTop: 8, borderWidth: 1, borderColor: "#111111", borderRadius: 12, padding: 8 }}>
+            <Calendar
+              current={currentMonthCalendarDate}
+              markedDates={markedDates}
+              onMonthChange={() => {}}
+              enableSwipeMonths={false}
+              hideExtraDays={false}
+              disableMonthChange
+            />
+          </View>
+          {!currentMonthAvailableDates.length ? (
+            <Text style={{ marginTop: 8, opacity: 0.75 }}>No available dates in this month.</Text>
+          ) : null}
         </View>
       </View>
     </ScrollView>
   );
+}
+
+function isCurrentMonthDate(isoDate: string) {
+  const m = String(isoDate || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return false;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const now = new Date();
+  return year === now.getFullYear() && month === now.getMonth() + 1;
+}
+
+function formatDateLabel(isoDate: string) {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  return dt.toLocaleDateString(undefined, { month: "short", day: "2-digit" });
+}
+
+function getCurrentMonthAnchorIso() {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  return `${yyyy}-${mm}-01`;
 }
