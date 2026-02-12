@@ -1,4 +1,5 @@
 import { Platform } from "react-native";
+import Constants from "expo-constants";
 import type { BuilderSubscription } from "../auth/storage";
 
 const DEFAULT_IOS_API_KEY = "test_TrMdLOfNQKBZCijjWzKpajqqEeE";
@@ -26,6 +27,10 @@ function entitlementId() {
 
 function isIos() {
   return Platform.OS === "ios";
+}
+
+function isExpoGoRuntime() {
+  return Constants.appOwnership === "expo";
 }
 
 function loadPurchasesModule(): any {
@@ -97,6 +102,11 @@ export function customerInfoToSubscription(customerInfo: any): BuilderSubscripti
 
 export async function configureRevenueCat(email: string): Promise<any> {
   if (!isIos()) throw new Error("Apple subscriptions are only available on iOS.");
+  if (isExpoGoRuntime()) {
+    throw new Error(
+      "Subscriptions require a development build or TestFlight. Expo Go does not support RevenueCat paywalls."
+    );
+  }
   const Purchases = loadPurchasesModule();
   if (!Purchases) {
     throw new Error("RevenueCat SDK not found. Install react-native-purchases and rebuild iOS.");
@@ -181,4 +191,3 @@ export async function openRevenueCatCustomerCenter(email: string): Promise<void>
   }
   await RevenueCatUI.presentCustomerCenter();
 }
-

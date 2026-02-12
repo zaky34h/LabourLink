@@ -111,7 +111,7 @@ export default function LabourerHome() {
       >
       <View style={{ gap: 6 }}>
         <Text style={{ fontSize: 14, fontWeight: "700", color: "#111111" }}>
-          Welcome back
+          Welcome back,
         </Text>
         <Text style={{ fontSize: 28, fontWeight: "900" }} numberOfLines={1}>
           {name}

@@ -84,6 +84,10 @@ export default function BuilderTabsLayout() {
         options={{ href: null }}
       />
       <Tabs.Screen
+        name="saved"
+        options={{ href: null }}
+      />
+      <Tabs.Screen
         name="labourer/[email]"
         options={{ href: null }}
       />

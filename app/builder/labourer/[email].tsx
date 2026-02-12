@@ -1,25 +1,58 @@
 import { useEffect, useState } from "react";
-import { View, Text, Pressable, ActivityIndicator, Image, ScrollView } from "react-native";
+import { View, Text, Pressable, ActivityIndicator, Image, ScrollView, Alert } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { getUserByEmail, type LabourerUser } from "../../../src/auth/storage";
+import { useCurrentUser } from "../../../src/auth/useCurrentUser";
+import { isLabourerSaved, saveLabourer, unsaveLabourer } from "../../../src/saved-labourers/storage";
 
 export default function LabourerProfileView() {
   const { email } = useLocalSearchParams<{ email: string }>();
   const labourerEmail = decodeURIComponent(email ?? "");
+  const { user } = useCurrentUser();
 
   const [loading, setLoading] = useState(true);
   const [labourer, setLabourer] = useState<LabourerUser | null>(null);
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   async function load() {
     setLoading(true);
-    const u = await getUserByEmail(labourerEmail);
-    setLabourer(u?.role === "labourer" ? (u as LabourerUser) : null);
-    setLoading(false);
+    try {
+      const u = await getUserByEmail(labourerEmail);
+      const nextLabourer = u?.role === "labourer" ? (u as LabourerUser) : null;
+      setLabourer(nextLabourer);
+      if (user?.role === "builder" && nextLabourer) {
+        const state = await isLabourerSaved(nextLabourer.email).catch(() => false);
+        setSaved(state);
+      } else {
+        setSaved(false);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function onToggleSaved() {
+    if (!labourer || user?.role !== "builder" || saving) return;
+    setSaving(true);
+    try {
+      if (saved) {
+        await unsaveLabourer(labourer.email);
+        setSaved(false);
+      } else {
+        await saveLabourer(labourer.email);
+        setSaved(true);
+      }
+    } catch (error: any) {
+      Alert.alert("Couldn’t update saved labourer", error?.message || "Please try again.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   useEffect(() => {
     load();
-  }, [labourerEmail]);
+  }, [labourerEmail, user?.role]);
 
   if (loading) {
     return (
@@ -61,6 +94,25 @@ export default function LabourerProfileView() {
         >
           <Text style={{ color: "#FDE047", fontWeight: "900" }}>Message</Text>
         </Pressable>
+
+        {user?.role === "builder" ? (
+          <Pressable
+            disabled={saving}
+            onPress={onToggleSaved}
+            style={{
+              paddingVertical: 10,
+              paddingHorizontal: 12,
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: "#111111",
+              backgroundColor: saved ? "#FDE047" : "#fff",
+              marginLeft: 8,
+              opacity: saving ? 0.6 : 1,
+            }}
+          >
+            <Text style={{ fontWeight: "900" }}>{saved ? "★ Saved" : "☆ Save"}</Text>
+          </Pressable>
+        ) : null}
       </View>
 
       {/* Profile card */}

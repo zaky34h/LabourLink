@@ -13,7 +13,7 @@ export function FormScreen({ children }: { children: React.ReactNode }) {
       >
         <KeyboardAwareScrollView
           enableOnAndroid
-          keyboardShouldPersistTaps="handled"
+          keyboardShouldPersistTaps="always"
           extraScrollHeight={20}
           // ✅ THIS is the key: lets children take full screen height
           contentContainerStyle={{ flexGrow: 1, paddingBottom: 40, backgroundColor: "#fff" }}

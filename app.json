@@ -15,7 +15,11 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.LabourLink"
+      "bundleIdentifier": "com.zakariyahage.labourlink",
+      "buildNumber": "1",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -27,7 +31,7 @@
       "permissions": [
         "android.permission.RECORD_AUDIO"
       ],
-      "package": "com.anonymous.LabourLink"
+      "package": "com.zakariyahage.labourlink"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -41,6 +45,12 @@
           "photosPermission": "Allow Labour-link to access your photos so you can choose a company logo."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "7fe5713f-643b-491d-98b6-45eff7ab53c1"
+      }
+    }
   }
 }

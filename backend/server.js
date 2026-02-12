@@ -364,6 +364,15 @@ async function initDb() {
       paid_at BIGINT
     );
   `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS builder_saved_labourers (
+      builder_email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+      labourer_email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+      created_at BIGINT NOT NULL,
+      PRIMARY KEY (builder_email, labourer_email)
+    );
+  `);
 }
 
 function rowToUser(row) {
@@ -777,6 +786,78 @@ const server = http.createServer(async (req, res) => {
       const userRes = await pool.query("SELECT * FROM users WHERE email = $1 LIMIT 1", [email]);
       if (!userRes.rows.length) return json(res, 404, { ok: false, error: "User not found" });
       return json(res, 200, { ok: true, user: rowToUser(userRes.rows[0]) });
+    }
+
+    if (req.method === "GET" && pathname === "/saved-labourers") {
+      const authUser = await requireAuth(req, res);
+      if (!authUser) return;
+      if (authUser.role !== "builder") return json(res, 403, { ok: false, error: "Only builders can view saved labourers." });
+      const savedRes = await pool.query(
+        `SELECT u.*
+         FROM builder_saved_labourers s
+         JOIN users u ON u.email = s.labourer_email
+         WHERE lower(s.builder_email) = $1
+         ORDER BY s.created_at DESC`,
+        [normalizeEmail(authUser.email)]
+      );
+      const labourers = savedRes.rows.map(rowToUser).filter((u) => u.role === "labourer");
+      return json(res, 200, { ok: true, labourers });
+    }
+
+    if (req.method === "GET" && pathname.startsWith("/saved-labourers/") && pathname.endsWith("/status")) {
+      const authUser = await requireAuth(req, res);
+      if (!authUser) return;
+      if (authUser.role !== "builder") return json(res, 403, { ok: false, error: "Only builders can check saved status." });
+      const labourerEmail = normalizeEmail(
+        decodeURIComponent(pathname.replace("/saved-labourers/", "").replace("/status", ""))
+      );
+      if (!labourerEmail) return json(res, 400, { ok: false, error: "Labourer email is required." });
+      const savedRes = await pool.query(
+        `SELECT 1
+         FROM builder_saved_labourers
+         WHERE lower(builder_email) = $1 AND lower(labourer_email) = $2
+         LIMIT 1`,
+        [normalizeEmail(authUser.email), labourerEmail]
+      );
+      return json(res, 200, { ok: true, saved: savedRes.rows.length > 0 });
+    }
+
+    if (req.method === "POST" && pathname.startsWith("/saved-labourers/") && pathname.endsWith("/save")) {
+      const authUser = await requireAuth(req, res);
+      if (!authUser) return;
+      if (authUser.role !== "builder") return json(res, 403, { ok: false, error: "Only builders can save labourers." });
+      const labourerEmail = normalizeEmail(
+        decodeURIComponent(pathname.replace("/saved-labourers/", "").replace("/save", ""))
+      );
+      if (!labourerEmail) return json(res, 400, { ok: false, error: "Labourer email is required." });
+      const labourerRes = await pool.query("SELECT role FROM users WHERE email = $1 LIMIT 1", [labourerEmail]);
+      if (!labourerRes.rows.length || labourerRes.rows[0].role !== "labourer") {
+        return json(res, 404, { ok: false, error: "Labourer not found." });
+      }
+
+      await pool.query(
+        `INSERT INTO builder_saved_labourers (builder_email, labourer_email, created_at)
+         VALUES ($1,$2,$3)
+         ON CONFLICT (builder_email, labourer_email) DO NOTHING`,
+        [normalizeEmail(authUser.email), labourerEmail, now()]
+      );
+      return json(res, 200, { ok: true, saved: true });
+    }
+
+    if (req.method === "POST" && pathname.startsWith("/saved-labourers/") && pathname.endsWith("/unsave")) {
+      const authUser = await requireAuth(req, res);
+      if (!authUser) return;
+      if (authUser.role !== "builder") return json(res, 403, { ok: false, error: "Only builders can unsave labourers." });
+      const labourerEmail = normalizeEmail(
+        decodeURIComponent(pathname.replace("/saved-labourers/", "").replace("/unsave", ""))
+      );
+      if (!labourerEmail) return json(res, 400, { ok: false, error: "Labourer email is required." });
+      await pool.query(
+        `DELETE FROM builder_saved_labourers
+         WHERE lower(builder_email) = $1 AND lower(labourer_email) = $2`,
+        [normalizeEmail(authUser.email), labourerEmail]
+      );
+      return json(res, 200, { ok: true, saved: false });
     }
 
     if (req.method === "PATCH" && pathname === "/builder/profile") {
@@ -1551,8 +1632,8 @@ const server = http.createServer(async (req, res) => {
       await createNotification(
         payment.labourerEmail,
         "payment_received",
-        "Payment marked as paid",
-        `${payment.builderCompanyName} marked your payment as paid.`,
+        "Payment received",
+        `${payment.builderCompanyName || "A builder"} has paid you $${Number(payment.amountOwed).toFixed(2)}.`,
         { paymentId, offerId: payment.offerId }
       );
 

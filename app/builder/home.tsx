@@ -7,6 +7,7 @@ import { clearSession } from "../../src/auth/storage";
 import { getUserByEmail, type LabourerUser } from "../../src/auth/storage";
 import { getThreadsForUser } from "../../src/chat/storage";
 import { createWorkOffer } from "../../src/offers/storage";
+import { getSavedLabourers } from "../../src/saved-labourers/storage";
 import { SubscriptionPaywallModal } from "../../src/subscription/SubscriptionPaywallModal";
 import {
   getSubscriptionProducts,
@@ -23,6 +24,7 @@ export default function BuilderHome() {
   const [subscriptionLoading, setSubscriptionLoading] = useState(false);
   const [offerModalOpen, setOfferModalOpen] = useState(false);
   const [labourers, setLabourers] = useState<LabourerUser[]>([]);
+  const [savedLabourersCount, setSavedLabourersCount] = useState(0);
   const [selectedLabourerEmail, setSelectedLabourerEmail] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -83,6 +85,8 @@ export default function BuilderHome() {
 
     const threads = await getThreadsForUser(user.email);
     setActiveChats(threads.length);
+    const savedLabourers = await getSavedLabourers().catch(() => []);
+    setSavedLabourersCount(savedLabourers.length);
     await loadChattedLabourers();
   }
 
@@ -286,7 +290,7 @@ export default function BuilderHome() {
       {/* Header */}
       <View style={{ gap: 6 }}>
         <Text style={{ fontSize: 14, fontWeight: "700", color: "#111111" }}>
-          Welcome back
+          Welcome back,
         </Text>
         <Text style={{ fontSize: 28, fontWeight: "900" }}>{company}</Text>
       </View>
@@ -298,7 +302,7 @@ export default function BuilderHome() {
       </View>
 
       <View style={{ flexDirection: "row", gap: 12 }}>
-        <StatCard title="Saved Labourers" value="0" />
+        <StatCard title="Saved Labourers" value={String(savedLabourersCount)} />
         <StatCard title="Pending Pay" value="0" />
       </View>
 
@@ -330,6 +334,15 @@ export default function BuilderHome() {
           subtitle="Send formal offer details to a labourer"
           tone="yellow"
           onPress={openOfferModal}
+        />
+
+        <ActionButton
+          label="Saved Labourers"
+          subtitle="View labourers you’ve starred"
+          onPress={() => {
+            closeOfferOverlays();
+            router.push("/builder/saved");
+          }}
         />
       </View>
 

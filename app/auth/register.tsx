@@ -37,6 +37,7 @@ export default function Register() {
   // Common
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   function isEmailValid(v: string) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
@@ -58,6 +59,7 @@ export default function Register() {
   }
 
   async function onCreateAccount() {
+    if (submitting) return;
     if (!firstName.trim() || !lastName.trim())
       return Alert.alert("Missing info", "Please enter your first and last name.");
     if (!about.trim())
@@ -130,18 +132,23 @@ export default function Register() {
       };
     }
 
-    const res = await registerUser(user);
-    if (!res.ok) return Alert.alert("Couldn’t create account", res.error);
+    setSubmitting(true);
+    try {
+      const res = await registerUser(user);
+      if (!res.ok) return Alert.alert("Couldn’t create account", res.error);
 
-    const loginRes = await loginUser(email.trim(), password);
-    if (!loginRes.ok) {
-      return Alert.alert("Account created", "Please log in.", [
-        { text: "OK", onPress: () => router.replace("/") },
-      ]);
+      const loginRes = await loginUser(email.trim(), password);
+      if (!loginRes.ok) {
+        return Alert.alert("Account created", "Please log in.", [
+          { text: "OK", onPress: () => router.replace("/") },
+        ]);
+      }
+
+      if (loginRes.user.role === "builder") router.replace("/builder/home");
+      else router.replace("/labourer/home");
+    } finally {
+      setSubmitting(false);
     }
-
-    if (loginRes.user.role === "builder") router.replace("/builder/home");
-    else router.replace("/labourer/home");
   }
 
   return (
@@ -275,9 +282,19 @@ export default function Register() {
 
         <Pressable
           onPress={onCreateAccount}
-          style={{ padding: 16, backgroundColor: "#111", borderRadius: 12, alignItems: "center", marginTop: 8 }}
+          disabled={submitting}
+          style={{
+            padding: 16,
+            backgroundColor: submitting ? "#444" : "#111",
+            borderRadius: 12,
+            alignItems: "center",
+            marginTop: 8,
+            opacity: submitting ? 0.85 : 1,
+          }}
         >
-          <Text style={{ color: "#FDE047", fontWeight: "800" }}>Create Account</Text>
+          <Text style={{ color: "#FDE047", fontWeight: "800" }}>
+            {submitting ? "Creating..." : "Create Account"}
+          </Text>
         </Pressable>
 
         <Pressable onPress={() => router.replace("/")}>
