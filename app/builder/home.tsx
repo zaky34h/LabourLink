@@ -3,25 +3,18 @@ import { View, Text, Pressable, ScrollView, Modal, TextInput, Alert, RefreshCont
 import { router, useFocusEffect } from "expo-router";
 import { Calendar } from "react-native-calendars";
 import { useCurrentUser } from "../../src/auth/useCurrentUser";
-import { clearSession } from "../../src/auth/storage";
 import { getUserByEmail, type LabourerUser } from "../../src/auth/storage";
 import { getThreadsForUser } from "../../src/chat/storage";
-import { createWorkOffer } from "../../src/offers/storage";
+import { createWorkOffer, getOffersForBuilder } from "../../src/offers/storage";
+import { getBuilderPayments } from "../../src/payments/storage";
 import { getSavedLabourers } from "../../src/saved-labourers/storage";
-import { SubscriptionPaywallModal } from "../../src/subscription/SubscriptionPaywallModal";
-import {
-  getSubscriptionProducts,
-  hasActiveSubscriptionAccess,
-  refreshSubscriptionFromRevenueCat,
-  restoreAppleSubscriptionFlow,
-  startAppleSubscriptionFlow,
-} from "../../src/subscription/storage";
 
 export default function BuilderHome() {
-  const { user, reload } = useCurrentUser();
+  const { user } = useCurrentUser();
   const [activeChats, setActiveChats] = useState(0);
+  const [pendingOffersCount, setPendingOffersCount] = useState(0);
+  const [pendingPayCount, setPendingPayCount] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
-  const [subscriptionLoading, setSubscriptionLoading] = useState(false);
   const [offerModalOpen, setOfferModalOpen] = useState(false);
   const [labourers, setLabourers] = useState<LabourerUser[]>([]);
   const [savedLabourersCount, setSavedLabourersCount] = useState(0);
@@ -40,7 +33,6 @@ export default function BuilderHome() {
 
   const company = user?.role === "builder" ? user.companyName : "Builder";
   const selectedLabourer = labourers.find((l) => l.email === selectedLabourerEmail);
-  const showSubscriptionModal = Boolean(user && !hasActiveSubscriptionAccess(user.subscription));
 
   function closeOfferOverlays() {
     setOfferModalOpen(false);
@@ -78,13 +70,21 @@ export default function BuilderHome() {
   async function loadDashboardData() {
     if (!user?.email) {
       setActiveChats(0);
+      setPendingOffersCount(0);
+      setPendingPayCount(0);
       setLabourers([]);
       setSelectedLabourerEmail("");
       return;
     }
 
-    const threads = await getThreadsForUser(user.email);
+    const [threads, offers, payments] = await Promise.all([
+      getThreadsForUser(user.email),
+      getOffersForBuilder(user.email),
+      getBuilderPayments().catch(() => []),
+    ]);
     setActiveChats(threads.length);
+    setPendingOffersCount(offers.filter((o) => o.status === "pending").length);
+    setPendingPayCount(payments.filter((p) => p.status === "pending").length);
     const savedLabourers = await getSavedLabourers().catch(() => []);
     setSavedLabourersCount(savedLabourers.length);
     await loadChattedLabourers();
@@ -94,36 +94,6 @@ export default function BuilderHome() {
     setRefreshing(true);
     await loadDashboardData();
     setRefreshing(false);
-  }
-
-  async function onStartTrial() {
-    if (!user?.email) return;
-    setSubscriptionLoading(true);
-    try {
-      await startAppleSubscriptionFlow(user.email);
-      await reload();
-    } finally {
-      setSubscriptionLoading(false);
-    }
-  }
-
-  async function onRestore() {
-    if (!user?.email) return;
-    setSubscriptionLoading(true);
-    try {
-      await restoreAppleSubscriptionFlow(user.email);
-      await reload();
-    } finally {
-      setSubscriptionLoading(false);
-    }
-  }
-
-  async function onLogout() {
-    try {
-      await clearSession();
-    } finally {
-      router.replace("/");
-    }
   }
 
   function resetOfferForm() {
@@ -255,10 +225,6 @@ export default function BuilderHome() {
       let isCancelled = false;
 
       async function runLoad() {
-        if (user?.email) {
-          await refreshSubscriptionFromRevenueCat(user.email).catch(() => null);
-          await getSubscriptionProducts(user.email).catch(() => []);
-        }
         await loadDashboardData();
         if (isCancelled) return;
       }
@@ -280,8 +246,7 @@ export default function BuilderHome() {
   }, [offerModalOpen]);
 
   return (
-    <>
-      <ScrollView
+    <ScrollView
         style={{ flex: 1, backgroundColor: "#fff" }}
         contentContainerStyle={{ padding: 20, paddingTop: 60, gap: 20 }}
         showsVerticalScrollIndicator={false}
@@ -298,12 +263,12 @@ export default function BuilderHome() {
       {/* Stats */}
       <View style={{ flexDirection: "row", gap: 12 }}>
         <StatCard title="Active Chats" value={String(activeChats)} />
-        <StatCard title="Pending Offers" value="0" />
+        <StatCard title="Pending Offers" value={String(pendingOffersCount)} />
       </View>
 
       <View style={{ flexDirection: "row", gap: 12 }}>
         <StatCard title="Saved Labourers" value={String(savedLabourersCount)} />
-        <StatCard title="Pending Pay" value="0" />
+        <StatCard title="Pending Pay" value={String(pendingPayCount)} />
       </View>
 
       {/* Quick Actions */}
@@ -562,16 +527,7 @@ export default function BuilderHome() {
           </View>
         </View>
       </Modal>
-      </ScrollView>
-      <SubscriptionPaywallModal
-        visible={showSubscriptionModal}
-        loading={subscriptionLoading}
-        subscription={user?.subscription}
-        onStartTrial={onStartTrial}
-        onRestore={onRestore}
-        onLogout={onLogout}
-      />
-    </>
+    </ScrollView>
   );
 }
 

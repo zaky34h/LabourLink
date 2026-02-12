@@ -12,6 +12,7 @@ const DATABASE_URL =
 const pool = new Pool({
   connectionString: DATABASE_URL,
 });
+const SESSION_TTL_MS = Number(process.env.SESSION_TTL_MS || 1000 * 60 * 60 * 24 * 30);
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -24,12 +25,58 @@ function now() {
   return Date.now();
 }
 
+function todayLocalIso() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 function normalizeEmail(v) {
   return String(v || "").trim().toLowerCase();
 }
 
-function hashPassword(password) {
+function hashPasswordLegacy(password) {
   return crypto.createHash("sha256").update(String(password)).digest("hex");
+}
+
+function scryptKey(password, salt) {
+  return new Promise((resolve, reject) => {
+    crypto.scrypt(String(password), salt, 64, { N: 16384, r: 8, p: 1 }, (err, derivedKey) => {
+      if (err) return reject(err);
+      resolve(derivedKey);
+    });
+  });
+}
+
+async function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString("hex");
+  const derivedKey = await scryptKey(String(password), salt);
+  return `scrypt$${salt}$${Buffer.from(derivedKey).toString("hex")}`;
+}
+
+async function verifyPassword(password, storedHash) {
+  const stored = String(storedHash || "");
+  if (!stored) return false;
+
+  if (/^[a-f0-9]{64}$/i.test(stored)) {
+    return hashPasswordLegacy(password) === stored;
+  }
+
+  if (stored.startsWith("scrypt$")) {
+    const parts = stored.split("$");
+    if (parts.length !== 3) return false;
+    const salt = parts[1];
+    const expectedHex = parts[2];
+    const derived = await scryptKey(String(password), salt);
+    const derivedBuf = Buffer.from(derived);
+    const expectedBuf = Buffer.from(expectedHex, "hex");
+    if (derivedBuf.length !== expectedBuf.length) return false;
+    return crypto.timingSafeEqual(derivedBuf, expectedBuf);
+  }
+
+  return false;
 }
 
 function makeId(prefix = "id") {
@@ -511,9 +558,15 @@ async function ensurePaymentsForCompletedOffersByRole(role, email) {
 async function getSessionUser(req) {
   const token = getAuthToken(req);
   if (!token) return null;
-  const sessionRes = await pool.query("SELECT email FROM sessions WHERE token = $1 LIMIT 1", [token]);
+  const sessionRes = await pool.query("SELECT email, created_at FROM sessions WHERE token = $1 LIMIT 1", [token]);
   if (!sessionRes.rows.length) return null;
-  const email = sessionRes.rows[0].email;
+  const session = sessionRes.rows[0];
+  const createdAt = Number(session.created_at || 0);
+  if (!Number.isFinite(createdAt) || now() - createdAt > SESSION_TTL_MS) {
+    await pool.query("DELETE FROM sessions WHERE token = $1", [token]);
+    return null;
+  }
+  const email = session.email;
   const userRes = await pool.query("SELECT * FROM users WHERE email = $1 LIMIT 1", [email]);
   if (!userRes.rows.length) return null;
   return rowToUser(userRes.rows[0]);
@@ -557,6 +610,7 @@ const server = http.createServer(async (req, res) => {
       if (existsRes.rows.length) return json(res, 409, { ok: false, error: "Email already exists" });
 
       const ts = now();
+      const passwordHash = await hashPassword(body.password);
       const initialSubscription = defaultSubscription();
       if (body.role === "builder") {
         await pool.query(
@@ -577,7 +631,7 @@ const server = http.createServer(async (req, res) => {
             Number(body.companyRating || 0),
             JSON.stringify(body.reviews || []),
             JSON.stringify(initialSubscription),
-            hashPassword(body.password),
+            passwordHash,
             ts,
             ts,
           ]
@@ -604,7 +658,7 @@ const server = http.createServer(async (req, res) => {
             body.bsb || null,
             body.accountNumber || null,
             JSON.stringify(initialSubscription),
-            hashPassword(body.password),
+            passwordHash,
             ts,
             ts,
           ]
@@ -622,7 +676,8 @@ const server = http.createServer(async (req, res) => {
       const userRes = await pool.query("SELECT * FROM users WHERE email = $1 LIMIT 1", [email]);
       if (!userRes.rows.length) return json(res, 404, { ok: false, error: "Account not found" });
       const row = userRes.rows[0];
-      if (row.password_hash !== hashPassword(password)) {
+      const validPassword = await verifyPassword(password, row.password_hash);
+      if (!validPassword) {
         return json(res, 401, { ok: false, error: "Incorrect password" });
       }
       const token = makeId("sess");
@@ -649,96 +704,31 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && pathname === "/subscription") {
       const authUser = await requireAuth(req, res);
       if (!authUser) return;
-      const userRes = await pool.query("SELECT subscription FROM users WHERE email = $1 LIMIT 1", [
-        normalizeEmail(authUser.email),
-      ]);
-      if (!userRes.rows.length) return json(res, 404, { ok: false, error: "User not found." });
-      return json(res, 200, { ok: true, subscription: normalizeSubscription(userRes.rows[0].subscription) });
+      return json(res, 200, {
+        ok: true,
+        subscription: {
+          planName: "LabourLink Free",
+          status: "active",
+          monthlyPrice: 0,
+          renewalDate: null,
+        },
+      });
     }
 
     if (req.method === "POST" && pathname === "/subscription/start-trial") {
-      const authUser = await requireAuth(req, res);
-      if (!authUser) return;
-      const trialEndsAt = new Date(now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-      const nextSub = {
-        planName: "LabourLink Pro",
-        status: "trial",
-        monthlyPrice: 50,
-        renewalDate: trialEndsAt,
-      };
-      await pool.query(
-        `UPDATE users
-         SET subscription = $1, updated_at = $2
-         WHERE email = $3`,
-        [JSON.stringify(nextSub), now(), normalizeEmail(authUser.email)]
-      );
-      return json(res, 200, { ok: true, subscription: nextSub });
+      return json(res, 403, { ok: false, error: "Subscriptions are disabled during free launch." });
     }
 
     if (req.method === "POST" && pathname === "/subscription/activate") {
-      const authUser = await requireAuth(req, res);
-      if (!authUser) return;
-      const renewsAt = new Date(now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-      const nextSub = {
-        planName: "LabourLink Pro",
-        status: "active",
-        monthlyPrice: 50,
-        renewalDate: renewsAt,
-      };
-      await pool.query(
-        `UPDATE users
-         SET subscription = $1, updated_at = $2
-         WHERE email = $3`,
-        [JSON.stringify(nextSub), now(), normalizeEmail(authUser.email)]
-      );
-      return json(res, 200, { ok: true, subscription: nextSub });
+      return json(res, 403, { ok: false, error: "Subscriptions are disabled during free launch." });
     }
 
     if (req.method === "POST" && pathname === "/subscription/cancel") {
-      const authUser = await requireAuth(req, res);
-      if (!authUser) return;
-      const nextSub = {
-        planName: "LabourLink Pro",
-        status: "cancelled",
-        monthlyPrice: 50,
-        renewalDate: null,
-      };
-      await pool.query(
-        `UPDATE users
-         SET subscription = $1, updated_at = $2
-         WHERE email = $3`,
-        [JSON.stringify(nextSub), now(), normalizeEmail(authUser.email)]
-      );
-      return json(res, 200, { ok: true, subscription: nextSub });
+      return json(res, 403, { ok: false, error: "Subscriptions are disabled during free launch." });
     }
 
     if (req.method === "POST" && pathname === "/subscription/sync") {
-      const authUser = await requireAuth(req, res);
-      if (!authUser) return;
-      const body = await parseBody(req);
-      const status = String(body.status || "").trim().toLowerCase();
-      if (!["trial", "active", "past_due", "cancelled"].includes(status)) {
-        return json(res, 400, { ok: false, error: "Invalid subscription status." });
-      }
-
-      const planName = String(body.planName || "LabourLink Pro");
-      const monthlyPrice = Number.isFinite(Number(body.monthlyPrice)) ? Number(body.monthlyPrice) : 50;
-      const renewalDate = body.renewalDate ? String(body.renewalDate) : null;
-      const nextSub = normalizeSubscription({
-        planName,
-        status,
-        monthlyPrice,
-        renewalDate,
-      });
-
-      await pool.query(
-        `UPDATE users
-         SET subscription = $1, updated_at = $2
-         WHERE email = $3`,
-        [JSON.stringify(nextSub), now(), normalizeEmail(authUser.email)]
-      );
-
-      return json(res, 200, { ok: true, subscription: nextSub });
+      return json(res, 403, { ok: false, error: "Subscriptions are disabled during free launch." });
     }
 
     if (req.method === "POST" && pathname === "/push/register") {
@@ -1414,24 +1404,11 @@ const server = http.createServer(async (req, res) => {
       if (offer.status !== "approved") {
         return json(res, 400, { ok: false, error: "Only approved offers can be completed." });
       }
-      const today = new Date().toISOString().slice(0, 10);
+      const today = todayLocalIso();
       if (today < String(offer.endDate)) {
         return json(res, 400, { ok: false, error: "You can complete this work after the end date." });
       }
 
-      const completedAt = now();
-      await pool.query(
-        `UPDATE offers
-         SET status = $1,
-             completed_at = $2,
-             labourer_company_rating = $3,
-             updated_at = $4
-         WHERE id = $5`,
-        ["completed", completedAt, Math.round(rating), completedAt, offerId]
-      );
-
-      const paymentAmount = Number(offer.estimatedHours) * Number(offer.rate);
-      const paymentDetails = `Work offer ${offerId}: ${offer.startDate} to ${offer.endDate}`;
       const labourerUserRes = await pool.query("SELECT * FROM users WHERE email = $1 LIMIT 1", [
         normalizeEmail(offer.labourerEmail),
       ]);
@@ -1439,83 +1416,113 @@ const server = http.createServer(async (req, res) => {
       if (!String(labourerUser?.bsb || "").trim() || !String(labourerUser?.account_number || "").trim()) {
         return json(res, 400, { ok: false, error: "Please add your BSB and account number in profile before completing work." });
       }
-      await pool.query(
-        `INSERT INTO payments (
-          id, offer_id, builder_email, labourer_email, builder_company_name, labourer_name,
-          labourer_bsb, labourer_account_number, amount_owed, details, status,
-          receipt_content, created_at, updated_at, paid_at
-        ) VALUES (
-          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15
-        )
-        ON CONFLICT (offer_id)
-        DO UPDATE SET
-          labourer_bsb = EXCLUDED.labourer_bsb,
-          labourer_account_number = EXCLUDED.labourer_account_number,
-          amount_owed = EXCLUDED.amount_owed,
-          details = EXCLUDED.details,
-          updated_at = EXCLUDED.updated_at`,
-        [
-          makeId("pay"),
-          offerId,
-          normalizeEmail(offer.builderEmail),
-          normalizeEmail(offer.labourerEmail),
-          offer.builderCompanyName,
-          offer.labourerName,
-          labourerUser?.bsb || null,
-          labourerUser?.account_number || null,
-          Number.isFinite(paymentAmount) ? paymentAmount : 0,
-          paymentDetails,
-          "pending",
-          null,
-          completedAt,
-          completedAt,
-          null,
-        ]
-      );
 
-      await pool.query(
-        `INSERT INTO messages (id, from_email, to_email, text, created_at)
-         VALUES ($1,$2,$3,$4,$5)`,
-        [
-          makeId("msg"),
-          normalizeEmail(offer.labourerEmail),
-          normalizeEmail(offer.builderEmail),
-          "Work completed. Please process payment in the Pay tab.",
-          completedAt,
-        ]
-      );
+      const completedAt = now();
+      const paymentAmount = Number(offer.estimatedHours) * Number(offer.rate);
+      const paymentDetails = `Work offer ${offerId}: ${offer.startDate} to ${offer.endDate}`;
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
 
-      const builderRes = await pool.query("SELECT * FROM users WHERE email = $1 LIMIT 1", [
-        normalizeEmail(offer.builderEmail),
-      ]);
-      if (builderRes.rows.length) {
-        const builderRow = builderRes.rows[0];
-        const existingReviews = Array.isArray(builderRow.reviews) ? builderRow.reviews : [];
-        const nextReview = {
-          id: makeId("review"),
-          labourerEmail: normalizeEmail(authUser.email),
-          labourerName: `${authUser.firstName} ${authUser.lastName}`,
-          rating: Math.round(rating),
-          comment: `Rated after completing offer ${offerId}.`,
-          createdAt: completedAt,
-        };
-        const updatedReviews = [...existingReviews, nextReview];
-        const total = updatedReviews.reduce((sum, r) => sum + Number(r.rating || 0), 0);
-        const companyRating = updatedReviews.length ? total / updatedReviews.length : 0;
+        const offerUpdateRes = await client.query(
+          `UPDATE offers
+           SET status = $1,
+               completed_at = $2,
+               labourer_company_rating = $3,
+               updated_at = $4
+           WHERE id = $5 AND status = 'approved'`,
+          ["completed", completedAt, Math.round(rating), completedAt, offerId]
+        );
+        if (!offerUpdateRes.rowCount) {
+          await client.query("ROLLBACK");
+          return json(res, 400, { ok: false, error: "Offer is no longer approved." });
+        }
 
-        await pool.query(
-          `UPDATE users
-           SET reviews = $1,
-               company_rating = $2,
-               updated_at = $3
-           WHERE email = $4`,
+        await client.query(
+          `INSERT INTO payments (
+            id, offer_id, builder_email, labourer_email, builder_company_name, labourer_name,
+            labourer_bsb, labourer_account_number, amount_owed, details, status,
+            receipt_content, created_at, updated_at, paid_at
+          ) VALUES (
+            $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15
+          )
+          ON CONFLICT (offer_id)
+          DO UPDATE SET
+            labourer_bsb = EXCLUDED.labourer_bsb,
+            labourer_account_number = EXCLUDED.labourer_account_number,
+            amount_owed = EXCLUDED.amount_owed,
+            details = EXCLUDED.details,
+            updated_at = EXCLUDED.updated_at`,
           [
-            JSON.stringify(updatedReviews),
-            companyRating,
-            completedAt,
+            makeId("pay"),
+            offerId,
             normalizeEmail(offer.builderEmail),
+            normalizeEmail(offer.labourerEmail),
+            offer.builderCompanyName,
+            offer.labourerName,
+            labourerUser?.bsb || null,
+            labourerUser?.account_number || null,
+            Number.isFinite(paymentAmount) ? paymentAmount : 0,
+            paymentDetails,
+            "pending",
+            null,
+            completedAt,
+            completedAt,
+            null,
           ]
         );
+
+        await client.query(
+          `INSERT INTO messages (id, from_email, to_email, text, created_at)
+           VALUES ($1,$2,$3,$4,$5)`,
+          [
+            makeId("msg"),
+            normalizeEmail(offer.labourerEmail),
+            normalizeEmail(offer.builderEmail),
+            "Work completed. Please process payment in the Pay tab.",
+            completedAt,
+          ]
+        );
+
+        const builderRes = await client.query("SELECT * FROM users WHERE email = $1 LIMIT 1", [
+          normalizeEmail(offer.builderEmail),
+        ]);
+        if (builderRes.rows.length) {
+          const builderRow = builderRes.rows[0];
+          const existingReviews = Array.isArray(builderRow.reviews) ? builderRow.reviews : [];
+          const nextReview = {
+            id: makeId("review"),
+            labourerEmail: normalizeEmail(authUser.email),
+            labourerName: `${authUser.firstName} ${authUser.lastName}`,
+            rating: Math.round(rating),
+            comment: `Rated after completing offer ${offerId}.`,
+            createdAt: completedAt,
+          };
+          const updatedReviews = [...existingReviews, nextReview];
+          const total = updatedReviews.reduce((sum, r) => sum + Number(r.rating || 0), 0);
+          const companyRating = updatedReviews.length ? total / updatedReviews.length : 0;
+
+          await client.query(
+            `UPDATE users
+             SET reviews = $1,
+                 company_rating = $2,
+                 updated_at = $3
+             WHERE email = $4`,
+            [
+              JSON.stringify(updatedReviews),
+              companyRating,
+              completedAt,
+              normalizeEmail(offer.builderEmail),
+            ]
+          );
+        }
+
+        await client.query("COMMIT");
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
       }
 
       await createNotification(

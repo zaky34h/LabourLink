@@ -80,10 +80,6 @@ export default function BuilderTabsLayout() {
 
       {/* 🔒 Hidden routes */}
       <Tabs.Screen
-        name="subscription"
-        options={{ href: null }}
-      />
-      <Tabs.Screen
         name="saved"
         options={{ href: null }}
       />

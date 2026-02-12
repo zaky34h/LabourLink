@@ -2,28 +2,17 @@ import { useCallback, useState } from "react";
 import { View, Text, Pressable, ScrollView, RefreshControl } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useCurrentUser } from "../../src/auth/useCurrentUser";
-import { clearSession } from "../../src/auth/storage";
 import { getThreadsForUser } from "../../src/chat/storage";
 import { getOffersForLabourer, type WorkOffer } from "../../src/offers/storage";
-import { SubscriptionPaywallModal } from "../../src/subscription/SubscriptionPaywallModal";
-import {
-  getSubscriptionProducts,
-  hasActiveSubscriptionAccess,
-  refreshSubscriptionFromRevenueCat,
-  restoreAppleSubscriptionFlow,
-  startAppleSubscriptionFlow,
-} from "../../src/subscription/storage";
 
 export default function LabourerHome() {
-  const { user, reload } = useCurrentUser();
+  const { user } = useCurrentUser();
   const [activeChats, setActiveChats] = useState(0);
   const [pendingOffers, setPendingOffers] = useState(0);
   const [approvedOffers, setApprovedOffers] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
-  const [subscriptionLoading, setSubscriptionLoading] = useState(false);
   const name = user ? `${user.firstName} ${user.lastName}` : "Welcome";
   const selectedDates = user?.role === "labourer" ? user.availableDates?.length ?? 0 : 0;
-  const showSubscriptionModal = Boolean(user && !hasActiveSubscriptionAccess(user.subscription));
 
   async function loadStats() {
     if (!user?.email || user.role !== "labourer") {
@@ -51,45 +40,11 @@ export default function LabourerHome() {
     setRefreshing(false);
   }
 
-  async function onStartTrial() {
-    if (!user?.email) return;
-    setSubscriptionLoading(true);
-    try {
-      await startAppleSubscriptionFlow(user.email);
-      await reload();
-    } finally {
-      setSubscriptionLoading(false);
-    }
-  }
-
-  async function onRestore() {
-    if (!user?.email) return;
-    setSubscriptionLoading(true);
-    try {
-      await restoreAppleSubscriptionFlow(user.email);
-      await reload();
-    } finally {
-      setSubscriptionLoading(false);
-    }
-  }
-
-  async function onLogout() {
-    try {
-      await clearSession();
-    } finally {
-      router.replace("/");
-    }
-  }
-
   useFocusEffect(
     useCallback(() => {
       let isCancelled = false;
 
       async function runLoad() {
-        if (user?.email) {
-          await refreshSubscriptionFromRevenueCat(user.email).catch(() => null);
-          await getSubscriptionProducts(user.email).catch(() => []);
-        }
         await loadStats();
         if (isCancelled) return;
       }
@@ -102,8 +57,7 @@ export default function LabourerHome() {
   );
 
   return (
-    <>
-      <ScrollView
+    <ScrollView
         style={{ flex: 1, backgroundColor: "#fff" }}
         contentContainerStyle={{ padding: 20, paddingTop: 60, gap: 20 }}
         showsVerticalScrollIndicator={false}
@@ -150,16 +104,7 @@ export default function LabourerHome() {
           onPress={() => router.push("/labourer/schedule")}
         />
       </View>
-      </ScrollView>
-      <SubscriptionPaywallModal
-        visible={showSubscriptionModal}
-        loading={subscriptionLoading}
-        subscription={user?.subscription}
-        onStartTrial={onStartTrial}
-        onRestore={onRestore}
-        onLogout={onLogout}
-      />
-    </>
+    </ScrollView>
   );
 }
 
