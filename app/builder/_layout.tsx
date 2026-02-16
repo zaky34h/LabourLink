@@ -8,6 +8,7 @@ export default function BuilderTabsLayout() {
 
   return (
     <Tabs
+      detachInactiveScreens={false}
       screenOptions={{
         headerShown: false,
         tabBarLabelStyle: { fontWeight: "700" },

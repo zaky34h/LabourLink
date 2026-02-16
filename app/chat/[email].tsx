@@ -50,9 +50,6 @@ export default function ChatWithPeer() {
       setMeTyping(typing.meTyping);
       setPeerTyping(typing.peerTyping);
       loadErrorShownRef.current = false;
-
-      const peer = await getUserByEmail(peerEmail);
-      if (peer) setPeerName(`${peer.firstName} ${peer.lastName}`);
       await markThreadRead(peerEmail);
     } catch (error: any) {
       if (!loadErrorShownRef.current) {
@@ -63,8 +60,16 @@ export default function ChatWithPeer() {
   }
 
   useEffect(() => {
+    async function loadPeerName() {
+      const peer = await getUserByEmail(peerEmail);
+      if (peer) setPeerName(`${peer.firstName} ${peer.lastName}`);
+    }
+    void loadPeerName();
+  }, [peerEmail]);
+
+  useEffect(() => {
     load();
-    const interval = setInterval(load, 1500);
+    const interval = setInterval(load, 2500);
     return () => {
       clearInterval(interval);
     };

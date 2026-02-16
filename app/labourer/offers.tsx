@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -10,6 +10,8 @@ import {
   Alert,
   TextInput,
   Linking,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { useFocusEffect } from "expo-router";
 import * as Sharing from "expo-sharing";
@@ -35,6 +37,7 @@ function removeShiftFromNotes(notes: string) {
 
 export default function LabourerOffers() {
   const { user } = useCurrentUser();
+  const loadedRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [offers, setOffers] = useState<WorkOffer[]>([]);
@@ -55,6 +58,7 @@ export default function LabourerOffers() {
     const data = await getOffersForLabourer(user.email);
     setOffers(data);
     if (!silent) setLoading(false);
+    loadedRef.current = true;
   }
 
   async function onRefresh() {
@@ -65,7 +69,7 @@ export default function LabourerOffers() {
 
   useFocusEffect(
     useCallback(() => {
-      load();
+      void load({ silent: loadedRef.current });
     }, [user?.email])
   );
 
@@ -215,6 +219,10 @@ export default function LabourerOffers() {
       />
 
       <Modal visible={!!selectedOffer} animationType="slide" transparent>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "flex-end" }}>
           <View style={{ maxHeight: "85%", backgroundColor: "#fff", borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 16 }}>
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
@@ -230,7 +238,11 @@ export default function LabourerOffers() {
             </View>
 
             {selectedOffer && (
-              <ScrollView showsVerticalScrollIndicator={false}>
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+              >
                 <Detail label="Builder" value={selectedOffer.builderCompanyName} />
                 <Detail label="Status" value={selectedOffer.status.toUpperCase()} />
                 <Detail label="Date Range" value={`${selectedOffer.startDate} to ${selectedOffer.endDate}`} />
@@ -349,6 +361,7 @@ export default function LabourerOffers() {
             )}
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );

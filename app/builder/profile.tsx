@@ -15,6 +15,7 @@ import * as ImagePicker from "expo-image-picker";
 import { clearSession, type BuilderReview } from "../../src/auth/storage";
 import { useCurrentUser } from "../../src/auth/useCurrentUser";
 import { updateBuilderProfile } from "../../src/auth/updateProfile";
+import { FormScreen } from "../../src/ui/FormScreen";
 
 export default function BuilderProfile() {
   const { user, loading, reload } = useCurrentUser();
@@ -110,11 +111,8 @@ export default function BuilderProfile() {
     "☆".repeat(5 - Math.round(normalizedRating));
 
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: "#fff" }}
-      contentContainerStyle={{ padding: 24, paddingTop: 60, gap: 14, paddingBottom: 30 }}
-      showsVerticalScrollIndicator={false}
-    >
+    <FormScreen>
+      <View style={{ padding: 24, paddingTop: 60, gap: 14, paddingBottom: 30 }}>
       <Text style={{ fontSize: 26, fontWeight: "900" }}>Profile</Text>
 
       <View style={{ padding: 14, borderWidth: 1, borderColor: "#111111", borderRadius: 12, gap: 10 }}>
@@ -268,7 +266,8 @@ export default function BuilderProfile() {
           </View>
         </View>
       </Modal>
-    </ScrollView>
+      </View>
+    </FormScreen>
   );
 }
 

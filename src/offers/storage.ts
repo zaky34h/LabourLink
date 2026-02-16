@@ -108,9 +108,12 @@ function makePdfHtml(offer: WorkOffer, logoUri?: string | null) {
       .signature-box { border: 2px solid #111; border-radius: 10px; padding: 12px; margin-top: 14px; }
       .signature-title { font-weight: 800; font-size: 13px; letter-spacing: 0.3px; }
       .signature-value { margin-top: 8px; font-size: 18px; font-weight: 700; }
-      .page-break { page-break-before: always; break-before: page; }
-      .legal h2 { font-size: 16px; margin: 10px 0 6px 0; }
-      .legal p { margin: 0 0 8px 0; color: #333; font-size: 12px; line-height: 1.45; }
+      .legal { margin-top: 18px; border: 1px solid #111; border-radius: 10px; padding: 14px; }
+      .legal h2 { font-size: 16px; margin: 0 0 8px 0; }
+      .legal h3 { font-size: 13px; margin: 12px 0 4px 0; }
+      .legal p { margin: 0 0 8px 0; color: #333; font-size: 12px; line-height: 1.5; }
+      .legal ul { margin: 0 0 8px 16px; padding: 0; }
+      .legal li { color: #333; font-size: 12px; line-height: 1.5; margin-bottom: 4px; }
     </style>
   </head>
   <body>
@@ -158,7 +161,7 @@ function makePdfHtml(offer: WorkOffer, logoUri?: string | null) {
         : ""
     }
 
-    <div class="section legal page-break">
+    <div class="section legal">
       <h2>Terms and Conditions</h2>
       <p>
         By signing this offer, both parties agree to perform and pay for the listed work in good faith,
@@ -166,11 +169,79 @@ function makePdfHtml(offer: WorkOffer, logoUri?: string | null) {
         Any agreed scope, timing, or rate changes should be recorded in writing.
       </p>
       <h2>Privacy Policy</h2>
+      <p><strong>Effective Date:</strong> 16 February 2026</p>
       <p>
-        LabourLink stores and processes only the information needed to create, manage, and evidence this work offer.
-        Contact details and offer records are used for job coordination, compliance, and support, and are not sold to
-        third parties.
+        LabourLink ("we", "our", or "us") operates the LabourLink mobile application (the "App").
       </p>
+      <p>
+        This Privacy Policy explains how we collect, use, and protect your information when you use our App.
+      </p>
+      <h3>1. Information We Collect</h3>
+      <p>We may collect the following types of information:</p>
+      <p><strong>a) Account Information</strong></p>
+      <ul>
+        <li>Name</li>
+        <li>Email address</li>
+        <li>Phone number</li>
+        <li>Profile details (skills, availability, location area)</li>
+      </ul>
+      <p><strong>b) Usage Information</strong></p>
+      <ul>
+        <li>App activity</li>
+        <li>Job postings</li>
+        <li>Messages sent within the app</li>
+        <li>Device type and operating system</li>
+      </ul>
+      <p><strong>c) Payment Information</strong></p>
+      <p>
+        If payments are processed in the future, payment data will be securely handled by third-party payment providers.
+        LabourLink does not store full payment card details.
+      </p>
+      <h3>2. How We Use Your Information</h3>
+      <p>We use your information to:</p>
+      <ul>
+        <li>Create and manage your account</li>
+        <li>Match builders with labourers</li>
+        <li>Enable messaging and job scheduling</li>
+        <li>Improve app performance and user experience</li>
+        <li>Provide customer support</li>
+        <li>Prevent fraud and misuse</li>
+      </ul>
+      <h3>3. Data Storage &amp; Security</h3>
+      <p>We take reasonable measures to protect your information.</p>
+      <p>
+        Data is stored securely on protected servers and access is limited to authorized personnel.
+      </p>
+      <p>However, no method of electronic transmission is 100% secure.</p>
+      <h3>4. Sharing of Information</h3>
+      <p>We do not sell your personal information.</p>
+      <p>We may share information:</p>
+      <ul>
+        <li>Between builders and labourers to enable job matching</li>
+        <li>With service providers who help operate the app</li>
+        <li>If required by law</li>
+      </ul>
+      <h3>5. Your Rights</h3>
+      <p>You may:</p>
+      <ul>
+        <li>Update your profile information within the app</li>
+        <li>Request deletion of your account</li>
+        <li>Contact us regarding your personal data</li>
+      </ul>
+      <p>To request account deletion, contact: linkgroupapps@gmail.com</p>
+      <h3>6. Third-Party Services</h3>
+      <p>
+        The app may use third-party services such as hosting providers and analytics tools.
+        These providers have their own privacy policies.
+      </p>
+      <h3>7. Changes to This Policy</h3>
+      <p>
+        We may update this Privacy Policy from time to time.
+        Updates will be posted within the app or on our website.
+      </p>
+      <h3>8. Contact Us</h3>
+      <p>If you have questions about this Privacy Policy, contact:</p>
+      <p>Email: linkgroupapps@gmail.com</p>
     </div>
   </body>
 </html>`;

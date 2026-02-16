@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { View, Text, Pressable, FlatList, ActivityIndicator } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useCurrentUser } from "../../src/auth/useCurrentUser";
@@ -7,6 +7,7 @@ import { getUserByEmail } from "../../src/auth/storage";
 
 export default function LabourerMessages() {
   const { user } = useCurrentUser();
+  const loadedRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedTab, setSelectedTab] = useState<"active" | "history">("active");
@@ -29,13 +30,16 @@ export default function LabourerMessages() {
       const t = await getThreadsForUser(user.email, view);
       setThreads(t);
 
+      const uniquePeers = Array.from(new Set(t.map((th) => th.peerEmail)));
+      const peerUsers = await Promise.all(uniquePeers.map((peerEmail) => getUserByEmail(peerEmail)));
       const map: Record<string, string> = {};
-      for (const th of t) {
-        const u = await getUserByEmail(th.peerEmail);
-        map[th.peerEmail] = u ? `${u.firstName} ${u.lastName}` : th.peerEmail;
-      }
+      uniquePeers.forEach((peerEmail, idx) => {
+        const u = peerUsers[idx];
+        map[peerEmail] = u ? `${u.firstName} ${u.lastName}` : peerEmail;
+      });
       setNames(map);
       setError(null);
+      loadedRef.current = true;
     } catch (err: any) {
       setThreads([]);
       setNames({});
@@ -53,8 +57,8 @@ export default function LabourerMessages() {
 
   useFocusEffect(
     useCallback(() => {
-      load();
-    }, [user?.email, selectedTab])
+      void load({ silent: loadedRef.current });
+    }, [user?.email])
   );
 
   if (loading) {
@@ -80,6 +84,7 @@ export default function LabourerMessages() {
           <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
             <Pressable
               onPress={async () => {
+                if (selectedTab === "active") return;
                 setSelectedTab("active");
                 await load({ silent: true, view: "active" });
               }}
@@ -104,6 +109,7 @@ export default function LabourerMessages() {
             </Pressable>
             <Pressable
               onPress={async () => {
+                if (selectedTab === "history") return;
                 setSelectedTab("history");
                 await load({ silent: true, view: "history" });
               }}

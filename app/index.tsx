@@ -1,4 +1,4 @@
-import { View, Text, TextInput, Pressable, Image, Alert } from "react-native";
+import { View, Text, TextInput, Pressable, Image, Alert, Keyboard } from "react-native";
 import { useEffect, useState } from "react";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -13,6 +13,7 @@ export default function Login() {
   const [rememberMe, setRememberMe] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -48,21 +49,32 @@ export default function Login() {
   }, []);
 
   async function onLogin() {
-    const res = await loginUser(email.trim(), password);
-    if (!res.ok) return Alert.alert("Login failed", res.error);
-
-    if (rememberMe) {
-      await AsyncStorage.multiSet([
-        [REMEMBER_ME_KEY, "1"],
-        [REMEMBERED_EMAIL_KEY, email.trim()],
-      ]);
-    } else {
-      await AsyncStorage.multiRemove([REMEMBERED_EMAIL_KEY]);
-      await AsyncStorage.setItem(REMEMBER_ME_KEY, "0");
+    if (submitting) return;
+    Keyboard.dismiss();
+    if (!email.trim() || !password) {
+      return Alert.alert("Missing info", "Please enter your email and password.");
     }
 
-    if (res.user.role === "builder") router.replace("/builder/home");
-    else router.replace("/labourer/home");
+    setSubmitting(true);
+    try {
+      const res = await loginUser(email.trim(), password);
+      if (!res.ok) return Alert.alert("Login failed", res.error);
+
+      if (rememberMe) {
+        await AsyncStorage.multiSet([
+          [REMEMBER_ME_KEY, "1"],
+          [REMEMBERED_EMAIL_KEY, email.trim()],
+        ]);
+      } else {
+        await AsyncStorage.multiRemove([REMEMBERED_EMAIL_KEY]);
+        await AsyncStorage.setItem(REMEMBER_ME_KEY, "0");
+      }
+
+      if (res.user.role === "builder") router.replace("/builder/home");
+      else router.replace("/labourer/home");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -146,16 +158,18 @@ export default function Login() {
         {/* Login button */}
         <Pressable
           onPress={onLogin}
+          disabled={submitting}
           style={{
             padding: 16,
-            backgroundColor: "#111",
+            backgroundColor: submitting ? "#444" : "#111",
             borderRadius: 12,
             alignItems: "center",
             marginTop: 10,
+            opacity: submitting ? 0.9 : 1,
           }}
         >
           <Text style={{ color: "#FDE047", fontWeight: "800" }}>
-            Login
+            {submitting ? "Logging in..." : "Login"}
           </Text>
         </Pressable>
 

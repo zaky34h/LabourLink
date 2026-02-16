@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useState } from "react";
-import { View, Text, FlatList, Pressable, ActivityIndicator, Alert, TextInput } from "react-native";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { View, Text, FlatList, Pressable, ActivityIndicator, Alert, TextInput, KeyboardAvoidingView, Platform } from "react-native";
 import { useFocusEffect } from "expo-router";
 import * as Sharing from "expo-sharing";
 import { generateReceiptPdf, getBuilderPayments, markPaymentPaid, type PaymentRecord, updatePayment } from "../../src/payments/storage";
@@ -11,6 +11,7 @@ function cleanPaymentDetails(details: string) {
 }
 
 export default function BuilderPay() {
+  const loadedRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [selectedTab, setSelectedTab] = useState<"pending" | "paid">("pending");
@@ -18,14 +19,16 @@ export default function BuilderPay() {
   const [amountDraft, setAmountDraft] = useState("");
   const [detailsDraft, setDetailsDraft] = useState("");
 
-  async function load() {
-    setLoading(true);
+  async function load(options?: { silent?: boolean }) {
+    const silent = options?.silent ?? false;
+    if (!silent) setLoading(true);
     const data = await getBuilderPayments();
     setPayments(data);
-    setLoading(false);
+    if (!silent) setLoading(false);
+    loadedRef.current = true;
   }
 
-  useFocusEffect(useCallback(() => { load(); }, []));
+  useFocusEffect(useCallback(() => { void load({ silent: loadedRef.current }); }, []));
 
   const pending = useMemo(() => payments.filter((p) => p.status === "pending"), [payments]);
   const paid = useMemo(() => payments.filter((p) => p.status === "paid"), [payments]);
@@ -69,11 +72,16 @@ export default function BuilderPay() {
   }
 
   return (
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: "#fff" }}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    >
     <FlatList
       style={{ flex: 1, backgroundColor: "#fff" }}
       contentContainerStyle={{ paddingTop: 60, paddingHorizontal: 16, paddingBottom: 20, gap: 10 }}
       data={visible}
       keyExtractor={(p) => p.id}
+      keyboardShouldPersistTaps="handled"
       ListHeaderComponent={
         <View>
           <Text style={{ fontSize: 24, fontWeight: "900" }}>Pay</Text>
@@ -183,6 +191,7 @@ export default function BuilderPay() {
         );
       }}
     />
+    </KeyboardAvoidingView>
   );
 }
 

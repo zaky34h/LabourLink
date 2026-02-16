@@ -524,7 +524,7 @@ async function ensurePaymentsForCompletedOffersByRole(role, email) {
     ]);
     const labourerUser = labourerUserRes.rows[0] || null;
     const amount = Number(offer.estimatedHours) * Number(offer.rate);
-    const details = `Work offer ${offer.id}: ${offer.startDate} to ${offer.endDate}`;
+    const details = `Work period: ${offer.startDate} to ${offer.endDate}`;
 
     await pool.query(
       `INSERT INTO payments (
@@ -1419,7 +1419,7 @@ const server = http.createServer(async (req, res) => {
 
       const completedAt = now();
       const paymentAmount = Number(offer.estimatedHours) * Number(offer.rate);
-      const paymentDetails = `Work offer ${offerId}: ${offer.startDate} to ${offer.endDate}`;
+      const paymentDetails = `Work period: ${offer.startDate} to ${offer.endDate}`;
       const client = await pool.connect();
       try {
         await client.query("BEGIN");

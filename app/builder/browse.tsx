@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -8,17 +8,17 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Calendar } from "react-native-calendars";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { getUsers, type LabourerUser } from "../../src/auth/storage";
 
 const PAGE_SIZE = 10;
 
 export default function BuilderBrowse() {
+  const loadedRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const [allLabourers, setAllLabourers] = useState<LabourerUser[]>([]);
-  const [results, setResults] = useState<LabourerUser[]>([]);
 
   const [selectedDate, setSelectedDate] = useState<string>(() => todayISO());
   const [selectedType, setSelectedType] = useState<string>("All");
@@ -34,9 +34,9 @@ export default function BuilderBrowse() {
     const users = await getUsers();
     const labourers = users.filter((u) => u.role === "labourer") as LabourerUser[];
     setAllLabourers(labourers);
-    setResults(labourers);
     setPage(1);
     if (!silent) setLoading(false);
+    loadedRef.current = true;
   }
 
   async function onRefresh() {
@@ -46,8 +46,19 @@ export default function BuilderBrowse() {
   }
 
   useEffect(() => {
-    load();
+    void load();
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!loadedRef.current) return;
+      void load({ silent: true });
+    }, [])
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [selectedDate, selectedType, allLabourers]);
 
   const typeOptions = useMemo(() => {
     const types = Array.from(
@@ -57,7 +68,7 @@ export default function BuilderBrowse() {
     return ["All", ...types];
   }, [allLabourers]);
 
-  function onSearch() {
+  const filteredResults = useMemo(() => {
     let filtered = [...allLabourers];
 
     if (selectedType !== "All") {
@@ -66,21 +77,20 @@ export default function BuilderBrowse() {
       );
     }
 
-    filtered = filtered.filter((l) =>
-      (l.availableDates ?? []).includes(selectedDate)
-    );
+    return filtered.filter((l) => (l.availableDates ?? []).includes(selectedDate));
+  }, [allLabourers, selectedDate, selectedType]);
 
-    setResults(filtered);
+  function onSearch() {
     setPage(1);
   }
 
   const pagedResults = useMemo(
-    () => results.slice(0, page * PAGE_SIZE),
-    [results, page]
+    () => filteredResults.slice(0, page * PAGE_SIZE),
+    [filteredResults, page]
   );
 
   function loadMore() {
-    if (pagedResults.length >= results.length) return;
+    if (pagedResults.length >= filteredResults.length) return;
     setPage((p) => p + 1);
   }
 
@@ -156,7 +166,7 @@ export default function BuilderBrowse() {
             </View>
 
             <Text style={{ marginTop: 14, marginBottom: 10, opacity: 0.7, fontWeight: "700" }}>
-              Showing {Math.min(pagedResults.length, results.length)} of {results.length}
+              Showing {Math.min(pagedResults.length, filteredResults.length)} of {filteredResults.length}
             </Text>
           </View>
         }

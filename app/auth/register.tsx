@@ -6,9 +6,12 @@ import {
   Pressable,
   Alert,
   Modal,
+  Image,
+  Keyboard,
 } from "react-native";
 import { router } from "expo-router";
 import { Calendar } from "react-native-calendars";
+import * as ImagePicker from "expo-image-picker";
 import { loginUser, registerUser, type Role, type User } from "../../src/auth/storage";
 import { FormScreen } from "../../src/ui/FormScreen";
 
@@ -32,7 +35,9 @@ export default function Register() {
   // ✅ NEW labourer fields
   const [experienceYears, setExperienceYears] = useState("");
   const [certificationsText, setCertificationsText] = useState(""); // comma separated
-  const [photoUrl, setPhotoUrl] = useState("");
+  const [photoUri, setPhotoUri] = useState("");
+  const [bsb, setBsb] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
 
   // Common
   const [email, setEmail] = useState("");
@@ -58,8 +63,51 @@ export default function Register() {
       .filter(Boolean);
   }
 
+  async function pickPhotoFromLibrary() {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("Permission needed", "Please allow photo library access.");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.8,
+    });
+    if (result.canceled) return;
+    const uri = result.assets?.[0]?.uri;
+    if (uri) setPhotoUri(uri);
+  }
+
+  async function takePhoto() {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("Permission needed", "Please allow camera access.");
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.8,
+    });
+    if (result.canceled) return;
+    const uri = result.assets?.[0]?.uri;
+    if (uri) setPhotoUri(uri);
+  }
+
+  function onChoosePhoto() {
+    Alert.alert("Select Photo", "Choose where to get the profile photo from.", [
+      { text: "Camera", onPress: () => { void takePhoto(); } },
+      { text: "Camera Roll", onPress: () => { void pickPhotoFromLibrary(); } },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  }
+
   async function onCreateAccount() {
     if (submitting) return;
+    Keyboard.dismiss();
     if (!firstName.trim() || !lastName.trim())
       return Alert.alert("Missing info", "Please enter your first and last name.");
     if (!about.trim())
@@ -107,11 +155,8 @@ export default function Register() {
       const certs = parseCertifications(certificationsText);
       if (certs.length === 0)
         return Alert.alert("Missing certifications", "Add at least 1 certification (comma separated).");
-
-      const trimmedPhotoUrl = photoUrl.trim();
-      if (trimmedPhotoUrl && !/^https?:\/\//i.test(trimmedPhotoUrl)) {
-        return Alert.alert("Invalid photo URL", "Photo URL must start with http:// or https://");
-      }
+      if (!bsb.trim()) return Alert.alert("Missing info", "Please enter your BSB.");
+      if (!accountNumber.trim()) return Alert.alert("Missing info", "Please enter your account number.");
 
       user = {
         role: "labourer",
@@ -125,7 +170,9 @@ export default function Register() {
         // ✅ NEW fields required by LabourerUser
         experienceYears: exp,
         certifications: certs,
-        photoUrl: trimmedPhotoUrl || undefined,
+        photoUrl: photoUri || undefined,
+        bsb: bsb.trim(),
+        accountNumber: accountNumber.trim(),
 
         email: email.trim(),
         password,
@@ -230,12 +277,68 @@ export default function Register() {
               onChangeText={setCertificationsText}
               placeholder="White Card, Working at Heights, ..."
             />
+            <View style={{ gap: 8 }}>
+              <Text style={{ fontWeight: "700" }}>Profile Photo</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <View
+                  style={{
+                    width: 64,
+                    height: 64,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: "#111111",
+                    backgroundColor: "#FDE047",
+                    overflow: "hidden",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  {photoUri ? (
+                    <Image source={{ uri: photoUri }} style={{ width: "100%", height: "100%" }} />
+                  ) : (
+                    <Text style={{ fontWeight: "900", fontSize: 18 }}>
+                      {firstName[0] ?? "L"}
+                      {lastName[0] ?? ""}
+                    </Text>
+                  )}
+                </View>
+                <View style={{ flex: 1, flexDirection: "row", gap: 8 }}>
+                  <Pressable
+                    onPress={onChoosePhoto}
+                    style={{
+                      flex: 1,
+                      minHeight: 48,
+                      borderRadius: 10,
+                      backgroundColor: "#111",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Text style={{ color: "#FDE047", fontWeight: "800" }}>Add Photo</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setPhotoUri("")}
+                    style={{
+                      paddingHorizontal: 12,
+                      borderRadius: 10,
+                      borderWidth: 1,
+                      borderColor: "#111111",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Text style={{ fontWeight: "800" }}>Remove</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+
+            <Field label="BSB" value={bsb} onChangeText={setBsb} keyboardType="number-pad" />
             <Field
-              label="Photo URL (optional)"
-              value={photoUrl}
-              onChangeText={setPhotoUrl}
-              autoCapitalize="none"
-              placeholder="https://..."
+              label="Account Number"
+              value={accountNumber}
+              onChangeText={setAccountNumber}
+              keyboardType="number-pad"
             />
 
             {/* Availability Calendar */}

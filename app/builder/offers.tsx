@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { View, Text, Pressable, FlatList, ActivityIndicator, Modal, ScrollView, Alert, Linking } from "react-native";
 import { useFocusEffect } from "expo-router";
 import * as Sharing from "expo-sharing";
@@ -24,6 +24,7 @@ function removeShiftFromNotes(notes: string) {
 
 export default function BuilderOffers() {
   const { user } = useCurrentUser();
+  const loadedRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [offers, setOffers] = useState<WorkOffer[]>([]);
@@ -42,6 +43,7 @@ export default function BuilderOffers() {
     const data = await getOffersForBuilder(user.email);
     setOffers(data);
     if (!silent) setLoading(false);
+    loadedRef.current = true;
   }
 
   async function onRefresh() {
@@ -52,7 +54,7 @@ export default function BuilderOffers() {
 
   useFocusEffect(
     useCallback(() => {
-      load();
+      void load({ silent: loadedRef.current });
     }, [user?.email])
   );
 

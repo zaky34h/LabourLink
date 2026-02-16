@@ -7,13 +7,13 @@ import {
   TextInput,
   Alert,
   Image,
-  ScrollView,
 } from "react-native";
 import { router } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { clearSession } from "../../src/auth/storage";
 import { useCurrentUser } from "../../src/auth/useCurrentUser";
 import { updateLabourerProfile } from "../../src/auth/updateLabourerProfile";
+import { FormScreen } from "../../src/ui/FormScreen";
 
 export default function LabourerProfile() {
   const { user, loading, reload } = useCurrentUser();
@@ -140,11 +140,8 @@ export default function LabourerProfile() {
   }
 
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: "#fff" }}
-      contentContainerStyle={{ padding: 24, paddingTop: 60, gap: 12, paddingBottom: 30 }}
-      showsVerticalScrollIndicator={false}
-    >
+    <FormScreen>
+      <View style={{ padding: 24, paddingTop: 60, gap: 12, paddingBottom: 30 }}>
       <Text style={{ fontSize: 26, fontWeight: "900" }}>Profile</Text>
 
       <View style={{ padding: 14, borderWidth: 1, borderColor: "#111111", borderRadius: 12, gap: 10 }}>
@@ -256,7 +253,8 @@ export default function LabourerProfile() {
       >
         <Text style={{ fontWeight: "900" }}>Logout</Text>
       </Pressable>
-    </ScrollView>
+      </View>
+    </FormScreen>
   );
 }
 
