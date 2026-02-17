@@ -9,7 +9,7 @@ export default function LabourerSchedule() {
   const { user, loading, reload } = useCurrentUser();
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [selected, setSelected] = useState<string[]>([]);
+  const [selectedUnavailableDates, setSelectedUnavailableDates] = useState<string[]>([]);
   const [offers, setOffers] = useState<WorkOffer[]>([]);
   const [ratingModalOffer, setRatingModalOffer] = useState<WorkOffer | null>(null);
   const [selectedRating, setSelectedRating] = useState<number>(5);
@@ -26,13 +26,13 @@ export default function LabourerSchedule() {
 
   useEffect(() => {
     if (user?.role === "labourer") {
-      setSelected(user.availableDates ?? []);
-      loadOffers();
+      setSelectedUnavailableDates(user.unavailableDates ?? []);
+      void loadOffers();
     }
   }, [user]);
 
-  function toggleDate(dateString: string) {
-    setSelected((prev) =>
+  function toggleUnavailableDate(dateString: string) {
+    setSelectedUnavailableDates((prev) =>
       prev.includes(dateString)
         ? prev.filter((d) => d !== dateString)
         : [...prev, dateString]
@@ -40,21 +40,21 @@ export default function LabourerSchedule() {
   }
 
   const markedDates = useMemo(() => {
-    return selected.reduce((acc, d) => {
+    return selectedUnavailableDates.reduce((acc, d) => {
       acc[d] = { selected: true, selectedColor: "#111", selectedTextColor: "#FDE047" };
       return acc;
     }, {} as Record<string, any>);
-  }, [selected]);
+  }, [selectedUnavailableDates]);
 
   async function onSave() {
     if (!user || user.role !== "labourer") return;
     setSaving(true);
-    const res = await updateLabourerAvailability(user.email, selected.sort());
+    const res = await updateLabourerAvailability(user.email, selectedUnavailableDates.slice().sort());
     setSaving(false);
 
     if (!res.ok) return Alert.alert("Couldn’t save", res.error);
     await reload();
-    Alert.alert("Saved", "Your availability has been updated.");
+    Alert.alert("Saved", "Your unavailabilities have been updated.");
   }
 
   async function onRefresh() {
@@ -108,21 +108,21 @@ export default function LabourerSchedule() {
     >
       <Text style={{ fontSize: 26, fontWeight: "900" }}>Schedule</Text>
       <Text style={{ marginTop: 6, opacity: 0.7 }}>
-        Tap dates you are available. Builders can filter by date.
+        All days are available by default. Add only your unavailabilities below.
       </Text>
 
       <View style={{ height: 14 }} />
 
       <View style={{ backgroundColor: "#fff", borderRadius: 16, borderWidth: 1, borderColor: "#111111", padding: 10 }}>
-        <Calendar onDayPress={(day) => toggleDate(day.dateString)} markedDates={markedDates} />
+        <Calendar onDayPress={(day) => toggleUnavailableDate(day.dateString)} markedDates={markedDates} />
       </View>
 
       <Text style={{ marginTop: 12, opacity: 0.7, fontWeight: "700" }}>
-        Selected: {selected.length}
+        Unavailabilities: {selectedUnavailableDates.length}
       </Text>
 
       <Pressable
-        onPress={() => setSelected([])}
+        onPress={() => setSelectedUnavailableDates([])}
         style={{
           marginTop: 8,
           paddingVertical: 10,
@@ -133,7 +133,7 @@ export default function LabourerSchedule() {
           backgroundColor: "#fff",
         }}
       >
-        <Text style={{ fontWeight: "800" }}>Clear All</Text>
+        <Text style={{ fontWeight: "800" }}>Clear Unavailabilities</Text>
       </Pressable>
 
       <Pressable
@@ -148,7 +148,7 @@ export default function LabourerSchedule() {
         }}
       >
         <Text style={{ color: "#FDE047", fontWeight: "900" }}>
-          {saving ? "Saving..." : "Save Availability"}
+          {saving ? "Saving..." : "Save Unavailabilities"}
         </Text>
       </Pressable>
 

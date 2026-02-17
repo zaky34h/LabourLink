@@ -6,7 +6,7 @@ import { getThreadsForUser, type ChatThread } from "../../src/chat/storage";
 import { getUserByEmail } from "../../src/auth/storage";
 
 export default function BuilderMessages() {
-  const { user } = useCurrentUser();
+  const { user, loading: userLoading } = useCurrentUser();
   const loadedRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -18,6 +18,7 @@ export default function BuilderMessages() {
   async function load(options?: { silent?: boolean; view?: "active" | "history" }) {
     const silent = options?.silent ?? false;
     const view = options?.view ?? selectedTab;
+    if (userLoading) return;
     if (!user?.email) {
       setThreads([]);
       setNames({});
@@ -57,8 +58,9 @@ export default function BuilderMessages() {
 
   useFocusEffect(
     useCallback(() => {
+      if (userLoading) return;
       void load({ silent: loadedRef.current });
-    }, [user?.email])
+    }, [user?.email, userLoading])
   );
 
   if (loading) {

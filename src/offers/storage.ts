@@ -108,7 +108,14 @@ function makePdfHtml(offer: WorkOffer, logoUri?: string | null) {
       .signature-box { border: 2px solid #111; border-radius: 10px; padding: 12px; margin-top: 14px; }
       .signature-title { font-weight: 800; font-size: 13px; letter-spacing: 0.3px; }
       .signature-value { margin-top: 8px; font-size: 18px; font-weight: 700; }
-      .legal { margin-top: 18px; border: 1px solid #111; border-radius: 10px; padding: 14px; }
+      .legal { margin-top: 18px; padding: 0; }
+      .legal-section {
+        border: 1px solid #111;
+        border-radius: 10px;
+        padding: 14px;
+        margin-top: 12px;
+        page-break-inside: avoid;
+      }
       .legal h2 { font-size: 16px; margin: 0 0 8px 0; }
       .legal h3 { font-size: 13px; margin: 12px 0 4px 0; }
       .legal p { margin: 0 0 8px 0; color: #333; font-size: 12px; line-height: 1.5; }
@@ -162,12 +169,15 @@ function makePdfHtml(offer: WorkOffer, logoUri?: string | null) {
     }
 
     <div class="section legal">
+      <div class="legal-section">
       <h2>Terms and Conditions</h2>
       <p>
         By signing this offer, both parties agree to perform and pay for the listed work in good faith,
         follow all applicable workplace safety laws, and resolve disputes professionally before escalation.
         Any agreed scope, timing, or rate changes should be recorded in writing.
       </p>
+      </div>
+      <div class="legal-section">
       <h2>Privacy Policy</h2>
       <p><strong>Effective Date:</strong> 16 February 2026</p>
       <p>
@@ -242,6 +252,7 @@ function makePdfHtml(offer: WorkOffer, logoUri?: string | null) {
       <h3>8. Contact Us</h3>
       <p>If you have questions about this Privacy Policy, contact:</p>
       <p>Email: linkgroupapps@gmail.com</p>
+      </div>
     </div>
   </body>
 </html>`;

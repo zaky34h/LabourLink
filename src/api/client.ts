@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const SESSION_EMAIL_KEY = "labourlink_session_email";
 const SESSION_TOKEN_KEY = "labourlink_session_token";
+const REQUEST_TIMEOUT_MS = Number(process.env.EXPO_PUBLIC_API_TIMEOUT_MS || 12000);
 
 function stripTrailingSlash(v: string) {
   return v.endsWith("/") ? v.slice(0, -1) : v;
@@ -62,6 +63,16 @@ function formatNetworkError(baseUrl: string, originalError: unknown): Error {
   );
 }
 
+async function fetchWithTimeout(url: string, options: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const method = options.method ?? "GET";
   const headers: Record<string, string> = {
@@ -82,7 +93,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   for (const baseUrl of baseUrls) {
     lastTriedBaseUrl = baseUrl;
     try {
-      res = await fetch(`${baseUrl}${path}`, {
+      res = await fetchWithTimeout(`${baseUrl}${path}`, {
         method,
         headers,
         body: options.body !== undefined ? JSON.stringify(options.body) : undefined,

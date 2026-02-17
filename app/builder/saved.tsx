@@ -97,7 +97,6 @@ export default function BuilderSavedLabourers() {
           <Text style={{ fontWeight: "900", fontSize: 16 }}>
             {item.firstName} {item.lastName}
           </Text>
-          <Text style={{ marginTop: 4, opacity: 0.8, fontWeight: "700" }}>{item.occupation}</Text>
           <Text style={{ marginTop: 4, opacity: 0.75 }}>${item.pricePerHour}/hr</Text>
 
           <View style={{ marginTop: 12, flexDirection: "row", gap: 10 }}>

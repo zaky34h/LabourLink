@@ -77,11 +77,11 @@ export default function LabourerProfileView() {
   const fullName = `${labourer.firstName} ${labourer.lastName}`;
   const certs = labourer.certifications ?? ["White Card (example)", "Working at Heights (example)"];
   const exp = labourer.experienceYears ?? 3;
-  const currentMonthAvailableDates = (labourer.availableDates ?? [])
+  const currentMonthUnavailableDates = (labourer.unavailableDates ?? [])
     .filter((d) => isCurrentMonthDate(d))
     .sort((a, b) => a.localeCompare(b));
   const currentMonthCalendarDate = getCurrentMonthAnchorIso();
-  const markedDates = currentMonthAvailableDates.reduce((acc, d) => {
+  const markedDates = currentMonthUnavailableDates.reduce((acc, d) => {
     acc[d] = {
       selected: true,
       selectedColor: "#111",
@@ -147,7 +147,6 @@ export default function LabourerProfileView() {
 
           <View style={{ flex: 1, gap: 4 }}>
             <Text style={{ fontSize: 20, fontWeight: "900" }}>{fullName}</Text>
-            <Text style={{ fontWeight: "800", opacity: 0.8 }}>{labourer.occupation}</Text>
             <Text style={{ opacity: 0.75 }}>${labourer.pricePerHour}/hr</Text>
           </View>
         </View>
@@ -180,7 +179,7 @@ export default function LabourerProfileView() {
         <View style={{ paddingTop: 8, borderTopWidth: 1, borderTopColor: "#FDE047" }}>
           <Text style={{ fontWeight: "900" }}>Availability</Text>
           <Text style={{ marginTop: 6, opacity: 0.8, fontWeight: "700" }}>
-            Current month: {currentMonthAvailableDates.length} date(s)
+            Unavailable this month: {currentMonthUnavailableDates.length} date(s)
           </Text>
           <View style={{ marginTop: 8, borderWidth: 1, borderColor: "#111111", borderRadius: 12, padding: 8 }}>
             <Calendar
@@ -192,8 +191,8 @@ export default function LabourerProfileView() {
               disableMonthChange
             />
           </View>
-          {!currentMonthAvailableDates.length ? (
-            <Text style={{ marginTop: 8, opacity: 0.75 }}>No available dates in this month.</Text>
+          {!currentMonthUnavailableDates.length ? (
+            <Text style={{ marginTop: 8, opacity: 0.75 }}>No unavailabilities set in this month.</Text>
           ) : null}
         </View>
       </View>
@@ -208,12 +207,6 @@ function isCurrentMonthDate(isoDate: string) {
   const month = Number(m[2]);
   const now = new Date();
   return year === now.getFullYear() && month === now.getMonth() + 1;
-}
-
-function formatDateLabel(isoDate: string) {
-  const [y, m, d] = isoDate.split("-").map(Number);
-  const dt = new Date(y, m - 1, d);
-  return dt.toLocaleDateString(undefined, { month: "short", day: "2-digit" });
 }
 
 function getCurrentMonthAnchorIso() {

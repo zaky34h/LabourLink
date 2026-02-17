@@ -271,7 +271,7 @@ export default function BuilderHome() {
 
         <ActionButton
           label="Browse Labourers"
-          subtitle="Find available workers by trade & date"
+          subtitle="Find available workers by date"
           tone="yellow"
           onPress={() => {
             closeOfferOverlays();
@@ -361,7 +361,7 @@ export default function BuilderHome() {
                       {labourers.length === 0
                         ? "No chatted labourers yet"
                         : selectedLabourer
-                          ? `${selectedLabourer.firstName} ${selectedLabourer.lastName} - ${selectedLabourer.occupation}`
+                          ? `${selectedLabourer.firstName} ${selectedLabourer.lastName}`
                           : "Select labourer"}
                     </Text>
                     <Text style={{ opacity: 0.7 }}>▾</Text>
@@ -401,9 +401,6 @@ export default function BuilderHome() {
                           >
                             <Text style={{ fontWeight: "900", color: active ? "#FDE047" : "#111111" }}>
                               {l.firstName} {l.lastName}
-                            </Text>
-                            <Text style={{ marginTop: 2, opacity: active ? 0.9 : 0.7, color: active ? "#FDE047" : "#111111" }}>
-                              {l.occupation}
                             </Text>
                           </Pressable>
                         );

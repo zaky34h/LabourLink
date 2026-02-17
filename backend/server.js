@@ -282,6 +282,7 @@ async function initDb() {
       occupation TEXT,
       price_per_hour DOUBLE PRECISION,
       available_dates JSONB,
+      unavailable_dates JSONB,
       certifications JSONB,
       experience_years INTEGER,
       photo_url TEXT,
@@ -294,6 +295,7 @@ async function initDb() {
   `);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS bsb TEXT;`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS account_number TEXT;`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS unavailable_dates JSONB;`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS sessions (
@@ -445,10 +447,9 @@ function rowToUser(row) {
 
   return {
     ...base,
-    occupation: row.occupation || "",
     about: row.about || "",
     pricePerHour: Number(row.price_per_hour || 0),
-    availableDates: row.available_dates || [],
+    unavailableDates: row.unavailable_dates || [],
     certifications: row.certifications || [],
     experienceYears: Number(row.experience_years || 0),
     photoUrl: row.photo_url || undefined,
@@ -639,19 +640,18 @@ const server = http.createServer(async (req, res) => {
       } else {
         await pool.query(
           `INSERT INTO users (
-            email, role, first_name, last_name, occupation, about, price_per_hour,
-            available_dates, certifications, experience_years, photo_url, bsb, account_number,
+            email, role, first_name, last_name, about, price_per_hour,
+            unavailable_dates, certifications, experience_years, photo_url, bsb, account_number,
             subscription, password_hash, created_at, updated_at
-          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
           [
             email,
             "labourer",
             String(body.firstName || ""),
             String(body.lastName || ""),
-            String(body.occupation || ""),
             String(body.about || ""),
             Number(body.pricePerHour || 0),
-            JSON.stringify(body.availableDates || []),
+            JSON.stringify(Array.isArray(body.unavailableDates) ? body.unavailableDates : []),
             JSON.stringify(body.certifications || []),
             Number(body.experienceYears || 0),
             body.photoUrl || null,
@@ -891,20 +891,18 @@ const server = http.createServer(async (req, res) => {
         `UPDATE users
          SET first_name = COALESCE($1, first_name),
              last_name = COALESCE($2, last_name),
-             occupation = COALESCE($3, occupation),
-             about = COALESCE($4, about),
-             price_per_hour = COALESCE($5, price_per_hour),
-             experience_years = COALESCE($6, experience_years),
-             certifications = COALESCE($7, certifications),
-             photo_url = COALESCE($8, photo_url),
-             bsb = COALESCE($9, bsb),
-             account_number = COALESCE($10, account_number),
-             updated_at = $11
-         WHERE email = $12`,
+             about = COALESCE($3, about),
+             price_per_hour = COALESCE($4, price_per_hour),
+             experience_years = COALESCE($5, experience_years),
+             certifications = COALESCE($6, certifications),
+             photo_url = COALESCE($7, photo_url),
+             bsb = COALESCE($8, bsb),
+             account_number = COALESCE($9, account_number),
+             updated_at = $10
+         WHERE email = $11`,
         [
           patch.firstName ?? null,
           patch.lastName ?? null,
-          patch.occupation ?? null,
           patch.about ?? null,
           Number.isFinite(Number(patch.pricePerHour)) ? Number(patch.pricePerHour) : null,
           Number.isFinite(Number(patch.experienceYears)) ? Number(patch.experienceYears) : null,
@@ -927,10 +925,10 @@ const server = http.createServer(async (req, res) => {
       if (!authUser) return;
       if (authUser.role !== "labourer") return json(res, 403, { ok: false, error: "Not a labourer account" });
       const body = await parseBody(req);
-      const dates = Array.isArray(body.availableDates) ? body.availableDates : [];
+      const dates = Array.isArray(body.unavailableDates) ? body.unavailableDates : [];
       await pool.query(
         `UPDATE users
-         SET available_dates = $1, updated_at = $2
+         SET unavailable_dates = $1, updated_at = $2
          WHERE email = $3`,
         [JSON.stringify(dates), now(), normalizeEmail(authUser.email)]
       );
@@ -954,16 +952,14 @@ const server = http.createServer(async (req, res) => {
         lastReadByPeer.set(normalizeEmail(row.peer_email), Number(row.last_read_at || 0));
       }
       const closuresRes = await pool.query(
-        `SELECT email, peer_email, closed_at
+        `SELECT peer_email, closed_at
          FROM chat_thread_closures
-         WHERE lower(email) = $1 OR lower(peer_email) = $1`,
+         WHERE lower(email) = $1`,
         [myEmail]
       );
       const closedAtByPeer = new Map();
       for (const row of closuresRes.rows) {
-        const rowEmail = normalizeEmail(row.email);
-        const rowPeerEmail = normalizeEmail(row.peer_email);
-        const otherEmail = rowEmail === myEmail ? rowPeerEmail : rowEmail;
+        const otherEmail = normalizeEmail(row.peer_email);
         const closedAt = Number(row.closed_at || 0);
         const prev = Number(closedAtByPeer.get(otherEmail) || 0);
         if (closedAt > prev) closedAtByPeer.set(otherEmail, closedAt);
@@ -987,8 +983,8 @@ const server = http.createServer(async (req, res) => {
         const createdAt = Number(m.created_at);
 
         if (historyMode) {
-          // History is "threads I closed"; show them even if newer messages exist.
           if (closedAt <= 0) continue;
+          if (createdAt > closedAt) continue;
         } else {
           if (createdAt <= closedAt) continue;
         }
