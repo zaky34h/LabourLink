@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { View, Text, Pressable, FlatList, ActivityIndicator } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useCurrentUser } from "../../src/auth/useCurrentUser";
@@ -6,7 +6,8 @@ import { getThreadsForUser, type ChatThread } from "../../src/chat/storage";
 import { getUserByEmail } from "../../src/auth/storage";
 
 export default function BuilderMessages() {
-  const { user } = useCurrentUser();
+  const { user, loading: userLoading } = useCurrentUser();
+  const loadedRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedTab, setSelectedTab] = useState<"active" | "history">("active");
@@ -17,6 +18,7 @@ export default function BuilderMessages() {
   async function load(options?: { silent?: boolean; view?: "active" | "history" }) {
     const silent = options?.silent ?? false;
     const view = options?.view ?? selectedTab;
+    if (userLoading) return;
     if (!user?.email) {
       setThreads([]);
       setNames({});
@@ -29,13 +31,16 @@ export default function BuilderMessages() {
       const t = await getThreadsForUser(user.email, view);
       setThreads(t);
 
+      const uniquePeers = Array.from(new Set(t.map((th) => th.peerEmail)));
+      const peerUsers = await Promise.all(uniquePeers.map((peerEmail) => getUserByEmail(peerEmail)));
       const map: Record<string, string> = {};
-      for (const th of t) {
-        const u = await getUserByEmail(th.peerEmail);
-        map[th.peerEmail] = u ? `${u.firstName} ${u.lastName}` : th.peerEmail;
-      }
+      uniquePeers.forEach((peerEmail, idx) => {
+        const u = peerUsers[idx];
+        map[peerEmail] = u ? `${u.firstName} ${u.lastName}` : peerEmail;
+      });
       setNames(map);
       setError(null);
+      loadedRef.current = true;
     } catch (err: any) {
       setThreads([]);
       setNames({});
@@ -53,8 +58,9 @@ export default function BuilderMessages() {
 
   useFocusEffect(
     useCallback(() => {
-      load();
-    }, [user?.email, selectedTab])
+      if (userLoading) return;
+      void load({ silent: loadedRef.current });
+    }, [user?.email, userLoading])
   );
 
   if (loading) {
@@ -80,6 +86,7 @@ export default function BuilderMessages() {
           <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
             <Pressable
               onPress={async () => {
+                if (selectedTab === "active") return;
                 setSelectedTab("active");
                 await load({ silent: true, view: "active" });
               }}
@@ -104,6 +111,7 @@ export default function BuilderMessages() {
             </Pressable>
             <Pressable
               onPress={async () => {
+                if (selectedTab === "history") return;
                 setSelectedTab("history");
                 await load({ silent: true, view: "history" });
               }}

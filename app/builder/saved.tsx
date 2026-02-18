@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { View, Text, Pressable, FlatList, ActivityIndicator, Alert } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useCurrentUser } from "../../src/auth/useCurrentUser";
@@ -7,6 +7,7 @@ import type { LabourerUser } from "../../src/auth/storage";
 
 export default function BuilderSavedLabourers() {
   const { user } = useCurrentUser();
+  const loadedRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [labourers, setLabourers] = useState<LabourerUser[]>([]);
@@ -18,6 +19,7 @@ export default function BuilderSavedLabourers() {
     try {
       const list = await getSavedLabourers();
       setLabourers(list);
+      loadedRef.current = true;
     } finally {
       if (!silent) setLoading(false);
     }
@@ -46,7 +48,7 @@ export default function BuilderSavedLabourers() {
 
   useFocusEffect(
     useCallback(() => {
-      load();
+      void load({ silent: loadedRef.current });
     }, [user?.email])
   );
 
@@ -95,7 +97,6 @@ export default function BuilderSavedLabourers() {
           <Text style={{ fontWeight: "900", fontSize: 16 }}>
             {item.firstName} {item.lastName}
           </Text>
-          <Text style={{ marginTop: 4, opacity: 0.8, fontWeight: "700" }}>{item.occupation}</Text>
           <Text style={{ marginTop: 4, opacity: 0.75 }}>${item.pricePerHour}/hr</Text>
 
           <View style={{ marginTop: 12, flexDirection: "row", gap: 10 }}>

@@ -5,8 +5,9 @@ export function useCurrentUser() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  async function load() {
-    setLoading(true);
+  async function load(options?: { silent?: boolean }) {
+    const silent = options?.silent ?? false;
+    if (!silent) setLoading(true);
     const email = await getSessionEmail();
     if (!email) {
       setUser(null);
@@ -19,8 +20,12 @@ export function useCurrentUser() {
   }
 
   useEffect(() => {
-    load();
+    void load();
   }, []);
 
-  return { user, loading, reload: load };
+  return {
+    user,
+    loading,
+    reload: () => load({ silent: true }),
+  };
 }

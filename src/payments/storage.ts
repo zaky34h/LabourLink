@@ -51,7 +51,12 @@ function makeReceiptHtml(payment: PaymentRecord, logoUri?: string | null) {
     : `<div style="font-weight:900;">LabourLink</div>`;
 
   const content = payment.receiptContent || "";
-  const lines = content.split("\n").filter(Boolean);
+  const lines = content
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((line) => !/^work offer\s+/i.test(line))
+    .filter((line) => !/^offer id\s*:/i.test(line));
   const rendered = lines.map((line) => `<div style="margin-bottom:6px;">${escapeHtml(line)}</div>`).join("");
 
   return `<!DOCTYPE html>

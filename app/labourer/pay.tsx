@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { View, Text, FlatList, Pressable, ActivityIndicator, Alert } from "react-native";
 import { useFocusEffect } from "expo-router";
 import * as Sharing from "expo-sharing";
@@ -11,18 +11,21 @@ function cleanPaymentDetails(details: string) {
 }
 
 export default function LabourerPay() {
+  const loadedRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [selectedTab, setSelectedTab] = useState<"pending" | "paid">("pending");
 
-  async function load() {
-    setLoading(true);
+  async function load(options?: { silent?: boolean }) {
+    const silent = options?.silent ?? false;
+    if (!silent) setLoading(true);
     const data = await getLabourerPayments();
     setPayments(data);
-    setLoading(false);
+    if (!silent) setLoading(false);
+    loadedRef.current = true;
   }
 
-  useFocusEffect(useCallback(() => { load(); }, []));
+  useFocusEffect(useCallback(() => { void load({ silent: loadedRef.current }); }, []));
 
   const pending = useMemo(() => payments.filter((p) => p.status === "pending"), [payments]);
   const paid = useMemo(() => payments.filter((p) => p.status === "paid"), [payments]);
@@ -50,6 +53,7 @@ export default function LabourerPay() {
       contentContainerStyle={{ paddingTop: 60, paddingHorizontal: 16, paddingBottom: 20, gap: 10 }}
       data={visible}
       keyExtractor={(p) => p.id}
+      keyboardShouldPersistTaps="handled"
       ListHeaderComponent={
         <View>
           <Text style={{ fontSize: 24, fontWeight: "900" }}>Pay</Text>

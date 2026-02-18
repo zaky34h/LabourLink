@@ -1,4 +1,13 @@
-import { View, Text, TextInput, Pressable, Image, Alert } from "react-native";
+import {
+  View,
+  Text,
+  TextInput,
+  Pressable,
+  Image,
+  Alert,
+  Keyboard,
+  ActivityIndicator,
+} from "react-native";
 import { useEffect, useState } from "react";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -13,185 +22,227 @@ export default function Login() {
   const [rememberMe, setRememberMe] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [bootstrapping, setBootstrapping] = useState(true);
 
   useEffect(() => {
     let active = true;
 
     async function bootstrapRememberMe() {
-      const rememberFlag = (await AsyncStorage.getItem(REMEMBER_ME_KEY)) === "1";
-      if (!active) return;
-      setRememberMe(rememberFlag);
+      try {
+        const [rememberRaw, rememberedEmail, sessionEmail] = await Promise.all([
+          AsyncStorage.getItem(REMEMBER_ME_KEY),
+          AsyncStorage.getItem(REMEMBERED_EMAIL_KEY),
+          getSessionEmail(),
+        ]);
 
-      const rememberedEmail = await AsyncStorage.getItem(REMEMBERED_EMAIL_KEY);
-      if (active && rememberedEmail) setEmail(rememberedEmail);
+        const rememberFlag = rememberRaw === "1";
+        if (!active) return;
+        setRememberMe(rememberFlag);
+        if (rememberedEmail) setEmail(rememberedEmail);
 
-      if (!rememberFlag) {
-        await clearSessionStorage();
-        return;
+        if (!rememberFlag) {
+          await clearSessionStorage();
+          return;
+        }
+
+        if (!sessionEmail) return;
+
+        const user = await getUserByEmail(sessionEmail);
+        if (!active || !user) return;
+
+        if (user.role === "builder") router.replace("/builder/home");
+        else router.replace("/labourer/home");
+      } finally {
+        if (active) setBootstrapping(false);
       }
-
-      const sessionEmail = await getSessionEmail();
-      if (!sessionEmail) return;
-
-      const user = await getUserByEmail(sessionEmail);
-      if (!user) return;
-      if (!active) return;
-
-      if (user.role === "builder") router.replace("/builder/home");
-      else if (user.role === "labourer") router.replace("/labourer/home");
-      else router.replace("/owner/home");
     }
 
-    bootstrapRememberMe();
+    void bootstrapRememberMe();
     return () => {
       active = false;
     };
   }, []);
 
   async function onLogin() {
-    const res = await loginUser(email.trim(), password);
-    if (!res.ok) return Alert.alert("Login failed", res.error);
-
-    if (rememberMe) {
-      await AsyncStorage.multiSet([
-        [REMEMBER_ME_KEY, "1"],
-        [REMEMBERED_EMAIL_KEY, email.trim()],
-      ]);
-    } else {
-      await AsyncStorage.multiRemove([REMEMBERED_EMAIL_KEY]);
-      await AsyncStorage.setItem(REMEMBER_ME_KEY, "0");
+    if (submitting) return;
+    Keyboard.dismiss();
+    if (!email.trim() || !password) {
+      return Alert.alert("Missing info", "Please enter your email and password.");
     }
 
-    if (res.user.role === "builder") router.replace("/builder/home");
-    else if (res.user.role === "labourer") router.replace("/labourer/home");
-    else router.replace("/owner/home");
+    setSubmitting(true);
+    try {
+      const res = await loginUser(email.trim(), password);
+      if (!res.ok) return Alert.alert("Login failed", res.error);
+
+      if (rememberMe) {
+        await AsyncStorage.multiSet([
+          [REMEMBER_ME_KEY, "1"],
+          [REMEMBERED_EMAIL_KEY, email.trim()],
+        ]);
+      } else {
+        await AsyncStorage.multiRemove([REMEMBERED_EMAIL_KEY]);
+        await AsyncStorage.setItem(REMEMBER_ME_KEY, "0");
+      }
+
+      if (res.user.role === "builder") router.replace("/builder/home");
+      else router.replace("/labourer/home");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
     <FormScreen>
-      {/* 👇 THIS is the key fix */}
       <View
         style={{
           flex: 1,
+          backgroundColor: "#FFF8D9",
           padding: 24,
           paddingTop: 48,
           gap: 18,
-          backgroundColor: "#fff",
         }}
       >
-        {/* Logo / Title */}
-        <View style={{ alignItems: "center", marginBottom: 8 }}>
+        <View
+          style={{
+            position: "absolute",
+            top: -60,
+            left: -50,
+            width: 220,
+            height: 220,
+            borderRadius: 110,
+            backgroundColor: "#FFE15A",
+            opacity: 0.45,
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: -90,
+            right: -40,
+            width: 260,
+            height: 260,
+            borderRadius: 130,
+            backgroundColor: "#111111",
+            opacity: 0.08,
+          }}
+        />
+
+        <View style={{ alignItems: "center", marginTop: 8 }}>
           <Image
             source={require("../assets/labourlink-logo.png")}
-            style={{ width: 300, height: 150 }}
+            style={{ width: 280, height: 130 }}
             resizeMode="contain"
           />
-        </View>
-
-        {/* Email */}
-        <View>
-          <Text style={{ marginBottom: 6, fontWeight: "600" }}>
-            Email Address
+          <Text style={{ marginTop: 4, fontWeight: "700", opacity: 0.75 }}>
+            Builders and labourers connected fast
           </Text>
-          <TextInput
-            value={email}
-            onChangeText={setEmail}
-            placeholder="you@email.com"
-            autoCapitalize="none"
-            keyboardType="email-address"
-            style={{
-              borderWidth: 1,
-              borderColor: "#111111",
-              borderRadius: 10,
-              padding: 14,
-            }}
-          />
         </View>
 
-        {/* Password */}
-        <View>
-          <Text style={{ marginBottom: 6, fontWeight: "600" }}>
-            Password
-          </Text>
-          <TextInput
-            value={password}
-            onChangeText={setPassword}
-            placeholder="••••••••"
-            secureTextEntry
-            style={{
-              borderWidth: 1,
-              borderColor: "#111111",
-              borderRadius: 10,
-              padding: 14,
-            }}
-          />
-        </View>
-
-        {/* Remember me */}
-        <Pressable
-          onPress={() => setRememberMe(!rememberMe)}
-          style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
-        >
-          <View
-            style={{
-              width: 18,
-              height: 18,
-              borderRadius: 4,
-              borderWidth: 1,
-              borderColor: "#111",
-              backgroundColor: rememberMe ? "#111" : "transparent",
-            }}
-          />
-          <Text>Remember me</Text>
-        </Pressable>
-
-        {/* Login button */}
-        <Pressable
-          onPress={onLogin}
+        <View
           style={{
-            padding: 16,
-            backgroundColor: "#111",
-            borderRadius: 12,
-            alignItems: "center",
-            marginTop: 10,
-          }}
-        >
-          <Text style={{ color: "#FDE047", fontWeight: "800" }}>
-            Login
-          </Text>
-        </Pressable>
-
-        <Pressable
-          onPress={() => router.push("/auth/forgot-password")}
-          style={{ alignItems: "center" }}
-        >
-          <Text style={{ fontWeight: "700", textDecorationLine: "underline" }}>
-            Forgot password?
-          </Text>
-        </Pressable>
-
-        {/* Create account */}
-        <Pressable
-          onPress={() => router.push("/auth/register")}
-          style={{
-            padding: 16,
             borderWidth: 1,
             borderColor: "#111111",
-            borderRadius: 12,
-            alignItems: "center",
-            backgroundColor: "#FDE047",
+            borderRadius: 18,
+            backgroundColor: "#fff",
+            padding: 16,
+            gap: 14,
           }}
         >
-          <Text
+          <View>
+            <Text style={{ marginBottom: 6, fontWeight: "700" }}>Email Address</Text>
+            <TextInput
+              value={email}
+              onChangeText={setEmail}
+              placeholder="you@email.com"
+              autoCapitalize="none"
+              keyboardType="email-address"
+              style={{
+                borderWidth: 1,
+                borderColor: "#111111",
+                borderRadius: 10,
+                padding: 14,
+              }}
+            />
+          </View>
+
+          <View>
+            <Text style={{ marginBottom: 6, fontWeight: "700" }}>Password</Text>
+            <TextInput
+              value={password}
+              onChangeText={setPassword}
+              placeholder="••••••••"
+              secureTextEntry
+              style={{
+                borderWidth: 1,
+                borderColor: "#111111",
+                borderRadius: 10,
+                padding: 14,
+              }}
+            />
+          </View>
+
+          <Pressable
+            onPress={() => setRememberMe(!rememberMe)}
+            style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+          >
+            <View
+              style={{
+                width: 18,
+                height: 18,
+                borderRadius: 4,
+                borderWidth: 1,
+                borderColor: "#111",
+                backgroundColor: rememberMe ? "#111" : "transparent",
+              }}
+            />
+            <Text style={{ fontWeight: "600" }}>Remember me</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={onLogin}
+            disabled={submitting || bootstrapping}
             style={{
-              textAlign: "center",
-              fontWeight: "700",
-              color: "#111111",
+              padding: 16,
+              backgroundColor: submitting || bootstrapping ? "#444" : "#111",
+              borderRadius: 12,
+              alignItems: "center",
+              marginTop: 2,
+              opacity: submitting || bootstrapping ? 0.9 : 1,
+              flexDirection: "row",
+              justifyContent: "center",
+              gap: 8,
             }}
           >
-            Create an account
-          </Text>
-        </Pressable>
+            {submitting ? <ActivityIndicator size="small" color="#FDE047" /> : null}
+            <Text style={{ color: "#FDE047", fontWeight: "800" }}>
+              {bootstrapping ? "Checking session..." : submitting ? "Logging in..." : "Login"}
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => router.push("/auth/register")}
+            style={{
+              padding: 16,
+              borderWidth: 1,
+              borderColor: "#111111",
+              borderRadius: 12,
+              alignItems: "center",
+              backgroundColor: "#FDE047",
+            }}
+          >
+            <Text
+              style={{
+                textAlign: "center",
+                fontWeight: "700",
+                color: "#111111",
+              }}
+            >
+              Create an account
+            </Text>
+          </Pressable>
+        </View>
       </View>
     </FormScreen>
   );

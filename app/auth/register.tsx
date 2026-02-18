@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   Pressable,
   Alert,
   Modal,
+  Keyboard,
 } from "react-native";
 import { router } from "expo-router";
 import { Calendar } from "react-native-calendars";
@@ -19,22 +20,18 @@ export default function Register() {
   const [lastName, setLastName] = useState("");
   const [about, setAbout] = useState("");
 
-  // Builder fields
   const [companyName, setCompanyName] = useState("");
   const [address, setAddress] = useState("");
 
-  // Labourer fields
-  const [occupation, setOccupation] = useState("");
   const [pricePerHour, setPricePerHour] = useState("");
-  const [availableDates, setAvailableDates] = useState<string[]>([]);
+  const [unavailableDates, setUnavailableDates] = useState<string[]>([]);
   const [calendarOpen, setCalendarOpen] = useState(false);
 
-  // ✅ NEW labourer fields
   const [experienceYears, setExperienceYears] = useState("");
-  const [certificationsText, setCertificationsText] = useState(""); // comma separated
-  const [photoUrl, setPhotoUrl] = useState("");
+  const [certifications, setCertifications] = useState<string[]>([""]);
+  const [bsb, setBsb] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
 
-  // Common
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -43,39 +40,63 @@ export default function Register() {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
   }
 
-  function toggleDate(dateString: string) {
-    setAvailableDates((prev) =>
+  function toggleUnavailableDate(dateString: string) {
+    setUnavailableDates((prev) =>
       prev.includes(dateString)
         ? prev.filter((d) => d !== dateString)
         : [...prev, dateString]
     );
   }
 
-  function parseCertifications(input: string) {
-    return input
-      .split(",")
-      .map((x) => x.trim())
-      .filter(Boolean);
+  function updateCertification(index: number, value: string) {
+    setCertifications((prev) => {
+      const next = [...prev];
+      next[index] = value;
+      return next;
+    });
   }
+
+  function addCertificationRow() {
+    setCertifications((prev) => [...prev, ""]);
+  }
+
+  function removeCertificationRow(index: number) {
+    setCertifications((prev) => {
+      const next = prev.filter((_, idx) => idx !== index);
+      return next.length ? next : [""];
+    });
+  }
+
+  const parsedCertifications = useMemo(
+    () => certifications.map((x) => x.trim()).filter(Boolean),
+    [certifications]
+  );
 
   async function onCreateAccount() {
     if (submitting) return;
-    if (!firstName.trim() || !lastName.trim())
+    Keyboard.dismiss();
+    if (!firstName.trim() || !lastName.trim()) {
       return Alert.alert("Missing info", "Please enter your first and last name.");
-    if (!about.trim())
+    }
+    if (!about.trim()) {
       return Alert.alert("Missing info", "Please add a short bio (About Yourself).");
-    if (!isEmailValid(email))
+    }
+    if (!isEmailValid(email)) {
       return Alert.alert("Invalid email", "Please enter a valid email address.");
-    if (password.length < 6)
+    }
+    if (password.length < 6) {
       return Alert.alert("Weak password", "Password must be at least 6 characters.");
+    }
 
     let user: User;
 
     if (role === "builder") {
-      if (!companyName.trim())
+      if (!companyName.trim()) {
         return Alert.alert("Missing info", "Please enter your company name.");
-      if (!address.trim())
+      }
+      if (!address.trim()) {
         return Alert.alert("Missing info", "Please enter your address.");
+      }
 
       user = {
         role: "builder",
@@ -90,43 +111,33 @@ export default function Register() {
         password,
       };
     } else {
-      if (!occupation.trim())
-        return Alert.alert("Missing info", "Please enter your occupation.");
-
       const rate = Number(pricePerHour);
-      if (!Number.isFinite(rate) || rate <= 0)
+      if (!Number.isFinite(rate) || rate <= 0) {
         return Alert.alert("Invalid rate", "Price per hour must be a number greater than 0.");
-
-      if (availableDates.length === 0)
-        return Alert.alert("Availability missing", "Please select at least 1 available date.");
+      }
 
       const exp = Number(experienceYears);
-      if (!Number.isFinite(exp) || exp < 0)
+      if (!Number.isFinite(exp) || exp < 0) {
         return Alert.alert("Invalid experience", "Experience must be a number 0 or higher.");
-
-      const certs = parseCertifications(certificationsText);
-      if (certs.length === 0)
-        return Alert.alert("Missing certifications", "Add at least 1 certification (comma separated).");
-
-      const trimmedPhotoUrl = photoUrl.trim();
-      if (trimmedPhotoUrl && !/^https?:\/\//i.test(trimmedPhotoUrl)) {
-        return Alert.alert("Invalid photo URL", "Photo URL must start with http:// or https://");
       }
+
+      if (parsedCertifications.length === 0) {
+        return Alert.alert("Missing certifications", "Add at least 1 certification.");
+      }
+      if (!bsb.trim()) return Alert.alert("Missing info", "Please enter your BSB.");
+      if (!accountNumber.trim()) return Alert.alert("Missing info", "Please enter your account number.");
 
       user = {
         role: "labourer",
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         about: about.trim(),
-        occupation: occupation.trim(),
         pricePerHour: rate,
-        availableDates,
-
-        // ✅ NEW fields required by LabourerUser
+        unavailableDates: unavailableDates.slice().sort(),
         experienceYears: exp,
-        certifications: certs,
-        photoUrl: trimmedPhotoUrl || undefined,
-
+        certifications: parsedCertifications,
+        bsb: bsb.trim(),
+        accountNumber: accountNumber.trim(),
         email: email.trim(),
         password,
       };
@@ -156,7 +167,6 @@ export default function Register() {
       <View style={{ padding: 24, paddingTop: 60, gap: 14 }}>
         <Text style={{ fontSize: 26, fontWeight: "900" }}>Create Account</Text>
 
-        {/* Role toggle */}
         <View style={{ flexDirection: "row", gap: 10 }}>
           <Pressable
             onPress={() => setRole("builder")}
@@ -167,7 +177,7 @@ export default function Register() {
               alignItems: "center",
               backgroundColor: role === "builder" ? "#111" : "#FEF08A",
               borderWidth: 1,
-              borderColor: role === "builder" ? "#111" : "#111111",
+              borderColor: "#111111",
             }}
           >
             <Text style={{ fontWeight: "800", color: role === "builder" ? "#FDE047" : "#111" }}>
@@ -184,7 +194,7 @@ export default function Register() {
               alignItems: "center",
               backgroundColor: role === "labourer" ? "#111" : "#FEF08A",
               borderWidth: 1,
-              borderColor: role === "labourer" ? "#111" : "#111111",
+              borderColor: "#111111",
             }}
           >
             <Text style={{ fontWeight: "800", color: role === "labourer" ? "#FDE047" : "#111" }}>
@@ -193,12 +203,10 @@ export default function Register() {
           </Pressable>
         </View>
 
-        {/* Common fields */}
         <Field label="First Name" value={firstName} onChangeText={setFirstName} />
         <Field label="Last Name" value={lastName} onChangeText={setLastName} />
         <Field label="About Yourself" value={about} onChangeText={setAbout} multiline />
 
-        {/* Role-specific fields */}
         {role === "builder" ? (
           <>
             <Field label="Company Name" value={companyName} onChangeText={setCompanyName} />
@@ -206,8 +214,6 @@ export default function Register() {
           </>
         ) : (
           <>
-            <Field label="Occupation" value={occupation} onChangeText={setOccupation} />
-
             <Field
               label="Price Per Hour"
               value={pricePerHour}
@@ -215,7 +221,6 @@ export default function Register() {
               keyboardType="numeric"
             />
 
-            {/* ✅ New Labourer fields */}
             <Field
               label="Experience (Years)"
               value={experienceYears}
@@ -224,23 +229,74 @@ export default function Register() {
               placeholder="e.g. 3"
             />
 
+            <View style={{ gap: 8 }}>
+              <Text style={{ fontWeight: "700" }}>Certifications</Text>
+              {certifications.map((certification, index) => {
+                const isLast = index === certifications.length - 1;
+                const canRemove = certifications.length > 1;
+                return (
+                  <View key={`cert-${index}`} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <TextInput
+                      value={certification}
+                      onChangeText={(value) => updateCertification(index, value)}
+                      placeholder="e.g. White Card"
+                      style={{
+                        flex: 1,
+                        borderWidth: 1,
+                        borderColor: "#111111",
+                        borderRadius: 10,
+                        padding: 14,
+                      }}
+                    />
+                    {isLast ? (
+                      <Pressable
+                        onPress={addCertificationRow}
+                        style={{
+                          width: 36,
+                          height: 36,
+                          borderRadius: 18,
+                          backgroundColor: "#111",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <Text style={{ color: "#FDE047", fontWeight: "900", fontSize: 18 }}>+</Text>
+                      </Pressable>
+                    ) : null}
+                    {canRemove ? (
+                      <Pressable
+                        onPress={() => removeCertificationRow(index)}
+                        style={{
+                          width: 36,
+                          height: 36,
+                          borderRadius: 18,
+                          borderWidth: 1,
+                          borderColor: "#111111",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <Text style={{ fontWeight: "900" }}>-</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                );
+              })}
+            </View>
+
+            <Field label="BSB" value={bsb} onChangeText={setBsb} keyboardType="number-pad" />
             <Field
-              label="Certifications (comma separated)"
-              value={certificationsText}
-              onChangeText={setCertificationsText}
-              placeholder="White Card, Working at Heights, ..."
-            />
-            <Field
-              label="Photo URL (optional)"
-              value={photoUrl}
-              onChangeText={setPhotoUrl}
-              autoCapitalize="none"
-              placeholder="https://..."
+              label="Account Number"
+              value={accountNumber}
+              onChangeText={setAccountNumber}
+              keyboardType="number-pad"
             />
 
-            {/* Availability Calendar */}
             <View style={{ gap: 8 }}>
-              <Text style={{ fontWeight: "700" }}>Availability (Calendar)</Text>
+              <Text style={{ fontWeight: "700" }}>Unavailabilities</Text>
+              <Text style={{ opacity: 0.75 }}>
+                Labourers are available on all days by default. Add only dates you cannot work.
+              </Text>
 
               <Pressable
                 onPress={() => setCalendarOpen(true)}
@@ -254,23 +310,22 @@ export default function Register() {
                 }}
               >
                 <Text style={{ fontWeight: "700" }}>
-                  {availableDates.length === 0
-                    ? "Select available dates"
-                    : `${availableDates.length} date(s) selected`}
+                  {unavailableDates.length === 0
+                    ? "Add unavailable dates"
+                    : `${unavailableDates.length} date(s) unavailable`}
                 </Text>
               </Pressable>
 
-              {availableDates.length > 0 && (
+              {unavailableDates.length > 0 && (
                 <Text style={{ opacity: 0.7 }}>
-                  {availableDates.slice(0, 4).join(", ")}
-                  {availableDates.length > 4 ? " ..." : ""}
+                  {unavailableDates.slice(0, 4).join(", ")}
+                  {unavailableDates.length > 4 ? " ..." : ""}
                 </Text>
               )}
             </View>
           </>
         )}
 
-        {/* Common login fields */}
         <Field
           label="Email Address"
           value={email}
@@ -302,21 +357,24 @@ export default function Register() {
         </Pressable>
       </View>
 
-      {/* Calendar modal */}
       <Modal visible={calendarOpen} animationType="slide" transparent>
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "flex-end" }}>
           <View style={{ backgroundColor: "#fff", borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 16 }}>
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <Text style={{ fontSize: 18, fontWeight: "900" }}>Pick available dates</Text>
+              <Text style={{ fontSize: 18, fontWeight: "900" }}>Pick unavailable dates</Text>
               <Pressable onPress={() => setCalendarOpen(false)}>
                 <Text style={{ fontWeight: "900" }}>Done</Text>
               </Pressable>
             </View>
 
             <Calendar
-              onDayPress={(day) => toggleDate(day.dateString)}
-              markedDates={availableDates.reduce((acc, d) => {
-                acc[d] = { selected: true };
+              onDayPress={(day) => toggleUnavailableDate(day.dateString)}
+              markedDates={unavailableDates.reduce((acc, d) => {
+                acc[d] = {
+                  selected: true,
+                  selectedColor: "#111",
+                  selectedTextColor: "#FDE047",
+                };
                 return acc;
               }, {} as Record<string, any>)}
             />

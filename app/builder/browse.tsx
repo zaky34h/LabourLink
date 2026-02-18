@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -8,23 +8,20 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Calendar } from "react-native-calendars";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { getUsers, type LabourerUser } from "../../src/auth/storage";
 
 const PAGE_SIZE = 10;
 
 export default function BuilderBrowse() {
+  const loadedRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const [allLabourers, setAllLabourers] = useState<LabourerUser[]>([]);
-  const [results, setResults] = useState<LabourerUser[]>([]);
 
   const [selectedDate, setSelectedDate] = useState<string>(() => todayISO());
-  const [selectedType, setSelectedType] = useState<string>("All");
-
   const [calendarOpen, setCalendarOpen] = useState(false);
-  const [typeOpen, setTypeOpen] = useState(false);
 
   const [page, setPage] = useState(1);
 
@@ -34,9 +31,9 @@ export default function BuilderBrowse() {
     const users = await getUsers();
     const labourers = users.filter((u) => u.role === "labourer") as LabourerUser[];
     setAllLabourers(labourers);
-    setResults(labourers);
     setPage(1);
     if (!silent) setLoading(false);
+    loadedRef.current = true;
   }
 
   async function onRefresh() {
@@ -46,41 +43,35 @@ export default function BuilderBrowse() {
   }
 
   useEffect(() => {
-    load();
+    void load();
   }, []);
 
-  const typeOptions = useMemo(() => {
-    const types = Array.from(
-      new Set(allLabourers.map((l) => (l.occupation ?? "").trim()))
-    ).filter(Boolean);
-    types.sort((a, b) => a.localeCompare(b));
-    return ["All", ...types];
-  }, [allLabourers]);
+  useFocusEffect(
+    useCallback(() => {
+      if (!loadedRef.current) return;
+      void load({ silent: true });
+    }, [])
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [selectedDate, allLabourers]);
+
+  const filteredResults = useMemo(() => {
+    return allLabourers.filter((l) => !(l.unavailableDates ?? []).includes(selectedDate));
+  }, [allLabourers, selectedDate]);
 
   function onSearch() {
-    let filtered = [...allLabourers];
-
-    if (selectedType !== "All") {
-      filtered = filtered.filter(
-        (l) => l.occupation.toLowerCase() === selectedType.toLowerCase()
-      );
-    }
-
-    filtered = filtered.filter((l) =>
-      (l.availableDates ?? []).includes(selectedDate)
-    );
-
-    setResults(filtered);
     setPage(1);
   }
 
   const pagedResults = useMemo(
-    () => results.slice(0, page * PAGE_SIZE),
-    [results, page]
+    () => filteredResults.slice(0, page * PAGE_SIZE),
+    [filteredResults, page]
   );
 
   function loadMore() {
-    if (pagedResults.length >= results.length) return;
+    if (pagedResults.length >= filteredResults.length) return;
     setPage((p) => p + 1);
   }
 
@@ -130,17 +121,6 @@ export default function BuilderBrowse() {
                 </Pressable>
               </View>
 
-              <View style={{ gap: 8 }}>
-                <Text style={{ fontWeight: "800" }}>Type</Text>
-                <Pressable
-                  onPress={() => setTypeOpen(true)}
-                  style={fieldStyle}
-                >
-                  <Text style={{ fontWeight: "700" }}>{selectedType}</Text>
-                  <Text style={{ opacity: 0.7 }}>▾</Text>
-                </Pressable>
-              </View>
-
               <Pressable
                 onPress={onSearch}
                 style={{
@@ -156,13 +136,13 @@ export default function BuilderBrowse() {
             </View>
 
             <Text style={{ marginTop: 14, marginBottom: 10, opacity: 0.7, fontWeight: "700" }}>
-              Showing {Math.min(pagedResults.length, results.length)} of {results.length}
+              Showing {Math.min(pagedResults.length, filteredResults.length)} of {filteredResults.length}
             </Text>
           </View>
         }
         ListEmptyComponent={
           <Text style={{ marginTop: 26, opacity: 0.7 }}>
-            No labourers available for that date/type.
+            No labourers available for that date.
           </Text>
         }
         renderItem={({ item }) => (
@@ -185,16 +165,12 @@ export default function BuilderBrowse() {
               </View>
             </View>
 
-            <Text style={{ marginTop: 6, fontWeight: "800", opacity: 0.85 }}>
-              {item.occupation}
-            </Text>
-
             <Text style={{ marginTop: 8, opacity: 0.75 }} numberOfLines={2}>
               {item.about}
             </Text>
 
             <Text style={{ marginTop: 10, opacity: 0.7, fontWeight: "700" }}>
-              Available dates: {(item.availableDates ?? []).length}
+              Unavailable dates set: {(item.unavailableDates ?? []).length}
             </Text>
 
             <View style={{ marginTop: 12, flexDirection: "row", gap: 10 }}>
@@ -251,48 +227,6 @@ export default function BuilderBrowse() {
         </View>
       </Modal>
 
-      {/* Type modal */}
-      <Modal visible={typeOpen} animationType="fade" transparent>
-        <Pressable
-          onPress={() => setTypeOpen(false)}
-          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "flex-end" }}
-        >
-          <Pressable
-            onPress={() => {}}
-            style={{ backgroundColor: "#fff", borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 16 }}
-          >
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <Text style={{ fontSize: 18, fontWeight: "900" }}>Select type</Text>
-              <Pressable onPress={() => setTypeOpen(false)}>
-                <Text style={{ fontWeight: "900" }}>Done</Text>
-              </Pressable>
-            </View>
-
-            <View style={{ gap: 10 }}>
-              {typeOptions.map((t) => (
-                <Pressable
-                  key={t}
-                  onPress={() => {
-                    setSelectedType(t);
-                    setTypeOpen(false);
-                  }}
-                  style={{
-                    padding: 14,
-                    borderRadius: 14,
-                    borderWidth: 1,
-                    borderColor: selectedType === t ? "#111" : "#111111",
-                    backgroundColor: selectedType === t ? "#111" : "#FEF08A",
-                  }}
-                >
-                  <Text style={{ fontWeight: "900", color: selectedType === t ? "#FDE047" : "#111" }}>
-                    {t}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
     </View>
   );
 }

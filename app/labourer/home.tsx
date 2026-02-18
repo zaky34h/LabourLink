@@ -12,7 +12,7 @@ export default function LabourerHome() {
   const [approvedOffers, setApprovedOffers] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const name = user ? `${user.firstName} ${user.lastName}` : "Welcome";
-  const selectedDates = user?.role === "labourer" ? user.availableDates?.length ?? 0 : 0;
+  const unavailableCount = user?.role === "labourer" ? user.unavailableDates?.length ?? 0 : 0;
 
   async function loadStats() {
     if (!user?.email || user.role !== "labourer") {
@@ -79,7 +79,7 @@ export default function LabourerHome() {
 
       <View style={{ flexDirection: "row", gap: 12 }}>
         <StatCard title="Approved Offers" value={String(approvedOffers)} />
-        <StatCard title="Available Dates" value={String(selectedDates)} />
+        <StatCard title="Unavailabilities" value={String(unavailableCount)} />
       </View>
 
       <View style={{ gap: 12 }}>

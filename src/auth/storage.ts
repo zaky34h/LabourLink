@@ -43,10 +43,9 @@ export type LabourerUser = {
   role: "labourer";
   firstName: string;
   lastName: string;
-  occupation: string;
   about: string;
   pricePerHour: number;
-  availableDates: string[];
+  unavailableDates: string[];
   certifications: string[];
   experienceYears: number;
   photoUrl?: string;

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { View, Text, Pressable, ScrollView, Modal, TextInput, Alert, RefreshControl } from "react-native";
+import { View, Text, Pressable, ScrollView, Modal, TextInput, Alert, RefreshControl, KeyboardAvoidingView, Platform } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { Calendar } from "react-native-calendars";
 import { useCurrentUser } from "../../src/auth/useCurrentUser";
@@ -48,14 +48,8 @@ export default function BuilderHome() {
     }
 
     const threads = await getThreadsForUser(user.email);
-    const fromChats: LabourerUser[] = [];
-
-    for (const t of threads) {
-      const peer = await getUserByEmail(t.peerEmail);
-      if (peer?.role === "labourer") {
-        fromChats.push(peer);
-      }
-    }
+    const peers = await Promise.all(threads.map((t) => getUserByEmail(t.peerEmail)));
+    const fromChats = peers.filter((peer): peer is LabourerUser => peer?.role === "labourer");
 
     const deduped = Array.from(
       new Map(fromChats.map((l) => [l.email.toLowerCase(), l])).values()
@@ -77,15 +71,15 @@ export default function BuilderHome() {
       return;
     }
 
-    const [threads, offers, payments] = await Promise.all([
+    const [threads, offers, payments, savedLabourers] = await Promise.all([
       getThreadsForUser(user.email),
       getOffersForBuilder(user.email),
       getBuilderPayments().catch(() => []),
+      getSavedLabourers().catch(() => []),
     ]);
     setActiveChats(threads.length);
     setPendingOffersCount(offers.filter((o) => o.status === "pending").length);
     setPendingPayCount(payments.filter((p) => p.status === "pending").length);
-    const savedLabourers = await getSavedLabourers().catch(() => []);
     setSavedLabourersCount(savedLabourers.length);
     await loadChattedLabourers();
   }
@@ -277,7 +271,7 @@ export default function BuilderHome() {
 
         <ActionButton
           label="Browse Labourers"
-          subtitle="Find available workers by trade & date"
+          subtitle="Find available workers by date"
           tone="yellow"
           onPress={() => {
             closeOfferOverlays();
@@ -312,6 +306,10 @@ export default function BuilderHome() {
       </View>
 
       <Modal visible={offerModalOpen} animationType="slide" transparent>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "flex-end" }}>
           <View
             style={{
@@ -336,6 +334,7 @@ export default function BuilderHome() {
             <ScrollView
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
+              keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
               contentContainerStyle={{ gap: 10, paddingBottom: 8 }}
             >
               <View style={{ gap: 6 }}>
@@ -362,7 +361,7 @@ export default function BuilderHome() {
                       {labourers.length === 0
                         ? "No chatted labourers yet"
                         : selectedLabourer
-                          ? `${selectedLabourer.firstName} ${selectedLabourer.lastName} - ${selectedLabourer.occupation}`
+                          ? `${selectedLabourer.firstName} ${selectedLabourer.lastName}`
                           : "Select labourer"}
                     </Text>
                     <Text style={{ opacity: 0.7 }}>▾</Text>
@@ -402,9 +401,6 @@ export default function BuilderHome() {
                           >
                             <Text style={{ fontWeight: "900", color: active ? "#FDE047" : "#111111" }}>
                               {l.firstName} {l.lastName}
-                            </Text>
-                            <Text style={{ marginTop: 2, opacity: active ? 0.9 : 0.7, color: active ? "#FDE047" : "#111111" }}>
-                              {l.occupation}
                             </Text>
                           </Pressable>
                         );
@@ -526,6 +522,7 @@ export default function BuilderHome() {
             </View>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
     </ScrollView>
   );
