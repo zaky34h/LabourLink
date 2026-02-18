@@ -98,7 +98,7 @@ export default function Login() {
   }
 
   return (
-    <FormScreen>
+    <FormScreen backgroundColor="#FFF8D9">
       <View
         style={{
           flex: 1,
@@ -111,11 +111,11 @@ export default function Login() {
         <View
           style={{
             position: "absolute",
-            top: -60,
-            left: -50,
-            width: 220,
-            height: 220,
-            borderRadius: 110,
+            top: 0,
+            left: -70,
+            width: 300,
+            height: 300,
+            borderRadius: 150,
             backgroundColor: "#FFE15A",
             opacity: 0.45,
           }}
@@ -123,11 +123,11 @@ export default function Login() {
         <View
           style={{
             position: "absolute",
-            bottom: -90,
-            right: -40,
-            width: 260,
-            height: 260,
-            borderRadius: 130,
+            bottom: 0,
+            right: -70,
+            width: 340,
+            height: 340,
+            borderRadius: 170,
             backgroundColor: "#111111",
             opacity: 0.08,
           }}

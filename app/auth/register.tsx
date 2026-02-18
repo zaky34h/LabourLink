@@ -7,6 +7,7 @@ import {
   Alert,
   Modal,
   Keyboard,
+  Image,
 } from "react-native";
 import { router } from "expo-router";
 import { Calendar } from "react-native-calendars";
@@ -164,19 +165,61 @@ export default function Register() {
   }
 
   return (
-    <FormScreen>
-      <View style={{ padding: 24, paddingTop: 60, gap: 14 }}>
-        <Text style={{ fontSize: 26, fontWeight: "900" }}>Create Account</Text>
+    <FormScreen backgroundColor="#FFF8D9">
+      <View style={{ flex: 1, backgroundColor: "#FFF8D9", padding: 24, paddingTop: 44, gap: 14 }}>
+        <View
+          style={{
+            position: "absolute",
+            top: 0,
+            left: -70,
+            width: 300,
+            height: 300,
+            borderRadius: 150,
+            backgroundColor: "#FFE15A",
+            opacity: 0.45,
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 0,
+            right: -70,
+            width: 340,
+            height: 340,
+            borderRadius: 170,
+            backgroundColor: "#111111",
+            opacity: 0.08,
+          }}
+        />
 
+        <View style={{ alignItems: "center", marginTop: 2 }}>
+          <Image
+            source={require("../../assets/labourlink-logo.png")}
+            style={{ width: 220, height: 96 }}
+            resizeMode="contain"
+          />
+          <Text style={{ marginTop: 2, fontWeight: "700", opacity: 0.75 }}>Create your account</Text>
+        </View>
+
+        <View
+          style={{
+            borderWidth: 1,
+            borderColor: "#111111",
+            borderRadius: 18,
+            backgroundColor: "#fff",
+            padding: 16,
+            gap: 14,
+          }}
+        >
         <View style={{ flexDirection: "row", gap: 10 }}>
           <Pressable
             onPress={() => setRole("builder")}
             style={{
               flex: 1,
-              padding: 12,
+              paddingVertical: 12,
               borderRadius: 12,
               alignItems: "center",
-              backgroundColor: role === "builder" ? "#111" : "#FEF08A",
+              backgroundColor: role === "builder" ? "#111" : "#fff",
               borderWidth: 1,
               borderColor: "#111111",
             }}
@@ -190,10 +233,10 @@ export default function Register() {
             onPress={() => setRole("labourer")}
             style={{
               flex: 1,
-              padding: 12,
+              paddingVertical: 12,
               borderRadius: 12,
               alignItems: "center",
-              backgroundColor: role === "labourer" ? "#111" : "#FEF08A",
+              backgroundColor: role === "labourer" ? "#111" : "#fff",
               borderWidth: 1,
               borderColor: "#111111",
             }}
@@ -353,9 +396,20 @@ export default function Register() {
           </Text>
         </Pressable>
 
-        <Pressable onPress={() => router.replace("/")}>
+        <Pressable
+          onPress={() => router.replace("/")}
+          style={{
+            padding: 14,
+            borderWidth: 1,
+            borderColor: "#111111",
+            borderRadius: 12,
+            alignItems: "center",
+            backgroundColor: "#fff",
+          }}
+        >
           <Text style={{ textAlign: "center", fontWeight: "700" }}>Back to Login</Text>
         </Pressable>
+        </View>
       </View>
 
       <Modal visible={calendarOpen} animationType="slide" transparent>
