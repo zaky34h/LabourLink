@@ -38,7 +38,8 @@ export default function Login() {
       if (!active) return;
 
       if (user.role === "builder") router.replace("/builder/home");
-      else router.replace("/labourer/home");
+      else if (user.role === "labourer") router.replace("/labourer/home");
+      else router.replace("/owner/home");
     }
 
     bootstrapRememberMe();
@@ -62,7 +63,8 @@ export default function Login() {
     }
 
     if (res.user.role === "builder") router.replace("/builder/home");
-    else router.replace("/labourer/home");
+    else if (res.user.role === "labourer") router.replace("/labourer/home");
+    else router.replace("/owner/home");
   }
 
   return (
@@ -156,6 +158,15 @@ export default function Login() {
         >
           <Text style={{ color: "#FDE047", fontWeight: "800" }}>
             Login
+          </Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => router.push("/auth/forgot-password")}
+          style={{ alignItems: "center" }}
+        >
+          <Text style={{ fontWeight: "700", textDecorationLine: "underline" }}>
+            Forgot password?
           </Text>
         </Pressable>
 

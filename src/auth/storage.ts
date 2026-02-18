@@ -36,6 +36,7 @@ export type BuilderUser = {
   subscription?: BuilderSubscription;
   email: string;
   password?: string;
+  isDisabled?: boolean;
 };
 
 export type LabourerUser = {
@@ -54,9 +55,20 @@ export type LabourerUser = {
   subscription?: BuilderSubscription;
   email: string;
   password?: string;
+  isDisabled?: boolean;
 };
 
-export type User = BuilderUser | LabourerUser;
+export type OwnerUser = {
+  role: "owner";
+  firstName: string;
+  lastName: string;
+  about: string;
+  email: string;
+  password?: string;
+  isDisabled?: boolean;
+};
+
+export type User = BuilderUser | LabourerUser | OwnerUser;
 
 export async function getUsers(): Promise<User[]> {
   const res = await apiRequest<{ ok: true; users: User[] }>("/users", { auth: true });
@@ -112,6 +124,36 @@ export async function loginUser(
     return { ok: true, user: res.user };
   } catch (error: any) {
     return { ok: false, error: error?.message || "Login failed." };
+  }
+}
+
+export async function requestPasswordReset(
+  email: string
+): Promise<{ ok: true; resetCode?: string } | { ok: false; error: string }> {
+  try {
+    const res = await apiRequest<{ ok: true; resetCode?: string }>("/auth/forgot-password", {
+      method: "POST",
+      body: { email },
+    });
+    return { ok: true, resetCode: res.resetCode };
+  } catch (error: any) {
+    return { ok: false, error: error?.message || "Could not request password reset." };
+  }
+}
+
+export async function resetPassword(
+  email: string,
+  code: string,
+  newPassword: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    await apiRequest<{ ok: true }>("/auth/reset-password", {
+      method: "POST",
+      body: { email, code, newPassword },
+    });
+    return { ok: true };
+  } catch (error: any) {
+    return { ok: false, error: error?.message || "Could not reset password." };
   }
 }
 

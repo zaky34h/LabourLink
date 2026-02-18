@@ -18,6 +18,8 @@ CREATE TABLE IF NOT EXISTS users (
   photo_url TEXT,
   bsb TEXT,
   account_number TEXT,
+  is_disabled BOOLEAN NOT NULL DEFAULT FALSE,
+  disabled_at BIGINT,
   password_hash TEXT NOT NULL,
   created_at BIGINT NOT NULL,
   updated_at BIGINT NOT NULL
@@ -117,4 +119,13 @@ CREATE TABLE IF NOT EXISTS payments (
   created_at BIGINT NOT NULL,
   updated_at BIGINT NOT NULL,
   paid_at BIGINT
+);
+
+CREATE TABLE IF NOT EXISTS password_resets (
+  id TEXT PRIMARY KEY,
+  email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+  code_hash TEXT NOT NULL,
+  expires_at BIGINT NOT NULL,
+  used_at BIGINT,
+  created_at BIGINT NOT NULL
 );

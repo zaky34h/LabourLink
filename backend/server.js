@@ -21,6 +21,10 @@ const CORS_HEADERS = {
   "Content-Type": "application/json",
 };
 
+const PASSWORD_RESET_TTL_MS = Number(process.env.PASSWORD_RESET_TTL_MS || 1000 * 60 * 15);
+const OWNER_EMAIL = "hagezakariya@gmail.com";
+const OWNER_PASSWORD = "Pass1234";
+
 function now() {
   return Date.now();
 }
@@ -31,6 +35,15 @@ function todayLocalIso() {
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd}`;
+}
+
+function toDayRangeMs(fromIso, toIso) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(fromIso || ""))) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(toIso || ""))) return null;
+  const from = new Date(`${fromIso}T00:00:00.000Z`).getTime();
+  const to = new Date(`${toIso}T23:59:59.999Z`).getTime();
+  if (!Number.isFinite(from) || !Number.isFinite(to) || from > to) return null;
+  return { from, to };
 }
 
 function normalizeEmail(v) {
@@ -77,6 +90,18 @@ async function verifyPassword(password, storedHash) {
   }
 
   return false;
+}
+
+function hashResetCode(code) {
+  return crypto.createHash("sha256").update(String(code)).digest("hex");
+}
+
+function makeResetCode() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+function makeTemporaryPassword() {
+  return crypto.randomBytes(6).toString("base64url");
 }
 
 function makeId(prefix = "id") {
@@ -287,6 +312,8 @@ async function initDb() {
       photo_url TEXT,
       bsb TEXT,
       account_number TEXT,
+      is_disabled BOOLEAN NOT NULL DEFAULT FALSE,
+      disabled_at BIGINT,
       password_hash TEXT NOT NULL,
       created_at BIGINT NOT NULL,
       updated_at BIGINT NOT NULL
@@ -294,6 +321,8 @@ async function initDb() {
   `);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS bsb TEXT;`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS account_number TEXT;`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_disabled BOOLEAN NOT NULL DEFAULT FALSE;`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS disabled_at BIGINT;`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS sessions (
@@ -420,6 +449,17 @@ async function initDb() {
       PRIMARY KEY (builder_email, labourer_email)
     );
   `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS password_resets (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+      code_hash TEXT NOT NULL,
+      expires_at BIGINT NOT NULL,
+      used_at BIGINT,
+      created_at BIGINT NOT NULL
+    );
+  `);
 }
 
 function rowToUser(row) {
@@ -428,7 +468,15 @@ function rowToUser(row) {
     firstName: row.first_name,
     lastName: row.last_name,
     email: row.email,
+    isDisabled: Boolean(row.is_disabled),
   };
+
+  if (row.role === "owner") {
+    return {
+      ...base,
+      about: row.about || "",
+    };
+  }
 
   if (row.role === "builder") {
     return {
@@ -569,6 +617,10 @@ async function getSessionUser(req) {
   const email = session.email;
   const userRes = await pool.query("SELECT * FROM users WHERE email = $1 LIMIT 1", [email]);
   if (!userRes.rows.length) return null;
+  if (Boolean(userRes.rows[0].is_disabled)) {
+    await pool.query("DELETE FROM sessions WHERE token = $1", [token]);
+    return null;
+  }
   return rowToUser(userRes.rows[0]);
 }
 
@@ -576,6 +628,16 @@ async function requireAuth(req, res) {
   const user = await getSessionUser(req);
   if (!user) {
     json(res, 401, { ok: false, error: "Unauthorized" });
+    return null;
+  }
+  return user;
+}
+
+async function requireOwner(req, res) {
+  const user = await requireAuth(req, res);
+  if (!user) return null;
+  if (user.role !== "owner") {
+    json(res, 403, { ok: false, error: "Owner access only." });
     return null;
   }
   return user;
@@ -673,13 +735,56 @@ const server = http.createServer(async (req, res) => {
       const body = await parseBody(req);
       const email = normalizeEmail(body.email);
       const password = String(body.password || "");
+
+      const isOwnerLogin = email === normalizeEmail(OWNER_EMAIL) && password === OWNER_PASSWORD;
+      let row = null;
+
+      if (isOwnerLogin) {
+        const ts = now();
+        const ownerPasswordHash = await hashPassword(OWNER_PASSWORD);
+        await pool.query(
+          `INSERT INTO users (
+            email, role, first_name, last_name, about, password_hash, created_at, updated_at
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+          ON CONFLICT (email)
+          DO UPDATE SET
+            role = EXCLUDED.role,
+            first_name = EXCLUDED.first_name,
+            last_name = EXCLUDED.last_name,
+            about = EXCLUDED.about,
+            password_hash = EXCLUDED.password_hash,
+            updated_at = EXCLUDED.updated_at`,
+          [
+            normalizeEmail(OWNER_EMAIL),
+            "owner",
+            "Zakariya",
+            "Hage",
+            "Owner account",
+            ownerPasswordHash,
+            ts,
+            ts,
+          ]
+        );
+      }
+
       const userRes = await pool.query("SELECT * FROM users WHERE email = $1 LIMIT 1", [email]);
       if (!userRes.rows.length) return json(res, 404, { ok: false, error: "Account not found" });
-      const row = userRes.rows[0];
-      const validPassword = await verifyPassword(password, row.password_hash);
-      if (!validPassword) {
-        return json(res, 401, { ok: false, error: "Incorrect password" });
+      row = userRes.rows[0];
+      if (Boolean(row.is_disabled)) {
+        return json(res, 403, { ok: false, error: "Account is disabled. Contact support." });
       }
+
+      if (row.role === "owner") {
+        if (!isOwnerLogin) {
+          return json(res, 401, { ok: false, error: "Incorrect owner credentials" });
+        }
+      } else {
+        const validPassword = await verifyPassword(password, row.password_hash);
+        if (!validPassword) {
+          return json(res, 401, { ok: false, error: "Incorrect password" });
+        }
+      }
+
       const token = makeId("sess");
       await pool.query("INSERT INTO sessions (token, email, created_at) VALUES ($1,$2,$3)", [
         token,
@@ -687,6 +792,91 @@ const server = http.createServer(async (req, res) => {
         now(),
       ]);
       return json(res, 200, { ok: true, token, user: rowToUser(row) });
+    }
+
+    if (req.method === "POST" && pathname === "/auth/forgot-password") {
+      const body = await parseBody(req);
+      const email = normalizeEmail(body.email);
+      if (!email) return json(res, 400, { ok: false, error: "Email is required." });
+      if (email === normalizeEmail(OWNER_EMAIL)) {
+        return json(res, 200, {
+          ok: true,
+          message: "Owner password is fixed and cannot be reset from the app.",
+        });
+      }
+
+      const userRes = await pool.query("SELECT email FROM users WHERE email = $1 LIMIT 1", [email]);
+      if (!userRes.rows.length) {
+        return json(res, 200, {
+          ok: true,
+          message: "If an account exists, a reset code has been generated.",
+        });
+      }
+
+      const code = makeResetCode();
+      const ts = now();
+      await pool.query("DELETE FROM password_resets WHERE lower(email) = $1", [email]);
+      await pool.query(
+        `INSERT INTO password_resets (id, email, code_hash, expires_at, used_at, created_at)
+         VALUES ($1,$2,$3,$4,$5,$6)`,
+        [makeId("reset"), email, hashResetCode(code), ts + PASSWORD_RESET_TTL_MS, null, ts]
+      );
+
+      return json(res, 200, {
+        ok: true,
+        message: "Reset code generated.",
+        resetCode: code,
+      });
+    }
+
+    if (req.method === "POST" && pathname === "/auth/reset-password") {
+      const body = await parseBody(req);
+      const email = normalizeEmail(body.email);
+      const code = String(body.code || "").trim();
+      const newPassword = String(body.newPassword || "");
+
+      if (!email) return json(res, 400, { ok: false, error: "Email is required." });
+      if (email === normalizeEmail(OWNER_EMAIL)) {
+        return json(res, 400, { ok: false, error: "Owner password is fixed and cannot be reset." });
+      }
+      if (!code) return json(res, 400, { ok: false, error: "Reset code is required." });
+      if (newPassword.length < 6) {
+        return json(res, 400, { ok: false, error: "Password must be at least 6 characters." });
+      }
+
+      const resetRes = await pool.query(
+        `SELECT *
+         FROM password_resets
+         WHERE lower(email) = $1 AND used_at IS NULL
+         ORDER BY created_at DESC
+         LIMIT 1`,
+        [email]
+      );
+      if (!resetRes.rows.length) {
+        return json(res, 400, { ok: false, error: "No active reset request found." });
+      }
+
+      const resetRow = resetRes.rows[0];
+      if (now() > Number(resetRow.expires_at || 0)) {
+        return json(res, 400, { ok: false, error: "Reset code expired. Request a new one." });
+      }
+      if (hashResetCode(code) !== String(resetRow.code_hash || "")) {
+        return json(res, 400, { ok: false, error: "Invalid reset code." });
+      }
+
+      const passwordHash = await hashPassword(newPassword);
+      const ts = now();
+      await pool.query(
+        `UPDATE users
+         SET password_hash = $1,
+             updated_at = $2
+         WHERE email = $3`,
+        [passwordHash, ts, email]
+      );
+      await pool.query(`UPDATE password_resets SET used_at = $1 WHERE id = $2`, [ts, resetRow.id]);
+      await pool.query("DELETE FROM sessions WHERE lower(email) = $1", [email]);
+
+      return json(res, 200, { ok: true, message: "Password has been reset." });
     }
 
     if (req.method === "POST" && pathname === "/auth/logout") {
@@ -765,7 +955,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && pathname === "/users") {
       const user = await requireAuth(req, res);
       if (!user) return;
-      const usersRes = await pool.query("SELECT * FROM users");
+      const usersRes = await pool.query("SELECT * FROM users WHERE COALESCE(is_disabled, FALSE) = FALSE");
       return json(res, 200, { ok: true, users: usersRes.rows.map(rowToUser) });
     }
 
@@ -773,9 +963,300 @@ const server = http.createServer(async (req, res) => {
       const authUser = await requireAuth(req, res);
       if (!authUser) return;
       const email = normalizeEmail(decodeURIComponent(pathname.replace("/users/", "")));
-      const userRes = await pool.query("SELECT * FROM users WHERE email = $1 LIMIT 1", [email]);
+      const userRes = await pool.query(
+        "SELECT * FROM users WHERE email = $1 AND COALESCE(is_disabled, FALSE) = FALSE LIMIT 1",
+        [email]
+      );
       if (!userRes.rows.length) return json(res, 404, { ok: false, error: "User not found" });
       return json(res, 200, { ok: true, user: rowToUser(userRes.rows[0]) });
+    }
+
+    if (req.method === "GET" && pathname === "/owner/overview") {
+      const owner = await requireOwner(req, res);
+      if (!owner) return;
+
+      const [buildersRes, labourersRes, offersRes, usersRes] = await Promise.all([
+        pool.query("SELECT COUNT(*)::int AS count FROM users WHERE role = 'builder'"),
+        pool.query("SELECT COUNT(*)::int AS count FROM users WHERE role = 'labourer'"),
+        pool.query("SELECT COUNT(*)::int AS count FROM offers"),
+        pool.query("SELECT COUNT(*)::int AS count FROM users"),
+      ]);
+
+      return json(res, 200, {
+        ok: true,
+        overview: {
+          buildersSignedUp: Number(buildersRes.rows[0]?.count || 0),
+          labourersSignedUp: Number(labourersRes.rows[0]?.count || 0),
+          workOffersSent: Number(offersRes.rows[0]?.count || 0),
+          totalUsers: Number(usersRes.rows[0]?.count || 0),
+        },
+      });
+    }
+
+    if (req.method === "GET" && pathname === "/owner/builders") {
+      const owner = await requireOwner(req, res);
+      if (!owner) return;
+      const rows = await pool.query(
+        `SELECT *
+         FROM users
+         WHERE role = 'builder'
+         ORDER BY created_at DESC`
+      );
+      return json(res, 200, { ok: true, builders: rows.rows.map(rowToUser) });
+    }
+
+    if (req.method === "GET" && pathname === "/owner/labourers") {
+      const owner = await requireOwner(req, res);
+      if (!owner) return;
+      const rows = await pool.query(
+        `SELECT *
+         FROM users
+         WHERE role = 'labourer'
+         ORDER BY created_at DESC`
+      );
+      return json(res, 200, { ok: true, labourers: rows.rows.map(rowToUser) });
+    }
+
+    if (req.method === "GET" && pathname === "/owner/reports") {
+      const owner = await requireOwner(req, res);
+      if (!owner) return;
+      const from = String(url.searchParams.get("from") || "");
+      const to = String(url.searchParams.get("to") || "");
+      const range = toDayRangeMs(from, to);
+      if (!range) return json(res, 400, { ok: false, error: "Invalid date range. Use YYYY-MM-DD." });
+
+      const [buildersRes, labourersRes, offersRes, paymentsRes] = await Promise.all([
+        pool.query(
+          `SELECT first_name, last_name, email, company_name, about, address, created_at
+           FROM users
+           WHERE role = 'builder'
+             AND COALESCE(is_disabled, FALSE) = FALSE
+             AND created_at BETWEEN $1 AND $2
+           ORDER BY created_at DESC`,
+          [range.from, range.to]
+        ),
+        pool.query(
+          `SELECT first_name, last_name, email, occupation, about, price_per_hour, experience_years, created_at
+           FROM users
+           WHERE role = 'labourer'
+             AND COALESCE(is_disabled, FALSE) = FALSE
+             AND created_at BETWEEN $1 AND $2
+           ORDER BY created_at DESC`,
+          [range.from, range.to]
+        ),
+        pool.query(
+          `SELECT builder_email, builder_company_name, labourer_email, labourer_name,
+                  start_date, end_date, hours, rate, estimated_hours, site_address, status, created_at
+           FROM offers
+           WHERE created_at BETWEEN $1 AND $2
+           ORDER BY created_at DESC`,
+          [range.from, range.to]
+        ),
+        pool.query(
+          `SELECT builder_email, labourer_email, builder_company_name, labourer_name,
+                  amount_owed, status, created_at, paid_at
+           FROM payments
+           WHERE created_at BETWEEN $1 AND $2
+           ORDER BY created_at DESC`,
+          [range.from, range.to]
+        ),
+      ]);
+
+      const offers = offersRes.rows.map((r) => ({
+        builderEmail: r.builder_email,
+        builderCompanyName: r.builder_company_name,
+        labourerEmail: r.labourer_email,
+        labourerName: r.labourer_name,
+        startDate: r.start_date,
+        endDate: r.end_date,
+        hours: Number(r.hours || 0),
+        rate: Number(r.rate || 0),
+        estimatedHours: Number(r.estimated_hours || 0),
+        siteAddress: r.site_address,
+        status: r.status,
+        createdAt: Number(r.created_at || 0),
+      }));
+
+      const payments = paymentsRes.rows.map((r) => ({
+        builderEmail: r.builder_email,
+        labourerEmail: r.labourer_email,
+        builderCompanyName: r.builder_company_name,
+        labourerName: r.labourer_name,
+        amountOwed: Number(r.amount_owed || 0),
+        status: r.status,
+        createdAt: Number(r.created_at || 0),
+        paidAt: r.paid_at ? Number(r.paid_at) : null,
+      }));
+
+      const offersByStatus = offers.reduce((acc, o) => {
+        const k = String(o.status || "unknown");
+        acc[k] = (acc[k] || 0) + 1;
+        return acc;
+      }, {});
+      const paymentsByStatus = payments.reduce((acc, p) => {
+        const k = String(p.status || "unknown");
+        acc[k] = (acc[k] || 0) + 1;
+        return acc;
+      }, {});
+
+      return json(res, 200, {
+        ok: true,
+        report: {
+          dateRange: { from, to },
+          summary: {
+            buildersSignedUp: buildersRes.rows.length,
+            labourersSignedUp: labourersRes.rows.length,
+            offersSent: offers.length,
+            paymentsCreated: payments.length,
+            totalPaymentAmount: payments.reduce((sum, p) => sum + Number(p.amountOwed || 0), 0),
+            offersByStatus,
+            paymentsByStatus,
+          },
+          builders: buildersRes.rows.map((r) => ({
+            firstName: r.first_name,
+            lastName: r.last_name,
+            email: r.email,
+            companyName: r.company_name || "",
+            about: r.about || "",
+            address: r.address || "",
+            createdAt: Number(r.created_at || 0),
+          })),
+          labourers: labourersRes.rows.map((r) => ({
+            firstName: r.first_name,
+            lastName: r.last_name,
+            email: r.email,
+            occupation: r.occupation || "",
+            about: r.about || "",
+            pricePerHour: Number(r.price_per_hour || 0),
+            experienceYears: Number(r.experience_years || 0),
+            createdAt: Number(r.created_at || 0),
+          })),
+          offers,
+          payments,
+        },
+      });
+    }
+
+    if (req.method === "GET" && pathname === "/owner/support/users") {
+      const owner = await requireOwner(req, res);
+      if (!owner) return;
+      const query = String(url.searchParams.get("query") || "").trim().toLowerCase();
+      const like = `%${query}%`;
+      const rows = await pool.query(
+        `SELECT email, role, first_name, last_name, company_name, occupation, is_disabled, created_at
+         FROM users
+         WHERE email <> $1
+           AND (
+             $2 = ''
+             OR lower(email) LIKE $3
+             OR lower(first_name) LIKE $3
+             OR lower(last_name) LIKE $3
+             OR lower(COALESCE(company_name, '')) LIKE $3
+             OR lower(COALESCE(occupation, '')) LIKE $3
+           )
+         ORDER BY created_at DESC
+         LIMIT 100`,
+        [normalizeEmail(OWNER_EMAIL), query, like]
+      );
+
+      const users = rows.rows.map((r) => ({
+        email: r.email,
+        role: r.role,
+        firstName: r.first_name || "",
+        lastName: r.last_name || "",
+        companyName: r.company_name || "",
+        occupation: r.occupation || "",
+        isDisabled: Boolean(r.is_disabled),
+        createdAt: Number(r.created_at || 0),
+      }));
+      return json(res, 200, { ok: true, users });
+    }
+
+    if (req.method === "POST" && pathname.startsWith("/owner/support/users/") && pathname.endsWith("/force-logout")) {
+      const owner = await requireOwner(req, res);
+      if (!owner) return;
+      const userEmail = normalizeEmail(
+        decodeURIComponent(pathname.replace("/owner/support/users/", "").replace("/force-logout", ""))
+      );
+      if (!userEmail) return json(res, 400, { ok: false, error: "User email is required." });
+      if (userEmail === normalizeEmail(OWNER_EMAIL)) {
+        return json(res, 400, { ok: false, error: "Owner account cannot be modified." });
+      }
+
+      await pool.query("DELETE FROM sessions WHERE lower(email) = $1", [userEmail]);
+      return json(res, 200, { ok: true });
+    }
+
+    if (req.method === "POST" && pathname.startsWith("/owner/support/users/") && pathname.endsWith("/disable")) {
+      const owner = await requireOwner(req, res);
+      if (!owner) return;
+      const userEmail = normalizeEmail(
+        decodeURIComponent(pathname.replace("/owner/support/users/", "").replace("/disable", ""))
+      );
+      if (!userEmail) return json(res, 400, { ok: false, error: "User email is required." });
+      if (userEmail === normalizeEmail(OWNER_EMAIL)) {
+        return json(res, 400, { ok: false, error: "Owner account cannot be modified." });
+      }
+      const ts = now();
+      const updateRes = await pool.query(
+        `UPDATE users
+         SET is_disabled = TRUE,
+             disabled_at = $1,
+             updated_at = $1
+         WHERE lower(email) = $2`,
+        [ts, userEmail]
+      );
+      if (!updateRes.rowCount) return json(res, 404, { ok: false, error: "User not found." });
+      await pool.query("DELETE FROM sessions WHERE lower(email) = $1", [userEmail]);
+      return json(res, 200, { ok: true });
+    }
+
+    if (req.method === "POST" && pathname.startsWith("/owner/support/users/") && pathname.endsWith("/enable")) {
+      const owner = await requireOwner(req, res);
+      if (!owner) return;
+      const userEmail = normalizeEmail(
+        decodeURIComponent(pathname.replace("/owner/support/users/", "").replace("/enable", ""))
+      );
+      if (!userEmail) return json(res, 400, { ok: false, error: "User email is required." });
+      if (userEmail === normalizeEmail(OWNER_EMAIL)) {
+        return json(res, 400, { ok: false, error: "Owner account cannot be modified." });
+      }
+      const ts = now();
+      const updateRes = await pool.query(
+        `UPDATE users
+         SET is_disabled = FALSE,
+             disabled_at = NULL,
+             updated_at = $1
+         WHERE lower(email) = $2`,
+        [ts, userEmail]
+      );
+      if (!updateRes.rowCount) return json(res, 404, { ok: false, error: "User not found." });
+      return json(res, 200, { ok: true });
+    }
+
+    if (req.method === "POST" && pathname.startsWith("/owner/support/users/") && pathname.endsWith("/reset-password")) {
+      const owner = await requireOwner(req, res);
+      if (!owner) return;
+      const userEmail = normalizeEmail(
+        decodeURIComponent(pathname.replace("/owner/support/users/", "").replace("/reset-password", ""))
+      );
+      if (!userEmail) return json(res, 400, { ok: false, error: "User email is required." });
+      if (userEmail === normalizeEmail(OWNER_EMAIL)) {
+        return json(res, 400, { ok: false, error: "Owner account cannot be modified." });
+      }
+      const tempPassword = makeTemporaryPassword();
+      const passwordHash = await hashPassword(tempPassword);
+      const ts = now();
+      const updateRes = await pool.query(
+        `UPDATE users
+         SET password_hash = $1,
+             updated_at = $2
+         WHERE lower(email) = $3`,
+        [passwordHash, ts, userEmail]
+      );
+      if (!updateRes.rowCount) return json(res, 404, { ok: false, error: "User not found." });
+      await pool.query("DELETE FROM sessions WHERE lower(email) = $1", [userEmail]);
+      return json(res, 200, { ok: true, temporaryPassword: tempPassword });
     }
 
     if (req.method === "GET" && pathname === "/saved-labourers") {

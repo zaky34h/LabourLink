@@ -58,6 +58,8 @@ Set `EXPO_PUBLIC_API_BASE_URL` in `.env`:
 
 - `POST /auth/register`
 - `POST /auth/login`
+- `POST /auth/forgot-password`
+- `POST /auth/reset-password`
 - `POST /auth/logout`
 - `GET /auth/me`
 - `GET /subscription`
@@ -67,6 +69,15 @@ Set `EXPO_PUBLIC_API_BASE_URL` in `.env`:
 - `POST /subscription/sync`
 - `GET /users`
 - `GET /users/:email`
+- `GET /owner/overview`
+- `GET /owner/builders`
+- `GET /owner/labourers`
+- `GET /owner/reports?from=YYYY-MM-DD&to=YYYY-MM-DD`
+- `GET /owner/support/users?query=...`
+- `POST /owner/support/users/:email/disable`
+- `POST /owner/support/users/:email/enable`
+- `POST /owner/support/users/:email/force-logout`
+- `POST /owner/support/users/:email/reset-password`
 - `PATCH /builder/profile`
 - `PATCH /labourer/profile`
 - `PATCH /labourer/availability`
