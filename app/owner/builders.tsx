@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
-import { View, Text, FlatList, ActivityIndicator, RefreshControl } from "react-native";
-import { useFocusEffect } from "expo-router";
+import { View, Text, FlatList, ActivityIndicator, RefreshControl, Pressable } from "react-native";
+import { router, useFocusEffect } from "expo-router";
 import { type BuilderUser } from "../../src/auth/storage";
 import { getOwnerBuilders } from "../../src/owner/storage";
 
@@ -52,7 +52,8 @@ export default function OwnerBuilders() {
         </View>
       }
       renderItem={({ item }) => (
-        <View
+        <Pressable
+          onPress={() => router.push(`/owner/builder/${encodeURIComponent(item.email)}`)}
           style={{
             borderWidth: 1,
             borderColor: "#111111",
@@ -71,7 +72,8 @@ export default function OwnerBuilders() {
           <Text style={{ marginTop: 6, opacity: 0.7 }} numberOfLines={3}>
             {item.about || "No about text"}
           </Text>
-        </View>
+          <Text style={{ marginTop: 8, fontWeight: "700", color: "#111" }}>Tap to view full profile</Text>
+        </Pressable>
       )}
     />
   );

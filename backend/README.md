@@ -7,7 +7,7 @@ This API now uses PostgreSQL for all persistence:
 - Chat threads/messages
 - Work offers and labourer responses
 
-## 1) Create local database
+## 1) Create database (local or Neon)
 
 Example with default local Postgres user:
 
@@ -16,6 +16,7 @@ createdb labourlink
 ```
 
 If needed, create user/password first and grant access.
+If using Neon, create a project/database in Neon console and copy the connection string.
 
 ## 2) Set environment variables
 
@@ -24,10 +25,14 @@ Required:
 - `DATABASE_URL` (Postgres connection string)
 - `PORT` (optional, defaults to `4000`)
 
-Example:
+Examples:
 
 ```bash
 export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/labourlink"
+```
+
+```bash
+export DATABASE_URL="postgresql://<neon_user>:<neon_password>@<neon_host>/<neon_db>?sslmode=require"
 ```
 
 ## 3) Install dependencies

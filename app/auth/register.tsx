@@ -156,6 +156,7 @@ export default function Register() {
       }
 
       if (loginRes.user.role === "builder") router.replace("/builder/home");
+      else if (loginRes.user.role === "owner") router.replace("/owner/home");
       else router.replace("/labourer/home");
     } finally {
       setSubmitting(false);

@@ -46,6 +46,18 @@ export default function OwnerTabsLayout() {
           tabBarIcon: ({ color, size }) => <Ionicons name="shield-checkmark" size={size} color={color} />,
         }}
       />
+      <Tabs.Screen
+        name="builder/[email]"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="labourer/[email]"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }

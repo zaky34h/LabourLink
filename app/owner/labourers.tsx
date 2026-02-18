@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
-import { View, Text, FlatList, ActivityIndicator, RefreshControl } from "react-native";
-import { useFocusEffect } from "expo-router";
+import { View, Text, FlatList, ActivityIndicator, RefreshControl, Pressable } from "react-native";
+import { router, useFocusEffect } from "expo-router";
 import { type LabourerUser } from "../../src/auth/storage";
 import { getOwnerLabourers } from "../../src/owner/storage";
 
@@ -52,7 +52,8 @@ export default function OwnerLabourers() {
         </View>
       }
       renderItem={({ item }) => (
-        <View
+        <Pressable
+          onPress={() => router.push(`/owner/labourer/${encodeURIComponent(item.email)}`)}
           style={{
             borderWidth: 1,
             borderColor: "#111111",
@@ -65,7 +66,9 @@ export default function OwnerLabourers() {
           <Text style={{ fontWeight: "900", fontSize: 16 }}>
             {item.firstName} {item.lastName}
           </Text>
-          <Text style={{ marginTop: 4, fontWeight: "700" }}>{item.occupation || "No occupation"}</Text>
+          <Text style={{ marginTop: 4, fontWeight: "700" }}>
+            {item.certifications?.[0] ? `Top skill: ${item.certifications[0]}` : "No listed skills"}
+          </Text>
           <Text style={{ marginTop: 4, opacity: 0.8 }}>{item.email}</Text>
           <Text style={{ marginTop: 4, opacity: 0.8 }}>${item.pricePerHour}/hr</Text>
           <Text style={{ marginTop: 4, opacity: 0.8 }}>
@@ -77,7 +80,8 @@ export default function OwnerLabourers() {
           <Text style={{ marginTop: 6, opacity: 0.7 }} numberOfLines={3}>
             {item.about || "No about text"}
           </Text>
-        </View>
+          <Text style={{ marginTop: 8, fontWeight: "700", color: "#111" }}>Tap to view full profile</Text>
+        </Pressable>
       )}
     />
   );

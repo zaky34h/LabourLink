@@ -11,12 +11,18 @@ import {
 import { useEffect, useState } from "react";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { getSessionEmail, getUserByEmail, loginUser } from "../src/auth/storage";
+import { getSessionEmail, getUserByEmail, loginUser, type User } from "../src/auth/storage";
 import { clearSessionStorage } from "../src/api/client";
 import { FormScreen } from "../src/ui/FormScreen";
 
 const REMEMBER_ME_KEY = "labourlink_remember_me";
 const REMEMBERED_EMAIL_KEY = "labourlink_remembered_email";
+
+function routeForRole(role: User["role"]) {
+  if (role === "builder") return "/builder/home";
+  if (role === "owner") return "/owner/home";
+  return "/labourer/home";
+}
 
 export default function Login() {
   const [rememberMe, setRememberMe] = useState(false);
@@ -51,8 +57,7 @@ export default function Login() {
         const user = await getUserByEmail(sessionEmail);
         if (!active || !user) return;
 
-        if (user.role === "builder") router.replace("/builder/home");
-        else router.replace("/labourer/home");
+        router.replace(routeForRole(user.role));
       } finally {
         if (active) setBootstrapping(false);
       }
@@ -86,8 +91,7 @@ export default function Login() {
         await AsyncStorage.setItem(REMEMBER_ME_KEY, "0");
       }
 
-      if (res.user.role === "builder") router.replace("/builder/home");
-      else router.replace("/labourer/home");
+      router.replace(routeForRole(res.user.role));
     } finally {
       setSubmitting(false);
     }
@@ -198,6 +202,15 @@ export default function Login() {
               }}
             />
             <Text style={{ fontWeight: "600" }}>Remember me</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => router.push("/auth/forgot-password")}
+            style={{ alignSelf: "flex-end" }}
+          >
+            <Text style={{ fontWeight: "700", color: "#111111", textDecorationLine: "underline" }}>
+              Forgot password?
+            </Text>
           </Pressable>
 
           <Pressable
