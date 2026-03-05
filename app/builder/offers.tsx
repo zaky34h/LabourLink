@@ -11,13 +11,48 @@ import {
 } from "../../src/offers/storage";
 
 function extractShiftRange(notes: string) {
-  const match = String(notes || "").match(/Shift:\s*([0-2]?\d:\d{2})\s*-\s*([0-2]?\d:\d{2})/i);
-  return match ? `${match[1]} - ${match[2]}` : "Not specified";
+  const match = String(notes || "").match(/Shift:\s*([0-9]{1,2}:\d{2}(?:\s*[AaPp][Mm])?)\s*-\s*([0-9]{1,2}:\d{2}(?:\s*[AaPp][Mm])?)/);
+  if (!match) return "Not specified";
+  const start = parseTimeToMinutes(match[1]);
+  const end = parseTimeToMinutes(match[2]);
+  if (start === null || end === null) return "Not specified";
+  return `${formatMinutesTo12Hour(start)} - ${formatMinutesTo12Hour(end)}`;
+}
+
+function parseTimeToMinutes(v: string) {
+  const value = v.trim().toLowerCase().replace(/\s+/g, " ");
+  const ampmMatch = value.match(/^(\d{1,2}):(\d{2})\s*([ap]m)$/);
+  if (ampmMatch) {
+    const h = Number(ampmMatch[1]);
+    const m = Number(ampmMatch[2]);
+    if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+    if (h < 1 || h > 12 || m < 0 || m > 59) return null;
+    const isPm = ampmMatch[3] === "pm";
+    const hour24 = (h % 12) + (isPm ? 12 : 0);
+    return hour24 * 60 + m;
+  }
+
+  const match24 = value.match(/^([0-1]?\d|2[0-3]):(\d{2})$/);
+  if (!match24) return null;
+  const h = Number(match24[1]);
+  const m = Number(match24[2]);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+  if (h < 0 || h > 23 || m < 0 || m > 59) return null;
+  return h * 60 + m;
+}
+
+function formatMinutesTo12Hour(minutes: number) {
+  const clamped = ((minutes % (24 * 60)) + 24 * 60) % (24 * 60);
+  const hour24 = Math.floor(clamped / 60);
+  const minute = String(clamped % 60).padStart(2, "0");
+  const isPm = hour24 >= 12;
+  const hour12 = hour24 % 12 || 12;
+  return `${hour12}:${minute} ${isPm ? "PM" : "AM"}`;
 }
 
 function removeShiftFromNotes(notes: string) {
   const cleaned = String(notes || "")
-    .replace(/Shift:\s*[0-2]?\d:\d{2}\s*-\s*[0-2]?\d:\d{2}\s*/i, "")
+    .replace(/Shift:\s*[0-9]{1,2}:\d{2}(?:\s*[AaPp][Mm])?\s*-\s*[0-9]{1,2}:\d{2}(?:\s*[AaPp][Mm])?\s*/i, "")
     .trim();
   return cleaned || "None";
 }

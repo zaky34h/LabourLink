@@ -152,13 +152,35 @@ export default function BuilderHome() {
   }
 
   function parseTimeToMinutes(v: string) {
-    const match = v.trim().match(/^(\d{1,2}):(\d{2})$/);
+    const value = v.trim().toLowerCase().replace(/\s+/g, " ");
+    const ampmMatch = value.match(/^(\d{1,2}):(\d{2})\s*([ap]m)$/);
+    if (ampmMatch) {
+      const h = Number(ampmMatch[1]);
+      const m = Number(ampmMatch[2]);
+      const meridian = ampmMatch[3];
+      if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+      if (h < 1 || h > 12 || m < 0 || m > 59) return null;
+      const isPm = meridian === "pm";
+      const normalizedHour = ((h % 12) + (isPm ? 12 : 0)) % 24;
+      return normalizedHour * 60 + m;
+    }
+
+    const match = value.match(/^(\d{1,2}):(\d{2})$/);
     if (!match) return null;
     const h = Number(match[1]);
     const m = Number(match[2]);
     if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
     if (h < 0 || h > 23 || m < 0 || m > 59) return null;
     return h * 60 + m;
+  }
+
+  function formatMinutesTo12Hour(minutes: number) {
+    const clamped = ((minutes % (24 * 60)) + 24 * 60) % (24 * 60);
+    const hour24 = Math.floor(clamped / 60);
+    const minute = String(clamped % 60).padStart(2, "0");
+    const isPm = hour24 >= 12;
+    const hour12 = hour24 % 12 || 12;
+    return `${hour12}:${minute} ${isPm ? "PM" : "AM"}`;
   }
 
   async function openOfferModal() {
@@ -180,7 +202,10 @@ export default function BuilderHome() {
     const startMinutes = parseTimeToMinutes(startTime);
     const finishMinutes = parseTimeToMinutes(finishTime);
     if (startMinutes === null || finishMinutes === null) {
-      return Alert.alert("Invalid time", "Use HH:MM format for start and finish times (e.g. 07:30).");
+      return Alert.alert(
+        "Invalid time",
+        "Use 12-hour format for start and finish times (e.g. 07:00 AM)."
+      );
     }
     if (finishMinutes <= startMinutes) {
       return Alert.alert("Invalid time range", "Finish time must be after start time.");
@@ -198,7 +223,7 @@ export default function BuilderHome() {
         rate: Number(rate),
         estimatedHours: Number(estimatedHours),
         siteAddress: siteAddress.trim(),
-        notes: `Shift: ${startTime.trim()} - ${finishTime.trim()}${notes.trim() ? `\n${notes.trim()}` : ""}`,
+        notes: `Shift: ${formatMinutesTo12Hour(startMinutes)} - ${formatMinutesTo12Hour(finishMinutes)}${notes.trim() ? `\n${notes.trim()}` : ""}`,
       });
 
       if (!res.ok) return Alert.alert("Couldn’t generate offer", res.error);
@@ -445,16 +470,16 @@ export default function BuilderHome() {
 
               <RowField>
                 <InputField
-                  label="Start Time (HH:MM)"
+                  label="Start Time (12-hour)"
                   value={startTime}
                   onChangeText={setStartTime}
-                  placeholder="07:00"
+                  placeholder="7:00 AM"
                 />
                 <InputField
-                  label="Finish Time (HH:MM)"
+                  label="Finish Time (12-hour)"
                   value={finishTime}
                   onChangeText={setFinishTime}
-                  placeholder="15:30"
+                  placeholder="3:30 PM"
                 />
               </RowField>
 

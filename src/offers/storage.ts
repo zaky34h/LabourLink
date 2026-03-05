@@ -64,12 +64,48 @@ function escapeHtml(v: string) {
     .replaceAll("'", "&#039;");
 }
 
+function parseTimeToMinutes(v: string) {
+  const value = v.trim().toLowerCase().replace(/\s+/g, " ");
+  const ampmMatch = value.match(/^(\d{1,2}):(\d{2})\s*([ap]m)$/);
+  if (ampmMatch) {
+    const h = Number(ampmMatch[1]);
+    const m = Number(ampmMatch[2]);
+    if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+    if (h < 1 || h > 12 || m < 0 || m > 59) return null;
+    const isPm = ampmMatch[3] === "pm";
+    const hour24 = (h % 12) + (isPm ? 12 : 0);
+    return hour24 * 60 + m;
+  }
+
+  const match24 = value.match(/^([0-1]?\d|2[0-3]):(\d{2})$/);
+  if (!match24) return null;
+  const h = Number(match24[1]);
+  const m = Number(match24[2]);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+  if (h < 0 || h > 23 || m < 0 || m > 59) return null;
+  return h * 60 + m;
+}
+
+function formatMinutesTo12Hour(minutes: number) {
+  const clamped = ((minutes % (24 * 60)) + 24 * 60) % (24 * 60);
+  const hour24 = Math.floor(clamped / 60);
+  const minute = String(clamped % 60).padStart(2, "0");
+  const isPm = hour24 >= 12;
+  const hour12 = hour24 % 12 || 12;
+  return `${hour12}:${minute} ${isPm ? "PM" : "AM"}`;
+}
+
 function makePdfHtml(offer: WorkOffer, logoUri?: string | null) {
   const safeNotes = offer.notes.trim() ? offer.notes : "None";
-  const shiftMatch = safeNotes.match(/Shift:\s*([0-2]?\d:\d{2})\s*-\s*([0-2]?\d:\d{2})/i);
-  const hoursDisplay = shiftMatch ? `${shiftMatch[1]} - ${shiftMatch[2]}` : "Not specified";
+  const shiftMatch = safeNotes.match(/Shift:\s*([0-9]{1,2}:\d{2}(?:\s*[AaPp][Mm])?)\s*-\s*([0-9]{1,2}:\d{2}(?:\s*[AaPp][Mm])?)/);
+  const shiftStart = shiftMatch ? parseTimeToMinutes(shiftMatch[1]) : null;
+  const shiftEnd = shiftMatch ? parseTimeToMinutes(shiftMatch[2]) : null;
+  const hoursDisplay =
+    shiftStart !== null && shiftEnd !== null
+      ? `${formatMinutesTo12Hour(shiftStart)} - ${formatMinutesTo12Hour(shiftEnd)}`
+      : "Not specified";
   const notesWithoutShift = safeNotes
-    .replace(/Shift:\s*[0-2]?\d:\d{2}\s*-\s*[0-2]?\d:\d{2}\s*/i, "")
+    .replace(/Shift:\s*[0-9]{1,2}:\d{2}(?:\s*[AaPp][Mm])?\s*-\s*[0-9]{1,2}:\d{2}(?:\s*[AaPp][Mm])?\s*/i, "")
     .trim();
   const displayNotes = notesWithoutShift || "None";
   const signedByLabourer =
