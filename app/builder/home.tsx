@@ -1,5 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
-import { View, Text, Pressable, ScrollView, Modal, TextInput, Alert, RefreshControl, KeyboardAvoidingView, Platform } from "react-native";
+import {
+  View,
+  Text,
+  Pressable,
+  ScrollView,
+  Modal,
+  TextInput,
+  Alert,
+  RefreshControl,
+  KeyboardAvoidingView,
+  Platform,
+} from "react-native";
+import { Picker } from "@react-native-picker/picker";
 import { router, useFocusEffect } from "expo-router";
 import { Calendar } from "react-native-calendars";
 import { useCurrentUser } from "../../src/auth/useCurrentUser";
@@ -30,6 +42,11 @@ export default function BuilderHome() {
   const [sendingOffer, setSendingOffer] = useState(false);
   const [showDatePickerInline, setShowDatePickerInline] = useState(false);
   const [showLabourerDropdownInline, setShowLabourerDropdownInline] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [activeTimeField, setActiveTimeField] = useState<"start" | "finish" | null>(null);
+  const [timePickerHour, setTimePickerHour] = useState("7");
+  const [timePickerMinute, setTimePickerMinute] = useState("00");
+  const [timePickerPeriod, setTimePickerPeriod] = useState<"AM" | "PM">("AM");
 
   const company = user?.role === "builder" ? user.companyName : "Builder";
   const selectedLabourer = labourers.find((l) => l.email === selectedLabourerEmail);
@@ -38,6 +55,8 @@ export default function BuilderHome() {
     setOfferModalOpen(false);
     setShowDatePickerInline(false);
     setShowLabourerDropdownInline(false);
+    setShowTimePicker(false);
+    setActiveTimeField(null);
   }
 
   async function loadChattedLabourers() {
@@ -181,6 +200,58 @@ export default function BuilderHome() {
     const isPm = hour24 >= 12;
     const hour12 = hour24 % 12 || 12;
     return `${hour12}:${minute} ${isPm ? "PM" : "AM"}`;
+  }
+
+  function toTimePickerParts(minutes: number) {
+    const clamped = ((minutes % (24 * 60)) + 24 * 60) % (24 * 60);
+    const hour24 = Math.floor(clamped / 60);
+    const minute = String(clamped % 60).padStart(2, "0");
+    const period: "AM" | "PM" = hour24 >= 12 ? "PM" : "AM";
+    const hour12 = hour24 % 12 || 12;
+    return {
+      hour: String(hour12),
+      minute,
+      period,
+    };
+  }
+
+  function openTimePicker(field: "start" | "finish") {
+    const fallbackMinutes = field === "start" ? 7 * 60 : 15 * 60 + 30;
+    const existing = parseTimeToMinutes(field === "start" ? startTime : finishTime);
+    const parts = toTimePickerParts(existing === null ? fallbackMinutes : existing);
+
+    setActiveTimeField(field);
+    setTimePickerHour(parts.hour);
+    setTimePickerMinute(parts.minute);
+    setTimePickerPeriod(parts.period);
+    setShowTimePicker(true);
+  }
+
+  function closeTimePicker() {
+    setShowTimePicker(false);
+    setActiveTimeField(null);
+  }
+
+  function onConfirmTimePicker() {
+    if (!activeTimeField) return;
+    const hour12 = Number(timePickerHour);
+    const minute = Number(timePickerMinute);
+    if (!Number.isFinite(hour12) || !Number.isFinite(minute)) {
+      return closeTimePicker();
+    }
+
+    const hour12Normalized = ((hour12 - 1) % 12) + 1;
+    const hour24 =
+      timePickerPeriod === "PM" ? (hour12Normalized % 12) + 12 : hour12Normalized % 12;
+    const minutes = hour24 * 60 + minute;
+    const timeText = formatMinutesTo12Hour(minutes);
+
+    if (activeTimeField === "start") {
+      setStartTime(timeText);
+    } else {
+      setFinishTime(timeText);
+    }
+    closeTimePicker();
   }
 
   async function openOfferModal() {
@@ -469,18 +540,39 @@ export default function BuilderHome() {
               </View>
 
               <RowField>
-                <InputField
-                  label="Start Time (12-hour)"
-                  value={startTime}
-                  onChangeText={setStartTime}
-                  placeholder="7:00 AM"
-                />
-                <InputField
-                  label="Finish Time (12-hour)"
-                  value={finishTime}
-                  onChangeText={setFinishTime}
-                  placeholder="3:30 PM"
-                />
+                <View style={{ flex: 1, gap: 6 }}>
+                  <Text style={{ fontWeight: "700" }}>Start Time</Text>
+                  <Pressable
+                    onPress={() => openTimePicker("start")}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: "#111111",
+                      borderRadius: 10,
+                      padding: 12,
+                      minHeight: 52,
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Text style={{ fontWeight: "700" }}>{startTime || "Select start time"}</Text>
+                  </Pressable>
+                </View>
+
+                <View style={{ flex: 1, gap: 6 }}>
+                  <Text style={{ fontWeight: "700" }}>Finish Time</Text>
+                  <Pressable
+                    onPress={() => openTimePicker("finish")}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: "#111111",
+                      borderRadius: 10,
+                      padding: 12,
+                      minHeight: 52,
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Text style={{ fontWeight: "700" }}>{finishTime || "Select finish time"}</Text>
+                  </Pressable>
+                </View>
               </RowField>
 
               <InputField
@@ -548,6 +640,83 @@ export default function BuilderHome() {
           </View>
         </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal visible={showTimePicker} transparent animationType="slide">
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "flex-end" }}>
+          <View style={{ backgroundColor: "#fff", borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 16 }}>
+            <Text style={{ fontSize: 18, fontWeight: "900", marginBottom: 8 }}>
+              {activeTimeField === "start" ? "Select Start Time" : "Select Finish Time"}
+            </Text>
+
+            <View style={{ flexDirection: "row", gap: 8, height: 180 }}>
+              <View style={{ flex: 1, borderWidth: 1, borderColor: "#111111", borderRadius: 10, overflow: "hidden" }}>
+                <Picker
+                  selectedValue={timePickerHour}
+                  onValueChange={(value) => setTimePickerHour(value as string)}
+                >
+                  {Array.from({ length: 12 }).map((_, i) => {
+                    const label = String(i + 1);
+                    return (
+                      <Picker.Item key={label} label={label} value={label} />
+                    );
+                  })}
+                </Picker>
+              </View>
+
+              <View style={{ flex: 1, borderWidth: 1, borderColor: "#111111", borderRadius: 10, overflow: "hidden" }}>
+                <Picker
+                  selectedValue={timePickerMinute}
+                  onValueChange={(value) => setTimePickerMinute(value as string)}
+                >
+                  {Array.from({ length: 60 }).map((_, i) => {
+                    const value = String(i).padStart(2, "0");
+                    return <Picker.Item key={value} label={value} value={value} />;
+                  })}
+                </Picker>
+              </View>
+
+              <View style={{ flex: 1, borderWidth: 1, borderColor: "#111111", borderRadius: 10, overflow: "hidden" }}>
+                <Picker
+                  selectedValue={timePickerPeriod}
+                  onValueChange={(value) => setTimePickerPeriod(value as "AM" | "PM")}
+                >
+                  <Picker.Item label="AM" value="AM" />
+                  <Picker.Item label="PM" value="PM" />
+                </Picker>
+              </View>
+            </View>
+
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
+              <Pressable
+                onPress={closeTimePicker}
+                style={{
+                  flex: 1,
+                  paddingVertical: 12,
+                  borderWidth: 1,
+                  borderColor: "#111111",
+                  borderRadius: 12,
+                  alignItems: "center",
+                }}
+              >
+                <Text style={{ fontWeight: "900" }}>Cancel</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={onConfirmTimePicker}
+                style={{
+                  flex: 1,
+                  paddingVertical: 12,
+                  borderRadius: 12,
+                  backgroundColor: "#111",
+                  alignItems: "center",
+                }}
+              >
+                <Text style={{ fontWeight: "900", color: "#FDE047" }}>Set Time</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
       </Modal>
     </ScrollView>
   );
