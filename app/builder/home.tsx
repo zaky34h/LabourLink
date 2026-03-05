@@ -11,7 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { Picker } from "@react-native-picker/picker";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { router, useFocusEffect } from "expo-router";
 import { Calendar } from "react-native-calendars";
 import { useCurrentUser } from "../../src/auth/useCurrentUser";
@@ -44,9 +44,7 @@ export default function BuilderHome() {
   const [showLabourerDropdownInline, setShowLabourerDropdownInline] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [activeTimeField, setActiveTimeField] = useState<"start" | "finish" | null>(null);
-  const [timePickerHour, setTimePickerHour] = useState("7");
-  const [timePickerMinute, setTimePickerMinute] = useState("00");
-  const [timePickerPeriod, setTimePickerPeriod] = useState<"AM" | "PM">("AM");
+  const [timePickerDate, setTimePickerDate] = useState(new Date());
 
   const company = user?.role === "builder" ? user.companyName : "Builder";
   const selectedLabourer = labourers.find((l) => l.email === selectedLabourerEmail);
@@ -202,28 +200,21 @@ export default function BuilderHome() {
     return `${hour12}:${minute} ${isPm ? "PM" : "AM"}`;
   }
 
-  function toTimePickerParts(minutes: number) {
-    const clamped = ((minutes % (24 * 60)) + 24 * 60) % (24 * 60);
-    const hour24 = Math.floor(clamped / 60);
-    const minute = String(clamped % 60).padStart(2, "0");
-    const period: "AM" | "PM" = hour24 >= 12 ? "PM" : "AM";
-    const hour12 = hour24 % 12 || 12;
-    return {
-      hour: String(hour12),
-      minute,
-      period,
-    };
-  }
-
   function openTimePicker(field: "start" | "finish") {
     const fallbackMinutes = field === "start" ? 7 * 60 : 15 * 60 + 30;
     const existing = parseTimeToMinutes(field === "start" ? startTime : finishTime);
-    const parts = toTimePickerParts(existing === null ? fallbackMinutes : existing);
+    const minutes = existing === null ? fallbackMinutes : existing;
+    const clamped = ((minutes % (24 * 60)) + 24 * 60) % (24 * 60);
+    const roundedMinutes = Math.round(clamped / 15) * 15;
+    const selectedMinutes = roundedMinutes >= 24 * 60 ? 0 : roundedMinutes;
+
+    const nextDate = new Date();
+    nextDate.setHours(Math.floor(selectedMinutes / 60));
+    nextDate.setMinutes(selectedMinutes % 60);
+    nextDate.setSeconds(0, 0);
 
     setActiveTimeField(field);
-    setTimePickerHour(parts.hour);
-    setTimePickerMinute(parts.minute);
-    setTimePickerPeriod(parts.period);
+    setTimePickerDate(nextDate);
     setShowTimePicker(true);
   }
 
@@ -234,24 +225,33 @@ export default function BuilderHome() {
 
   function onConfirmTimePicker() {
     if (!activeTimeField) return;
-    const hour12 = Number(timePickerHour);
-    const minute = Number(timePickerMinute);
-    if (!Number.isFinite(hour12) || !Number.isFinite(minute)) {
-      return closeTimePicker();
+    const rawMinutes = timePickerDate.getHours() * 60 + timePickerDate.getMinutes();
+    const snappedMinutes = Math.round(rawMinutes / 15) * 15;
+    if (!Number.isFinite(snappedMinutes)) return closeTimePicker();
+
+    let normalized = snappedMinutes;
+    if (normalized >= 24 * 60) {
+      normalized -= 24 * 60;
     }
 
-    const hour12Normalized = ((hour12 - 1) % 12) + 1;
-    const hour24 =
-      timePickerPeriod === "PM" ? (hour12Normalized % 12) + 12 : hour12Normalized % 12;
-    const minutes = hour24 * 60 + minute;
-    const timeText = formatMinutesTo12Hour(minutes);
+    const snappedDate = new Date(timePickerDate);
+    snappedDate.setHours(Math.floor(normalized / 60));
+    snappedDate.setMinutes(normalized % 60);
+    snappedDate.setSeconds(0, 0);
+    const timeText = formatMinutesTo12Hour(normalized);
 
     if (activeTimeField === "start") {
       setStartTime(timeText);
     } else {
       setFinishTime(timeText);
     }
+    setTimePickerDate(snappedDate);
     closeTimePicker();
+  }
+
+  function onTimePickerChange(_: unknown, value?: Date) {
+    if (!value) return;
+    setTimePickerDate(value);
   }
 
   async function openOfferModal() {
@@ -649,43 +649,15 @@ export default function BuilderHome() {
               {activeTimeField === "start" ? "Select Start Time" : "Select Finish Time"}
             </Text>
 
-            <View style={{ flexDirection: "row", gap: 8, height: 180 }}>
-              <View style={{ flex: 1, borderWidth: 1, borderColor: "#111111", borderRadius: 10, overflow: "hidden" }}>
-                <Picker
-                  selectedValue={timePickerHour}
-                  onValueChange={(value) => setTimePickerHour(value as string)}
-                >
-                  {Array.from({ length: 12 }).map((_, i) => {
-                    const label = String(i + 1);
-                    return (
-                      <Picker.Item key={label} label={label} value={label} />
-                    );
-                  })}
-                </Picker>
-              </View>
-
-              <View style={{ flex: 1, borderWidth: 1, borderColor: "#111111", borderRadius: 10, overflow: "hidden" }}>
-                <Picker
-                  selectedValue={timePickerMinute}
-                  onValueChange={(value) => setTimePickerMinute(value as string)}
-                >
-                  {Array.from({ length: 60 }).map((_, i) => {
-                    const value = String(i).padStart(2, "0");
-                    return <Picker.Item key={value} label={value} value={value} />;
-                  })}
-                </Picker>
-              </View>
-
-              <View style={{ flex: 1, borderWidth: 1, borderColor: "#111111", borderRadius: 10, overflow: "hidden" }}>
-                <Picker
-                  selectedValue={timePickerPeriod}
-                  onValueChange={(value) => setTimePickerPeriod(value as "AM" | "PM")}
-                >
-                  <Picker.Item label="AM" value="AM" />
-                  <Picker.Item label="PM" value="PM" />
-                </Picker>
-              </View>
-            </View>
+            <DateTimePicker
+              value={timePickerDate}
+              mode="time"
+              is24Hour={false}
+              display={Platform.OS === "ios" ? "spinner" : "default"}
+              minuteInterval={15}
+              onChange={onTimePickerChange}
+              themeVariant="light"
+            />
 
             <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
               <Pressable
