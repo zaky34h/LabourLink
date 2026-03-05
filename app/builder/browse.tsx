@@ -6,6 +6,7 @@ import {
   Pressable,
   Modal,
   ActivityIndicator,
+  Image,
 } from "react-native";
 import { Calendar } from "react-native-calendars";
 import { router, useFocusEffect } from "expo-router";
@@ -157,9 +158,33 @@ export default function BuilderBrowse() {
             }}
           >
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-              <Text style={{ fontSize: 16, fontWeight: "900" }}>
-                {item.firstName} {item.lastName}
-              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1, minWidth: 0, paddingRight: 10 }}>
+                <View
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 999,
+                    borderWidth: 1,
+                    borderColor: "#111111",
+                    backgroundColor: "#FDE047",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    overflow: "hidden",
+                  }}
+                >
+                  {item.photoUrl ? (
+                    <Image source={{ uri: item.photoUrl }} style={{ width: "100%", height: "100%" }} />
+                  ) : (
+                    <Text style={{ fontWeight: "900" }}>
+                      {(item.firstName?.[0] ?? "L").toUpperCase()}
+                      {(item.lastName?.[0] ?? "").toUpperCase()}
+                    </Text>
+                  )}
+                </View>
+                <Text style={{ fontSize: 16, fontWeight: "900", flexShrink: 1 }} numberOfLines={1}>
+                  {item.firstName} {item.lastName}
+                </Text>
+              </View>
               <View style={{ paddingVertical: 6, paddingHorizontal: 10, borderRadius: 999, backgroundColor: "#FDE047" }}>
                 <Text style={{ fontWeight: "800" }}>${item.pricePerHour}/hr</Text>
               </View>
