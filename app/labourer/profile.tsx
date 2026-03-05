@@ -140,7 +140,7 @@ export default function LabourerProfile() {
 
   if (!user || user.role !== "labourer") {
     return (
-      <View style={{ flex: 1, padding: 24, paddingTop: 32 }}>
+      <View style={{ flex: 1, padding: 24, paddingTop: 12 }}>
         <Text style={{ fontSize: 20, fontWeight: "900" }}>Not logged in</Text>
         <Pressable onPress={() => router.replace("/")} style={{ marginTop: 12 }}>
           <Text style={{ fontWeight: "800" }}>Go to Login</Text>
@@ -151,7 +151,7 @@ export default function LabourerProfile() {
 
   return (
     <FormScreen>
-      <View style={{ padding: 24, paddingTop: 32, gap: 12, paddingBottom: 30 }}>
+      <View style={{ padding: 24, paddingTop: 12, gap: 12, paddingBottom: 30 }}>
         <Text style={{ fontSize: 26, fontWeight: "900" }}>Profile</Text>
 
         <View style={{ padding: 14, borderWidth: 1, borderColor: "#111111", borderRadius: 12, gap: 10 }}>
