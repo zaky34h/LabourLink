@@ -575,6 +575,58 @@ export default function BuilderHome() {
                 </View>
               </RowField>
 
+              {showTimePicker ? (
+                <View
+                  style={{
+                    marginTop: 4,
+                    borderWidth: 1,
+                    borderColor: "#111111",
+                    borderRadius: 12,
+                    padding: 12,
+                    backgroundColor: "#fff",
+                  }}
+                >
+                  <Text style={{ fontSize: 18, fontWeight: "900", marginBottom: 8 }}>
+                    {activeTimeField === "start" ? "Select Start Time" : "Select Finish Time"}
+                  </Text>
+                  <DateTimePicker
+                    value={timePickerDate}
+                    mode="time"
+                    is24Hour={false}
+                    display={Platform.OS === "ios" ? "spinner" : "default"}
+                    minuteInterval={15}
+                    onChange={onTimePickerChange}
+                  />
+                  <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
+                    <Pressable
+                      onPress={closeTimePicker}
+                      style={{
+                        flex: 1,
+                        paddingVertical: 10,
+                        borderWidth: 1,
+                        borderColor: "#111111",
+                        borderRadius: 10,
+                        alignItems: "center",
+                      }}
+                    >
+                      <Text style={{ fontWeight: "900" }}>Cancel</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={onConfirmTimePicker}
+                      style={{
+                        flex: 1,
+                        paddingVertical: 10,
+                        borderRadius: 10,
+                        backgroundColor: "#111",
+                        alignItems: "center",
+                      }}
+                    >
+                      <Text style={{ fontWeight: "900", color: "#FDE047" }}>Done</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ) : null}
+
               <InputField
                 label="Rate ($/hr)"
                 value={rate}
@@ -640,51 +692,6 @@ export default function BuilderHome() {
           </View>
         </View>
         </KeyboardAvoidingView>
-      </Modal>
-
-      <Modal visible={showTimePicker} transparent animationType="slide">
-        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "flex-end" }}>
-          <View style={{ backgroundColor: "#fff", borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 16 }}>
-            <Text style={{ fontSize: 18, fontWeight: "900", marginBottom: 8 }}>
-              {activeTimeField === "start" ? "Select Start Time" : "Select Finish Time"}
-            </Text>
-            <DateTimePicker
-              value={timePickerDate}
-              mode="time"
-              is24Hour={false}
-              display={Platform.OS === "ios" ? "default" : "default"}
-              minuteInterval={15}
-              onChange={onTimePickerChange}
-            />
-            <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
-              <Pressable
-                onPress={closeTimePicker}
-                style={{
-                  flex: 1,
-                  paddingVertical: 10,
-                  borderWidth: 1,
-                  borderColor: "#111111",
-                  borderRadius: 10,
-                  alignItems: "center",
-                }}
-              >
-                <Text style={{ fontWeight: "900" }}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                onPress={onConfirmTimePicker}
-                style={{
-                  flex: 1,
-                  paddingVertical: 10,
-                  borderRadius: 10,
-                  backgroundColor: "#111",
-                  alignItems: "center",
-                }}
-              >
-                <Text style={{ fontWeight: "900", color: "#FDE047" }}>Done</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
       </Modal>
 
     </ScrollView>
