@@ -12,7 +12,7 @@ import {
 import { useState, useEffect } from "react";
 import { router } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
-import { clearSession, type BuilderReview } from "../../src/auth/storage";
+import { clearSession, deleteAccount, type BuilderReview } from "../../src/auth/storage";
 import { useCurrentUser } from "../../src/auth/useCurrentUser";
 import { updateBuilderProfile } from "../../src/auth/updateProfile";
 import { FormScreen } from "../../src/ui/FormScreen";
@@ -27,6 +27,7 @@ export default function BuilderProfile() {
   const [address, setAddress] = useState("");
   const [companyLogoUrl, setCompanyLogoUrl] = useState("");
   const [reviewsOpen, setReviewsOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (user?.role === "builder") {
@@ -59,6 +60,34 @@ export default function BuilderProfile() {
   async function logout() {
     await clearSession();
     router.replace("/");
+  }
+
+  function onDeleteAccountPress() {
+    Alert.alert(
+      "Delete account?",
+      "This will permanently delete your account and data. This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            void confirmDeleteAccount();
+          },
+        },
+      ]
+    );
+  }
+
+  async function confirmDeleteAccount() {
+    if (deleting) return;
+    setDeleting(true);
+    const res = await deleteAccount();
+    setDeleting(false);
+    if (!res.ok) return Alert.alert("Couldn’t delete account", res.error);
+    Alert.alert("Account deleted", "Your account has been deleted.", [
+      { text: "OK", onPress: () => router.replace("/") },
+    ]);
   }
 
   async function chooseLogoFromCameraRoll() {
@@ -205,6 +234,7 @@ export default function BuilderProfile() {
 
       <Pressable
         onPress={onSave}
+        disabled={deleting}
         style={{ padding: 16, backgroundColor: "#111", borderRadius: 12, alignItems: "center", marginTop: 6 }}
       >
         <Text style={{ color: "#FDE047", fontWeight: "800" }}>Save Changes</Text>
@@ -212,9 +242,35 @@ export default function BuilderProfile() {
 
       <Pressable
         onPress={logout}
-        style={{ padding: 16, borderWidth: 1, borderColor: "#111111", borderRadius: 12, alignItems: "center" }}
+        disabled={deleting}
+        style={{
+          padding: 16,
+          borderWidth: 1,
+          borderColor: "#111111",
+          borderRadius: 12,
+          alignItems: "center",
+          opacity: deleting ? 0.7 : 1,
+        }}
       >
         <Text style={{ fontWeight: "800" }}>Logout</Text>
+      </Pressable>
+
+      <Pressable
+        onPress={onDeleteAccountPress}
+        disabled={deleting}
+        style={{
+          padding: 16,
+          borderWidth: 1,
+          borderColor: "#DC2626",
+          borderRadius: 12,
+          alignItems: "center",
+          backgroundColor: "#FEF2F2",
+          opacity: deleting ? 0.7 : 1,
+        }}
+      >
+        <Text style={{ fontWeight: "800", color: "#B91C1C" }}>
+          {deleting ? "Deleting Account..." : "Delete Account"}
+        </Text>
       </Pressable>
 
       <Modal visible={reviewsOpen} animationType="slide" transparent>

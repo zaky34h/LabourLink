@@ -110,6 +110,16 @@ export async function clearSession(): Promise<void> {
   await clearSessionStorage();
 }
 
+export async function deleteAccount(): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    await apiRequest<{ ok: true }>("/auth/delete-account", { method: "POST", auth: true });
+    await clearSessionStorage();
+    return { ok: true };
+  } catch (error: any) {
+    return { ok: false, error: error?.message || "Could not delete account." };
+  }
+}
+
 export async function loginUser(
   email: string,
   password: string

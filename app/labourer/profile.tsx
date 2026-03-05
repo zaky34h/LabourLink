@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { router } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
-import { clearSession } from "../../src/auth/storage";
+import { clearSession, deleteAccount } from "../../src/auth/storage";
 import { useCurrentUser } from "../../src/auth/useCurrentUser";
 import { updateLabourerProfile } from "../../src/auth/updateLabourerProfile";
 import { FormScreen } from "../../src/ui/FormScreen";
@@ -18,6 +18,7 @@ import { FormScreen } from "../../src/ui/FormScreen";
 export default function LabourerProfile() {
   const { user, loading, reload } = useCurrentUser();
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const [photoUrl, setPhotoUrl] = useState("");
   const [firstName, setFirstName] = useState("");
@@ -46,6 +47,34 @@ export default function LabourerProfile() {
   async function logout() {
     await clearSession();
     router.replace("/");
+  }
+
+  function onDeleteAccountPress() {
+    Alert.alert(
+      "Delete account?",
+      "This will permanently delete your account and data. This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            void confirmDeleteAccount();
+          },
+        },
+      ]
+    );
+  }
+
+  async function confirmDeleteAccount() {
+    if (deleting) return;
+    setDeleting(true);
+    const res = await deleteAccount();
+    setDeleting(false);
+    if (!res.ok) return Alert.alert("Couldn’t delete account", res.error);
+    Alert.alert("Account deleted", "Your account has been deleted.", [
+      { text: "OK", onPress: () => router.replace("/") },
+    ]);
   }
 
   async function pickPhoto() {
@@ -300,10 +329,10 @@ export default function LabourerProfile() {
 
         <Pressable
           onPress={onSave}
-          disabled={saving}
+          disabled={saving || deleting}
           style={{
             padding: 16,
-            backgroundColor: saving ? "#444444" : "#111",
+            backgroundColor: saving || deleting ? "#444444" : "#111",
             borderRadius: 12,
             alignItems: "center",
             marginTop: 6,
@@ -314,9 +343,35 @@ export default function LabourerProfile() {
 
         <Pressable
           onPress={logout}
-          style={{ padding: 16, borderWidth: 1, borderColor: "#111111", borderRadius: 12, alignItems: "center" }}
+          disabled={deleting}
+          style={{
+            padding: 16,
+            borderWidth: 1,
+            borderColor: "#111111",
+            borderRadius: 12,
+            alignItems: "center",
+            opacity: deleting ? 0.7 : 1,
+          }}
         >
           <Text style={{ fontWeight: "900" }}>Logout</Text>
+        </Pressable>
+
+        <Pressable
+          onPress={onDeleteAccountPress}
+          disabled={deleting}
+          style={{
+            padding: 16,
+            borderWidth: 1,
+            borderColor: "#DC2626",
+            borderRadius: 12,
+            alignItems: "center",
+            backgroundColor: "#FEF2F2",
+            opacity: deleting ? 0.7 : 1,
+          }}
+        >
+          <Text style={{ fontWeight: "900", color: "#B91C1C" }}>
+            {deleting ? "Deleting Account..." : "Delete Account"}
+          </Text>
         </Pressable>
       </View>
     </FormScreen>

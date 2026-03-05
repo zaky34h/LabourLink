@@ -850,6 +850,51 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { ok: true });
     }
 
+    if (req.method === "POST" && pathname === "/auth/delete-account") {
+      const authUser = await requireAuth(req, res);
+      if (!authUser) return;
+      if (authUser.role !== "builder" && authUser.role !== "labourer") {
+        return json(res, 403, { ok: false, error: "Only builder and labourer accounts can be deleted." });
+      }
+
+      const email = normalizeEmail(authUser.email);
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("DELETE FROM sessions WHERE lower(email) = $1", [email]);
+        await client.query("DELETE FROM password_resets WHERE lower(email) = $1", [email]);
+        await client.query("DELETE FROM user_push_tokens WHERE lower(email) = $1", [email]);
+        await client.query("DELETE FROM notifications WHERE lower(recipient_email) = $1", [email]);
+        await client.query("DELETE FROM chat_typing WHERE lower(from_email) = $1 OR lower(to_email) = $1", [email]);
+        await client.query("DELETE FROM chat_thread_reads WHERE lower(email) = $1 OR lower(peer_email) = $1", [
+          email,
+        ]);
+        await client.query(
+          "DELETE FROM chat_thread_closures WHERE lower(email) = $1 OR lower(peer_email) = $1",
+          [email]
+        );
+        await client.query("DELETE FROM messages WHERE lower(from_email) = $1 OR lower(to_email) = $1", [email]);
+        await client.query(
+          "DELETE FROM builder_saved_labourers WHERE lower(builder_email) = $1 OR lower(labourer_email) = $1",
+          [email]
+        );
+        await client.query("DELETE FROM payments WHERE lower(builder_email) = $1 OR lower(labourer_email) = $1", [
+          email,
+        ]);
+        await client.query("DELETE FROM offers WHERE lower(builder_email) = $1 OR lower(labourer_email) = $1", [
+          email,
+        ]);
+        await client.query("DELETE FROM users WHERE email = $1", [email]);
+        await client.query("COMMIT");
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
+      return json(res, 200, { ok: true });
+    }
+
     if (req.method === "GET" && pathname === "/auth/me") {
       const user = await requireAuth(req, res);
       if (!user) return;
