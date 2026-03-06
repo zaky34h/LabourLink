@@ -28,6 +28,7 @@ export default function Login() {
   const [rememberMe, setRememberMe] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [bootstrapping, setBootstrapping] = useState(true);
 
@@ -173,18 +174,29 @@ export default function Login() {
 
           <View>
             <Text style={{ marginBottom: 6, fontWeight: "700" }}>Password</Text>
-            <TextInput
-              value={password}
-              onChangeText={setPassword}
-              placeholder="••••••••"
-              secureTextEntry
-              style={{
-                borderWidth: 1,
-                borderColor: "#111111",
-                borderRadius: 10,
-                padding: 14,
-              }}
-            />
+            <View style={{ position: "relative", justifyContent: "center" }}>
+              <TextInput
+                value={password}
+                onChangeText={setPassword}
+                placeholder="••••••••"
+                secureTextEntry={!showPassword}
+                style={{
+                  borderWidth: 1,
+                  borderColor: "#111111",
+                  borderRadius: 10,
+                  padding: 14,
+                  paddingRight: 70,
+                }}
+              />
+              <Pressable
+                onPress={() => setShowPassword((prev) => !prev)}
+                style={{ position: "absolute", right: 12, paddingVertical: 6, paddingHorizontal: 4 }}
+              >
+                <Text style={{ fontWeight: "700", color: "#111111" }}>
+                  {showPassword ? "Hide" : "Show"}
+                </Text>
+              </Pressable>
+            </View>
           </View>
 
           <Pressable
