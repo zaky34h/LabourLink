@@ -16,6 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.linkgroup.labourlink",
+      "usesAppleSignIn": true,
       "buildNumber": "1",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
@@ -45,7 +46,9 @@
           "photosPermission": "Allow Labour-link to access your photos so you can choose a company logo."
         }
       ],
-      "@react-native-community/datetimepicker"
+      "expo-apple-authentication",
+      "@react-native-community/datetimepicker",
+      "expo-web-browser"
     ],
     "extra": {
       "router": {},

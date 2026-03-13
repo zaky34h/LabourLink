@@ -59,10 +59,20 @@ Set `EXPO_PUBLIC_API_BASE_URL` in `.env`:
 - Android emulator: `http://10.0.2.2:4000`
 - Physical device: `http://<YOUR_COMPUTER_LAN_IP>:4000`
 
+For social auth, also configure:
+
+- `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`
+- `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID`
+- `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`
+- `GOOGLE_OAUTH_CLIENT_IDS` (optional comma-separated backend allow-list; defaults to the Expo public Google client IDs)
+- `APPLE_CLIENT_IDS` (optional comma-separated Apple audience allow-list; defaults to `com.linkgroup.labourlink`)
+
 ## Endpoints (high-level)
 
 - `POST /auth/register`
 - `POST /auth/login`
+- `POST /auth/social/google`
+- `POST /auth/social/apple`
 - `POST /auth/forgot-password`
 - `POST /auth/reset-password`
 - `POST /auth/logout`

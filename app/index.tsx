@@ -11,18 +11,14 @@ import {
 import { useEffect, useState } from "react";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { getSessionEmail, getUserByEmail, loginUser, type User } from "../src/auth/storage";
+import { getSessionEmail, getUserByEmail, loginUser } from "../src/auth/storage";
+import { routeForUser } from "../src/auth/routing";
+import { AuthSocialButtons } from "../src/auth/AuthSocialButtons";
 import { clearSessionStorage } from "../src/api/client";
 import { FormScreen } from "../src/ui/FormScreen";
 
 const REMEMBER_ME_KEY = "labourlink_remember_me";
 const REMEMBERED_EMAIL_KEY = "labourlink_remembered_email";
-
-function routeForRole(role: User["role"]) {
-  if (role === "builder") return "/builder/home";
-  if (role === "owner") return "/owner/home";
-  return "/labourer/home";
-}
 
 export default function Login() {
   const [rememberMe, setRememberMe] = useState(false);
@@ -58,7 +54,7 @@ export default function Login() {
         const user = await getUserByEmail(sessionEmail);
         if (!active || !user) return;
 
-        router.replace(routeForRole(user.role));
+        router.replace(routeForUser(user));
       } finally {
         if (active) setBootstrapping(false);
       }
@@ -92,7 +88,7 @@ export default function Login() {
         await AsyncStorage.setItem(REMEMBER_ME_KEY, "0");
       }
 
-      router.replace(routeForRole(res.user.role));
+      router.replace(routeForUser(res.user));
     } finally {
       setSubmitting(false);
     }
@@ -155,6 +151,8 @@ export default function Login() {
             gap: 14,
           }}
         >
+          <AuthSocialButtons />
+
           <View>
             <Text style={{ marginBottom: 6, fontWeight: "700" }}>Email Address</Text>
             <TextInput

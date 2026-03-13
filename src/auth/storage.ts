@@ -7,6 +7,15 @@ import {
 
 export type Role = "builder" | "labourer";
 
+export type PendingUser = {
+  role: "pending";
+  firstName: string;
+  lastName: string;
+  email: string;
+  password?: string;
+  isDisabled?: boolean;
+};
+
 export type BuilderSubscription = {
   planName: string;
   status: "trial" | "active" | "past_due" | "cancelled";
@@ -67,7 +76,7 @@ export type OwnerUser = {
   isDisabled?: boolean;
 };
 
-export type User = BuilderUser | LabourerUser | OwnerUser;
+export type User = PendingUser | BuilderUser | LabourerUser | OwnerUser;
 
 export async function getUsers(): Promise<User[]> {
   const res = await apiRequest<{ ok: true; users: User[] }>("/users", { auth: true });
@@ -79,7 +88,7 @@ export async function saveUsers(_users: User[]): Promise<void> {
 }
 
 export async function registerUser(
-  newUser: User
+  newUser: PendingUser | BuilderUser | LabourerUser
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     await apiRequest<{ ok: true; user: User }>("/auth/register", {
@@ -89,6 +98,71 @@ export async function registerUser(
     return { ok: true };
   } catch (error: any) {
     return { ok: false, error: error?.message || "Registration failed." };
+  }
+}
+
+export async function completeOnboarding(
+  payload:
+    | ({
+        role: "builder";
+      } & Pick<BuilderUser, "firstName" | "lastName" | "companyName" | "about" | "address">)
+    | ({
+        role: "labourer";
+      } & Pick<
+        LabourerUser,
+        | "firstName"
+        | "lastName"
+        | "about"
+        | "pricePerHour"
+        | "experienceYears"
+        | "certifications"
+        | "bsb"
+        | "accountNumber"
+      > & { unavailableDates?: string[]; photoUrl?: string })
+): Promise<{ ok: true; user: User } | { ok: false; error: string }> {
+  try {
+    const res = await apiRequest<{ ok: true; user: User }>("/auth/complete-onboarding", {
+      method: "POST",
+      auth: true,
+      body: payload,
+    });
+    return { ok: true, user: res.user };
+  } catch (error: any) {
+    return { ok: false, error: error?.message || "Could not complete onboarding." };
+  }
+}
+
+export async function loginWithGoogleIdToken(
+  idToken: string
+): Promise<{ ok: true; user: User } | { ok: false; error: string }> {
+  try {
+    const res = await apiRequest<{ ok: true; token: string; user: User }>("/auth/social/google", {
+      method: "POST",
+      body: { idToken },
+    });
+    await setSession(res.token, res.user.email);
+    return { ok: true, user: res.user };
+  } catch (error: any) {
+    return { ok: false, error: error?.message || "Google sign in failed." };
+  }
+}
+
+export async function loginWithAppleIdentityToken(payload: {
+  identityToken: string;
+  user: string;
+  email?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+}): Promise<{ ok: true; user: User } | { ok: false; error: string }> {
+  try {
+    const res = await apiRequest<{ ok: true; token: string; user: User }>("/auth/social/apple", {
+      method: "POST",
+      body: payload,
+    });
+    await setSession(res.token, res.user.email);
+    return { ok: true, user: res.user };
+  } catch (error: any) {
+    return { ok: false, error: error?.message || "Apple sign in failed." };
   }
 }
 

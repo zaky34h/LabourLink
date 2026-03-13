@@ -17,6 +17,22 @@ const pool = new Pool({
   ssl: usesNeon ? { rejectUnauthorized: false } : undefined,
 });
 const SESSION_TTL_MS = Number(process.env.SESSION_TTL_MS || 1000 * 60 * 60 * 24 * 30);
+const GOOGLE_ALLOWED_CLIENT_IDS = [
+  ...(process.env.GOOGLE_OAUTH_CLIENT_IDS || "").split(","),
+  process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || "",
+  process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || "",
+  process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || "",
+]
+  .map((value) => String(value || "").trim())
+  .filter(Boolean);
+const APPLE_ALLOWED_AUDIENCES = [
+  ...(process.env.APPLE_CLIENT_IDS || "").split(","),
+  process.env.EXPO_PUBLIC_APPLE_SERVICE_ID || "",
+  process.env.IOS_BUNDLE_ID || "",
+  "com.linkgroup.labourlink",
+]
+  .map((value) => String(value || "").trim())
+  .filter(Boolean);
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -39,6 +55,25 @@ function todayLocalIso() {
 
 function normalizeEmail(v) {
   return String(v || "").trim().toLowerCase();
+}
+
+function decodeBase64Url(input) {
+  const normalized = String(input || "").replace(/-/g, "+").replace(/_/g, "/");
+  const padding = normalized.length % 4 === 0 ? "" : "=".repeat(4 - (normalized.length % 4));
+  return Buffer.from(`${normalized}${padding}`, "base64");
+}
+
+function parseJwt(token) {
+  const parts = String(token || "").split(".");
+  if (parts.length !== 3) throw new Error("Invalid token format.");
+  const header = JSON.parse(decodeBase64Url(parts[0]).toString("utf8"));
+  const payload = JSON.parse(decodeBase64Url(parts[1]).toString("utf8"));
+  return {
+    header,
+    payload,
+    signingInput: `${parts[0]}.${parts[1]}`,
+    signature: decodeBase64Url(parts[2]),
+  };
 }
 
 const HARD_CODED_OWNER_EMAIL = "hagezakariya@gmail.com";
@@ -90,6 +125,30 @@ function makeId(prefix = "id") {
   return `${prefix}_${now()}_${crypto.randomBytes(6).toString("hex")}`;
 }
 
+function httpsJsonRequest(urlString) {
+  return new Promise((resolve, reject) => {
+    const req = https.get(urlString, (res) => {
+      let data = "";
+      res.on("data", (chunk) => {
+        data += chunk;
+      });
+      res.on("end", () => {
+        try {
+          const parsed = JSON.parse(data || "{}");
+          if ((res.statusCode || 500) >= 400) {
+            return reject(new Error(parsed.error_description || parsed.error || `Request failed (${res.statusCode})`));
+          }
+          resolve(parsed);
+        } catch (error) {
+          reject(error);
+        }
+      });
+    });
+
+    req.on("error", reject);
+  });
+}
+
 function makeThreadId(a, b) {
   return [normalizeEmail(a), normalizeEmail(b)].sort().join("__");
 }
@@ -100,6 +159,78 @@ function defaultSubscription() {
     status: "past_due",
     monthlyPrice: 50,
     renewalDate: null,
+  };
+}
+
+let appleKeysCache = {
+  expiresAt: 0,
+  keys: [],
+};
+
+async function getAppleSigningKeys() {
+  if (appleKeysCache.expiresAt > now() && appleKeysCache.keys.length) {
+    return appleKeysCache.keys;
+  }
+  const res = await httpsJsonRequest("https://appleid.apple.com/auth/keys");
+  appleKeysCache = {
+    expiresAt: now() + 1000 * 60 * 60,
+    keys: Array.isArray(res.keys) ? res.keys : [],
+  };
+  return appleKeysCache.keys;
+}
+
+async function verifyGoogleIdToken(idToken) {
+  const payload = await httpsJsonRequest(
+    `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(String(idToken || ""))}`
+  );
+  const issuer = String(payload.iss || "");
+  if (issuer !== "accounts.google.com" && issuer !== "https://accounts.google.com") {
+    throw new Error("Invalid Google token issuer.");
+  }
+  if (GOOGLE_ALLOWED_CLIENT_IDS.length && !GOOGLE_ALLOWED_CLIENT_IDS.includes(String(payload.aud || ""))) {
+    throw new Error("Google token audience is not allowed.");
+  }
+  if (String(payload.email_verified || "") !== "true") {
+    throw new Error("Google account email is not verified.");
+  }
+  const email = normalizeEmail(payload.email);
+  if (!email) throw new Error("Google account did not return an email.");
+
+  return {
+    email,
+    providerUserId: String(payload.sub || ""),
+    firstName: String(payload.given_name || "").trim(),
+    lastName: String(payload.family_name || "").trim(),
+  };
+}
+
+async function verifyAppleIdentityToken(identityToken) {
+  const { header, payload, signingInput, signature } = parseJwt(identityToken);
+  if (String(header.alg || "") !== "RS256") {
+    throw new Error("Unsupported Apple token algorithm.");
+  }
+
+  const keys = await getAppleSigningKeys();
+  const key = keys.find((candidate) => candidate.kid === header.kid);
+  if (!key) throw new Error("Apple signing key not found.");
+
+  const publicKey = crypto.createPublicKey({ key, format: "jwk" });
+  const verified = crypto.verify("RSA-SHA256", Buffer.from(signingInput), publicKey, signature);
+  if (!verified) throw new Error("Apple token signature is invalid.");
+
+  if (String(payload.iss || "") !== "https://appleid.apple.com") {
+    throw new Error("Invalid Apple token issuer.");
+  }
+  if (APPLE_ALLOWED_AUDIENCES.length && !APPLE_ALLOWED_AUDIENCES.includes(String(payload.aud || ""))) {
+    throw new Error("Apple token audience is not allowed.");
+  }
+  if (!payload.exp || Number(payload.exp) * 1000 < now()) {
+    throw new Error("Apple token has expired.");
+  }
+
+  return {
+    email: normalizeEmail(payload.email),
+    providerUserId: String(payload.sub || ""),
   };
 }
 
@@ -305,6 +436,13 @@ async function initDb() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS unavailable_dates JSONB;`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_disabled BOOLEAN NOT NULL DEFAULT FALSE;`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS disabled_at BIGINT;`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_provider TEXT;`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS provider_user_id TEXT;`);
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS users_provider_identity_idx
+    ON users (auth_provider, provider_user_id)
+    WHERE auth_provider IS NOT NULL AND provider_user_id IS NOT NULL;
+  `);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS sessions (
@@ -473,6 +611,10 @@ function rowToUser(row) {
     };
   }
 
+  if (row.role === "pending") {
+    return base;
+  }
+
   return {
     ...base,
     about: row.about || "",
@@ -620,6 +762,86 @@ async function requireOwner(req, res) {
   return user;
 }
 
+async function issueSessionForEmail(email) {
+  const token = makeId("sess");
+  await pool.query("INSERT INTO sessions (token, email, created_at) VALUES ($1,$2,$3)", [
+    token,
+    normalizeEmail(email),
+    now(),
+  ]);
+  const userRes = await pool.query("SELECT * FROM users WHERE email = $1 LIMIT 1", [normalizeEmail(email)]);
+  return { token, user: rowToUser(userRes.rows[0]) };
+}
+
+async function findOrCreateSocialUser({
+  provider,
+  providerUserId,
+  email,
+  firstName,
+  lastName,
+}) {
+  const normalizedProvider = String(provider || "").trim();
+  const normalizedProviderUserId = String(providerUserId || "").trim();
+  const normalizedEmail = normalizeEmail(email);
+
+  if (!normalizedProvider || !normalizedProviderUserId) {
+    throw new Error("Social identity is missing provider details.");
+  }
+
+  const providerRes = await pool.query(
+    `SELECT * FROM users WHERE auth_provider = $1 AND provider_user_id = $2 LIMIT 1`,
+    [normalizedProvider, normalizedProviderUserId]
+  );
+  if (providerRes.rows.length) return providerRes.rows[0];
+
+  if (!normalizedEmail) {
+    throw new Error("This social account did not provide an email address.");
+  }
+
+  const userRes = await pool.query(`SELECT * FROM users WHERE email = $1 LIMIT 1`, [normalizedEmail]);
+  if (userRes.rows.length) {
+    const existing = userRes.rows[0];
+    if (
+      existing.auth_provider &&
+      (existing.auth_provider !== normalizedProvider || existing.provider_user_id !== normalizedProviderUserId)
+    ) {
+      throw new Error("That email is already linked to another sign-in method.");
+    }
+
+    await pool.query(
+      `UPDATE users
+       SET auth_provider = $1,
+           provider_user_id = $2,
+           first_name = CASE WHEN COALESCE(first_name, '') = '' THEN $3 ELSE first_name END,
+           last_name = CASE WHEN COALESCE(last_name, '') = '' THEN $4 ELSE last_name END,
+           updated_at = $5
+       WHERE email = $6`,
+      [normalizedProvider, normalizedProviderUserId, String(firstName || ""), String(lastName || ""), now(), normalizedEmail]
+    );
+  } else {
+    const tempPasswordHash = await hashPassword(makeTemporaryPassword(24));
+    await pool.query(
+      `INSERT INTO users (
+        email, role, first_name, last_name, password_hash, auth_provider, provider_user_id, created_at, updated_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      [
+        normalizedEmail,
+        "pending",
+        String(firstName || "").trim(),
+        String(lastName || "").trim(),
+        tempPasswordHash,
+        normalizedProvider,
+        normalizedProviderUserId,
+        now(),
+        now(),
+      ]
+    );
+  }
+
+  const finalRes = await pool.query(`SELECT * FROM users WHERE email = $1 LIMIT 1`, [normalizedEmail]);
+  return finalRes.rows[0];
+}
+
 function parseIsoDateRange(fromRaw, toRaw) {
   const from = String(fromRaw || "");
   const to = String(toRaw || "");
@@ -660,9 +882,8 @@ const server = http.createServer(async (req, res) => {
       if (!body.password || String(body.password).length < 6) {
         return json(res, 400, { ok: false, error: "Password must be at least 6 characters." });
       }
-      if (body.role !== "builder" && body.role !== "labourer") {
-        return json(res, 400, { ok: false, error: "Role must be builder or labourer." });
-      }
+      const requestedRole =
+        body.role === "builder" || body.role === "labourer" ? body.role : "pending";
 
       const existsRes = await pool.query("SELECT 1 FROM users WHERE email = $1", [email]);
       if (existsRes.rows.length) return json(res, 409, { ok: false, error: "Email already exists" });
@@ -670,7 +891,7 @@ const server = http.createServer(async (req, res) => {
       const ts = now();
       const passwordHash = await hashPassword(body.password);
       const initialSubscription = defaultSubscription();
-      if (body.role === "builder") {
+      if (requestedRole === "builder") {
         await pool.query(
           `INSERT INTO users (
             email, role, first_name, last_name, company_name, about, address,
@@ -694,7 +915,7 @@ const server = http.createServer(async (req, res) => {
             ts,
           ]
         );
-      } else {
+      } else if (requestedRole === "labourer") {
         await pool.query(
           `INSERT INTO users (
             email, role, first_name, last_name, about, price_per_hour,
@@ -719,6 +940,13 @@ const server = http.createServer(async (req, res) => {
             ts,
             ts,
           ]
+        );
+      } else {
+        await pool.query(
+          `INSERT INTO users (
+            email, role, first_name, last_name, password_hash, created_at, updated_at
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+          [email, "pending", "", "", passwordHash, ts, ts]
         );
       }
 
@@ -777,6 +1005,167 @@ const server = http.createServer(async (req, res) => {
         now(),
       ]);
       return json(res, 200, { ok: true, token, user: rowToUser(row) });
+    }
+
+    if (req.method === "POST" && pathname === "/auth/social/google") {
+      const body = await parseBody(req);
+      const idToken = String(body.idToken || "").trim();
+      if (!idToken) return json(res, 400, { ok: false, error: "Google ID token is required." });
+
+      const googleUser = await verifyGoogleIdToken(idToken);
+      const userRow = await findOrCreateSocialUser({
+        provider: "google",
+        providerUserId: googleUser.providerUserId,
+        email: googleUser.email,
+        firstName: googleUser.firstName,
+        lastName: googleUser.lastName,
+      });
+      if (userRow.is_disabled) return json(res, 403, { ok: false, error: "Account is disabled." });
+
+      const session = await issueSessionForEmail(userRow.email);
+      return json(res, 200, { ok: true, ...session });
+    }
+
+    if (req.method === "POST" && pathname === "/auth/social/apple") {
+      const body = await parseBody(req);
+      const identityToken = String(body.identityToken || "").trim();
+      if (!identityToken) return json(res, 400, { ok: false, error: "Apple identity token is required." });
+
+      const appleUser = await verifyAppleIdentityToken(identityToken);
+      const providerUserId = String(body.user || appleUser.providerUserId || "").trim();
+      if (!providerUserId) return json(res, 400, { ok: false, error: "Apple user identifier is required." });
+
+      const userRow = await findOrCreateSocialUser({
+        provider: "apple",
+        providerUserId,
+        email: appleUser.email || body.email,
+        firstName: body.firstName,
+        lastName: body.lastName,
+      });
+      if (userRow.is_disabled) return json(res, 403, { ok: false, error: "Account is disabled." });
+
+      const session = await issueSessionForEmail(userRow.email);
+      return json(res, 200, { ok: true, ...session });
+    }
+
+    if (req.method === "POST" && pathname === "/auth/complete-onboarding") {
+      const authUser = await requireAuth(req, res);
+      if (!authUser) return;
+      if (authUser.role === "owner") {
+        return json(res, 403, { ok: false, error: "Owner accounts do not use onboarding." });
+      }
+
+      const body = await parseBody(req);
+      const role = body.role;
+      const email = normalizeEmail(authUser.email);
+      const ts = now();
+      const initialSubscription = defaultSubscription();
+
+      if (role === "builder") {
+        const firstName = String(body.firstName || "").trim();
+        const lastName = String(body.lastName || "").trim();
+        const companyName = String(body.companyName || "").trim();
+        const about = String(body.about || "").trim();
+        const address = String(body.address || "").trim();
+
+        if (!firstName || !lastName || !companyName || !about || !address) {
+          return json(res, 400, { ok: false, error: "Complete all builder profile fields." });
+        }
+
+        await pool.query(
+          `UPDATE users
+           SET role = 'builder',
+               first_name = $1,
+               last_name = $2,
+               company_name = $3,
+               about = $4,
+               address = $5,
+               company_rating = COALESCE(company_rating, 0),
+               reviews = COALESCE(reviews, '[]'::jsonb),
+               subscription = COALESCE(subscription, $6::jsonb),
+               updated_at = $7
+           WHERE email = $8`,
+          [
+            firstName,
+            lastName,
+            companyName,
+            about,
+            address,
+            JSON.stringify(initialSubscription),
+            ts,
+            email,
+          ]
+        );
+      } else if (role === "labourer") {
+        const firstName = String(body.firstName || "").trim();
+        const lastName = String(body.lastName || "").trim();
+        const about = String(body.about || "").trim();
+        const pricePerHour = Number(body.pricePerHour);
+        const experienceYears = Number(body.experienceYears);
+        const certifications = Array.isArray(body.certifications)
+          ? body.certifications.map((item) => String(item || "").trim()).filter(Boolean)
+          : [];
+        const unavailableDates = Array.isArray(body.unavailableDates)
+          ? body.unavailableDates.map((item) => String(item || "")).filter(Boolean)
+          : [];
+        const bsb = String(body.bsb || "").trim();
+        const accountNumber = String(body.accountNumber || "").trim();
+        const photoUrl = body.photoUrl ? String(body.photoUrl) : null;
+
+        if (!firstName || !lastName || !about) {
+          return json(res, 400, { ok: false, error: "Complete all labourer profile fields." });
+        }
+        if (!Number.isFinite(pricePerHour) || pricePerHour <= 0) {
+          return json(res, 400, { ok: false, error: "Hourly rate must be greater than 0." });
+        }
+        if (!Number.isFinite(experienceYears) || experienceYears < 0) {
+          return json(res, 400, { ok: false, error: "Experience must be 0 or higher." });
+        }
+        if (!certifications.length) {
+          return json(res, 400, { ok: false, error: "Add at least one certification." });
+        }
+        if (!bsb || !accountNumber) {
+          return json(res, 400, { ok: false, error: "BSB and account number are required." });
+        }
+
+        await pool.query(
+          `UPDATE users
+           SET role = 'labourer',
+               first_name = $1,
+               last_name = $2,
+               about = $3,
+               price_per_hour = $4,
+               experience_years = $5,
+               certifications = $6,
+               unavailable_dates = $7,
+               bsb = $8,
+               account_number = $9,
+               photo_url = $10,
+               subscription = COALESCE(subscription, $11::jsonb),
+               updated_at = $12
+           WHERE email = $13`,
+          [
+            firstName,
+            lastName,
+            about,
+            pricePerHour,
+            experienceYears,
+            JSON.stringify(certifications),
+            JSON.stringify(unavailableDates),
+            bsb,
+            accountNumber,
+            photoUrl,
+            JSON.stringify(initialSubscription),
+            ts,
+            email,
+          ]
+        );
+      } else {
+        return json(res, 400, { ok: false, error: "Role must be builder or labourer." });
+      }
+
+      const updatedRes = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+      return json(res, 200, { ok: true, user: rowToUser(updatedRes.rows[0]) });
     }
 
     if (req.method === "POST" && pathname === "/auth/forgot-password") {
