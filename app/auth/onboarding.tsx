@@ -11,7 +11,7 @@ import {
   View,
 } from "react-native";
 import { router } from "expo-router";
-import { completeOnboarding } from "../../src/auth/storage";
+import { completeOnboarding, deleteAccount } from "../../src/auth/storage";
 import { routeForUser } from "../../src/auth/routing";
 import { useCurrentUser } from "../../src/auth/useCurrentUser";
 import { FormScreen } from "../../src/ui/FormScreen";
@@ -24,6 +24,7 @@ export default function OnboardingScreen() {
   const [selectedRole, setSelectedRole] = useState<"builder" | "labourer" | null>(null);
   const [sliderWidth, setSliderWidth] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  const [discarding, setDiscarding] = useState(false);
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -108,7 +109,7 @@ export default function OnboardingScreen() {
   }
 
   async function onSubmit() {
-    if (!selectedRole || submitting) {
+    if (!selectedRole || submitting || discarding) {
       return Alert.alert("Pick a role", "Slide to choose whether you’re a builder or labourer.");
     }
 
@@ -146,6 +147,25 @@ export default function OnboardingScreen() {
       router.replace(routeForUser(res.user));
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  function onBackPress() {
+    if (submitting || discarding) return;
+    void discardPendingAccount();
+  }
+
+  async function discardPendingAccount() {
+    if (discarding) return;
+    setDiscarding(true);
+    try {
+      const res = await deleteAccount();
+      if (!res.ok) {
+        return Alert.alert("Couldn’t go back", res.error);
+      }
+      router.replace("/");
+    } finally {
+      setDiscarding(false);
     }
   }
 
@@ -237,7 +257,7 @@ export default function OnboardingScreen() {
               const width = event.nativeEvent.layout.width;
               setSliderWidth(width);
               if (selectedRole) {
-                thumbX.setValue(selectedRole === "labourer" ? 0 : Math.max(width - THUMB_SIZE, 0));
+                thumbX.setValue(selectedRole === "labourer" ? 0 : Math.max(width - THUMB_SIZE - TRACK_INSET * 2, 0));
               }
             }}
             style={{
@@ -405,17 +425,35 @@ export default function OnboardingScreen() {
 
           <Pressable
             onPress={onSubmit}
-            disabled={submitting || !selectedRole}
+            disabled={submitting || discarding || !selectedRole}
             style={{
               padding: 16,
               borderRadius: 14,
-              backgroundColor: submitting || !selectedRole ? "#444" : "#111111",
+              backgroundColor: submitting || discarding || !selectedRole ? "#444" : "#111111",
               alignItems: "center",
               marginTop: 6,
             }}
           >
             <Text style={{ color: "#FDE047", fontWeight: "900" }}>
               {submitting ? "Finishing setup..." : "Finish Account Setup"}
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={onBackPress}
+            disabled={submitting || discarding}
+            style={{
+              padding: 14,
+              borderRadius: 14,
+              borderWidth: 1,
+              borderColor: "#111111",
+              alignItems: "center",
+              backgroundColor: "#fff",
+              opacity: submitting || discarding ? 0.7 : 1,
+            }}
+          >
+            <Text style={{ fontWeight: "900", color: "#111111" }}>
+              {discarding ? "Deleting account..." : "Back"}
             </Text>
           </Pressable>
         </View>

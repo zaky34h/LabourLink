@@ -1242,8 +1242,8 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && pathname === "/auth/delete-account") {
       const authUser = await requireAuth(req, res);
       if (!authUser) return;
-      if (authUser.role !== "builder" && authUser.role !== "labourer") {
-        return json(res, 403, { ok: false, error: "Only builder and labourer accounts can be deleted." });
+      if (authUser.role !== "builder" && authUser.role !== "labourer" && authUser.role !== "pending") {
+        return json(res, 403, { ok: false, error: "Only pending, builder, and labourer accounts can be deleted." });
       }
 
       const email = normalizeEmail(authUser.email);
