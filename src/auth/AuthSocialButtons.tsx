@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Platform, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Image, Platform, Pressable, Text, View } from "react-native";
 import { router } from "expo-router";
 import Constants from "expo-constants";
 import * as WebBrowser from "expo-web-browser";
@@ -15,6 +15,7 @@ WebBrowser.maybeCompleteAuthSession();
 
 type Provider = "google" | "apple";
 const FALLBACK_GOOGLE_CLIENT_ID = "missing-google-client-id";
+const GOOGLE_BUTTON_LIGHT = require("../../assets/google-continue-light.png");
 
 const GOOGLE_IOS_CLIENT_ID = (process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || "").trim();
 const GOOGLE_ANDROID_CLIENT_ID = (process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || "").trim();
@@ -154,22 +155,70 @@ export function AuthSocialButtons() {
         onPress={onGooglePress}
         disabled={busyProvider !== null}
         style={{
-          padding: 14,
-          borderWidth: 1,
-          borderColor: "#111111",
+          width: "100%",
+          height: 52,
           borderRadius: 12,
+          borderWidth: 1,
+          borderColor: "#9A9A9A",
+          backgroundColor: "#FFFFFF",
           alignItems: "center",
-          backgroundColor: "#fff",
-          flexDirection: "row",
           justifyContent: "center",
-          gap: 8,
           opacity: busyProvider && busyProvider !== "google" ? 0.6 : 1,
+          position: "relative",
         }}
       >
-        {busyProvider === "google" ? <ActivityIndicator size="small" color="#111111" /> : null}
-        <Text style={{ fontWeight: "800", color: "#111111" }}>
-          {busyProvider === "google" ? "Connecting Google..." : "Continue with Google"}
-        </Text>
+        <View
+          style={{
+            width: "100%",
+            height: "100%",
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 12,
+            paddingHorizontal: 16,
+            opacity: busyProvider === "google" ? 0.45 : 1,
+          }}
+        >
+          <View
+            style={{
+              width: 24,
+              height: 24,
+              overflow: "hidden",
+            }}
+          >
+            <Image
+              source={GOOGLE_BUTTON_LIGHT}
+              resizeMode="contain"
+              style={{
+                position: "absolute",
+                left: 0,
+                width: 108,
+                height: 24,
+              }}
+            />
+          </View>
+          <Text
+            style={{
+              color: "#1F1F1F",
+              fontSize: 17,
+              fontWeight: "600",
+            }}
+          >
+            Continue with Google
+          </Text>
+        </View>
+        {busyProvider === "google" ? (
+          <View
+            style={{
+              position: "absolute",
+              inset: 0,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <ActivityIndicator size="small" color="#111111" />
+          </View>
+        ) : null}
       </Pressable>
 
       {appleAvailable ? (
