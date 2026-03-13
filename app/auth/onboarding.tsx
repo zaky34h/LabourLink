@@ -17,6 +17,7 @@ import { useCurrentUser } from "../../src/auth/useCurrentUser";
 import { FormScreen } from "../../src/ui/FormScreen";
 
 const THUMB_SIZE = 64;
+const TRACK_INSET = 5;
 
 export default function OnboardingScreen() {
   const { user, loading, reload } = useCurrentUser();
@@ -39,7 +40,7 @@ export default function OnboardingScreen() {
   const thumbOffsetRef = useRef(0);
   const dragStartRef = useRef(0);
 
-  const sliderTravel = Math.max(sliderWidth - THUMB_SIZE, 0);
+  const sliderTravel = Math.max(sliderWidth - THUMB_SIZE - TRACK_INSET * 2, 0);
 
   useEffect(() => {
     const id = thumbX.addListener(({ value }) => {
@@ -204,9 +205,6 @@ export default function OnboardingScreen() {
           <Text style={{ marginTop: 8, fontSize: 28, fontWeight: "900", color: "#111111" }}>
             Which one are you?
           </Text>
-          <Text style={{ marginTop: 6, textAlign: "center", opacity: 0.72, lineHeight: 21 }}>
-            Slide left for labourer or right for builder, then finish the profile fields that match you.
-          </Text>
         </View>
 
         <View style={{ gap: 12 }}>
@@ -225,6 +223,15 @@ export default function OnboardingScreen() {
             />
           </View>
 
+          <View style={{ flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 8 }}>
+            <Text style={{ fontWeight: "800", color: selectedRole === "labourer" ? "#111111" : "#11111188" }}>
+              Labourer
+            </Text>
+            <Text style={{ fontWeight: "800", color: selectedRole === "builder" ? "#111111" : "#11111188" }}>
+              Builder
+            </Text>
+          </View>
+
           <View
             onLayout={(event) => {
               const width = event.nativeEvent.layout.width;
@@ -239,19 +246,20 @@ export default function OnboardingScreen() {
               backgroundColor: "#111111",
               padding: 5,
               justifyContent: "center",
+              overflow: "visible",
             }}
           >
             <View
               style={{
                 position: "absolute",
-                left: 24,
-                right: 24,
-                flexDirection: "row",
-                justifyContent: "space-between",
+                left: 0,
+                right: 0,
+                alignItems: "center",
               }}
             >
-              <Text style={{ color: "#fff", fontWeight: "800" }}>Labourer</Text>
-              <Text style={{ color: "#fff", fontWeight: "800" }}>Builder</Text>
+              <Text style={{ color: "#fff", fontWeight: "700", opacity: 0.2 }}>
+                Slide to choose your side
+              </Text>
             </View>
             <Animated.View
               {...panResponder.panHandlers}
@@ -267,9 +275,27 @@ export default function OnboardingScreen() {
                 transform: [{ translateX: thumbX }],
               }}
             >
-              <Text style={{ fontSize: 26, fontWeight: "900", color: "#111111" }}>
-                {selectedRole === "builder" ? "B" : "L"}
-              </Text>
+              <View
+                style={{
+                  width: 28,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transform: [{ translateX: selectedRole === "builder" ? -1 : 0 }],
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 26,
+                    lineHeight: 26,
+                    fontWeight: "900",
+                    color: "#111111",
+                    textAlign: "center",
+                    includeFontPadding: false,
+                  }}
+                >
+                  {selectedRole === "builder" ? "B" : "L"}
+                </Text>
+              </View>
             </Animated.View>
           </View>
         </View>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Platform, Pressable, Text, View } from "react-native";
 import { router } from "expo-router";
+import Constants from "expo-constants";
 import * as WebBrowser from "expo-web-browser";
 import * as Google from "expo-auth-session/providers/google";
 import * as AppleAuthentication from "expo-apple-authentication";
@@ -26,6 +27,8 @@ function hasGoogleClientId() {
 }
 
 export function AuthSocialButtons() {
+  const isExpoGo =
+    Constants.appOwnership === "expo" || Constants.executionEnvironment === "storeClient";
   const [appleAvailable, setAppleAvailable] = useState(false);
   const [busyProvider, setBusyProvider] = useState<Provider | null>(null);
 
@@ -76,6 +79,12 @@ export function AuthSocialButtons() {
 
   async function onGooglePress() {
     if (busyProvider) return;
+    if (isExpoGo) {
+      return Alert.alert(
+        "Google sign in needs a dev build",
+        "Expo Go is fine for normal frontend testing, but Google and Apple sign in need a native development build."
+      );
+    }
     if (!hasGoogleClientId()) {
       return Alert.alert(
         "Google sign in not configured",
@@ -95,6 +104,12 @@ export function AuthSocialButtons() {
 
   async function onApplePress() {
     if (busyProvider) return;
+    if (isExpoGo) {
+      return Alert.alert(
+        "Apple sign in needs a dev build",
+        "Expo Go uses its own app identity, so Sign in with Apple cannot be tested there."
+      );
+    }
     setBusyProvider("apple");
 
     try {
@@ -130,6 +145,11 @@ export function AuthSocialButtons() {
 
   return (
     <View style={{ gap: 14 }}>
+      {isExpoGo ? (
+        <Text style={{ textAlign: "center", opacity: 0.7, lineHeight: 20 }}>
+          Expo Go is fine for regular UI testing. Social sign in is only enabled in a native dev build.
+        </Text>
+      ) : null}
       <Pressable
         onPress={onGooglePress}
         disabled={busyProvider !== null}
