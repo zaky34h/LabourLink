@@ -414,7 +414,7 @@ async function createNotification(recipientEmail, type, title, body, data = {}) 
       now(),
     ]
   );
-  await sendPushToUser(normalizedRecipient, String(title || ""), String(body || ""), data);
+  void sendPushToUser(normalizedRecipient, String(title || ""), String(body || ""), data).catch(() => {});
 }
 
 function json(res, statusCode, payload) {
@@ -733,6 +733,30 @@ function rowToOffer(row) {
     labourerCompanyRating: row.labourer_company_rating ? Number(row.labourer_company_rating) : undefined,
     pdfContent: row.pdf_content,
   };
+}
+
+function formatEmailDisplayName(email) {
+  const localPart = String(email || "").split("@")[0] || "";
+  if (!localPart) return "LabourLink User";
+  const cleaned = localPart
+    .replace(/[._-]+/g, " ")
+    .replace(/\d+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!cleaned) return "LabourLink User";
+  return cleaned
+    .split(" ")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+function getUserDisplayName(row) {
+  const fullName = `${String(row.first_name || "").trim()} ${String(row.last_name || "").trim()}`.trim();
+  if (fullName) return fullName;
+  const companyName = String(row.company_name || "").trim();
+  if (String(row.role || "") === "builder" && companyName) return companyName;
+  return formatEmailDisplayName(row.email);
 }
 
 function rowToPayment(row) {
@@ -2073,6 +2097,22 @@ const server = http.createServer(async (req, res) => {
           });
         }
       }
+      const peerEmails = Array.from(new Set(threads.map((thread) => normalizeEmail(thread.peerEmail))));
+      const peerNameByEmail = new Map();
+      if (peerEmails.length > 0) {
+        const peersRes = await pool.query(
+          `SELECT email, first_name, last_name, role, company_name
+           FROM users
+           WHERE lower(email) = ANY($1)`,
+          [peerEmails]
+        );
+        for (const row of peersRes.rows) {
+          peerNameByEmail.set(normalizeEmail(row.email), getUserDisplayName(row));
+        }
+      }
+      for (const thread of threads) {
+        thread.peerName = peerNameByEmail.get(normalizeEmail(thread.peerEmail)) || normalizeEmail(thread.peerEmail);
+      }
       threads.sort((a, b) => b.lastMessageAt - a.lastMessageAt);
       return json(res, 200, { ok: true, threads });
     }
@@ -2140,10 +2180,18 @@ const server = http.createServer(async (req, res) => {
         return json(res, 400, { ok: false, error: "Builders can only chat with labourers (and vice versa)." });
       }
 
+      const message = {
+        id: makeId("msg"),
+        from: normalizeEmail(authUser.email),
+        to: toEmail,
+        text,
+        createdAt: now(),
+      };
+
       await pool.query(
         `INSERT INTO messages (id, from_email, to_email, text, created_at)
          VALUES ($1,$2,$3,$4,$5)`,
-        [makeId("msg"), normalizeEmail(authUser.email), toEmail, text, now()]
+        [message.id, message.from, message.to, message.text, message.createdAt]
       );
       await createNotification(
         toEmail,
@@ -2159,7 +2207,7 @@ const server = http.createServer(async (req, res) => {
          DO UPDATE SET is_typing = EXCLUDED.is_typing, updated_at = EXCLUDED.updated_at`,
         [normalizeEmail(authUser.email), toEmail, false, now()]
       );
-      return json(res, 200, { ok: true });
+      return json(res, 200, { ok: true, message });
     }
 
     if (req.method === "POST" && pathname === "/chat/typing") {

@@ -33,6 +33,7 @@ export default function ChatWithPeer() {
   const [refreshing, setRefreshing] = useState(false);
   const [meTyping, setMeTyping] = useState(false);
   const [peerTyping, setPeerTyping] = useState(false);
+  const [sending, setSending] = useState(false);
 
   const listRef = useRef<FlatList<ChatMessage>>(null);
   const lastTypingSentRef = useRef(false);
@@ -46,7 +47,20 @@ export default function ChatWithPeer() {
         getMessagesWithPeer(user.email, peerEmail),
         getTypingStatus(peerEmail),
       ]);
-      setMessages(msgs);
+      setMessages((current) => {
+        const pending = current.filter((message) => message.id.startsWith("temp-"));
+        const merged = [...msgs];
+        for (const message of pending) {
+          const exists = merged.some(
+            (candidate) =>
+              candidate.from.toLowerCase() === message.from.toLowerCase() &&
+              candidate.to.toLowerCase() === message.to.toLowerCase() &&
+              candidate.text === message.text
+          );
+          if (!exists) merged.push(message);
+        }
+        return merged.sort((a, b) => a.createdAt - b.createdAt);
+      });
       setMeTyping(typing.meTyping);
       setPeerTyping(typing.peerTyping);
       loadErrorShownRef.current = false;
@@ -111,20 +125,40 @@ export default function ChatWithPeer() {
   const grouped = useMemo(() => messages, [messages]);
 
   async function onSend() {
-    if (!user?.email) return;
+    const trimmed = text.trim();
+    if (!user?.email || !trimmed || sending) return;
 
-    const res = await sendMessage(user.email, peerEmail, text);
-    if (!res.ok) return Alert.alert("Can’t send", res.error);
+    const optimisticMessage: ChatMessage = {
+      id: `temp-${Date.now()}`,
+      from: user.email,
+      to: peerEmail,
+      text: trimmed,
+      createdAt: Date.now(),
+    };
 
+    setSending(true);
+    setMessages((current) => [...current, optimisticMessage].sort((a, b) => a.createdAt - b.createdAt));
     setText("");
     setMeTyping(false);
     lastTypingSentRef.current = false;
-    await setTypingStatus(peerEmail, false);
-    await load();
-
     setTimeout(() => {
       listRef.current?.scrollToEnd({ animated: true });
     }, 50);
+
+    await setTypingStatus(peerEmail, false);
+    const res = await sendMessage(user.email, peerEmail, trimmed);
+    if (!res.ok) {
+      setMessages((current) => current.filter((message) => message.id !== optimisticMessage.id));
+      setSending(false);
+      return Alert.alert("Can’t send", res.error);
+    }
+
+    setMessages((current) =>
+      current
+        .map((message) => (message.id === optimisticMessage.id ? res.message : message))
+        .sort((a, b) => a.createdAt - b.createdAt)
+    );
+    setSending(false);
   }
 
   async function onRefresh() {
@@ -263,14 +297,17 @@ export default function ChatWithPeer() {
           />
           <Pressable
             onPress={onSend}
+            disabled={sending || text.trim().length === 0}
             style={{
               paddingVertical: 12,
               paddingHorizontal: 16,
               borderRadius: 14,
-              backgroundColor: "#111",
+              backgroundColor: sending || text.trim().length === 0 ? "#444" : "#111",
             }}
           >
-            <Text style={{ color: "#FDE047", fontWeight: "900" }}>Send</Text>
+            <Text style={{ color: "#FDE047", fontWeight: "900" }}>
+              {sending ? "Sending..." : "Send"}
+            </Text>
           </Pressable>
         </View>
       </View>

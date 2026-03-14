@@ -3,7 +3,6 @@ import { View, Text, Pressable, FlatList, ActivityIndicator } from "react-native
 import { router, useFocusEffect } from "expo-router";
 import { useCurrentUser } from "../../src/auth/useCurrentUser";
 import { getThreadsForUser, type ChatThread } from "../../src/chat/storage";
-import { getUserByEmail } from "../../src/auth/storage";
 
 export default function LabourerMessages() {
   const { user, loading: userLoading } = useCurrentUser();
@@ -12,7 +11,6 @@ export default function LabourerMessages() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedTab, setSelectedTab] = useState<"active" | "history">("active");
   const [threads, setThreads] = useState<ChatThread[]>([]);
-  const [names, setNames] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
 
   async function load(options?: { silent?: boolean; view?: "active" | "history" }) {
@@ -21,7 +19,6 @@ export default function LabourerMessages() {
     if (userLoading) return;
     if (!user?.email) {
       setThreads([]);
-      setNames({});
       setError("You are not logged in. Please sign in to see your chats.");
       setLoading(false);
       return;
@@ -30,20 +27,10 @@ export default function LabourerMessages() {
     try {
       const t = await getThreadsForUser(user.email, view);
       setThreads(t);
-
-      const uniquePeers = Array.from(new Set(t.map((th) => th.peerEmail)));
-      const peerUsers = await Promise.all(uniquePeers.map((peerEmail) => getUserByEmail(peerEmail)));
-      const map: Record<string, string> = {};
-      uniquePeers.forEach((peerEmail, idx) => {
-        const u = peerUsers[idx];
-        map[peerEmail] = u ? `${u.firstName} ${u.lastName}` : peerEmail;
-      });
-      setNames(map);
       setError(null);
       loadedRef.current = true;
     } catch (err: any) {
       setThreads([]);
-      setNames({});
       setError(err?.message || "Could not load chats.");
     }
 
@@ -161,7 +148,7 @@ export default function LabourerMessages() {
           }}
         >
           <Text style={{ fontWeight: "900", fontSize: 16 }}>
-            {names[item.peerEmail] ?? item.peerEmail}
+            {item.peerName ?? item.peerEmail}
           </Text>
           <Text style={{ marginTop: 6, opacity: 0.75 }} numberOfLines={1}>
             {item.lastMessageText}

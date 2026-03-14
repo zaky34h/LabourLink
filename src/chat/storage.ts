@@ -11,6 +11,7 @@ export type ChatMessage = {
 export type ChatThread = {
   threadId: string;
   peerEmail: string;
+  peerName?: string;
   lastMessageText: string;
   lastMessageAt: number;
   unreadCount?: number;
@@ -68,17 +69,17 @@ export async function sendMessage(
   _fromEmail: string,
   toEmail: string,
   text: string
-): Promise<{ ok: true } | { ok: false; error: string }> {
+): Promise<{ ok: true; message: ChatMessage } | { ok: false; error: string }> {
   const trimmed = text.trim();
   if (!trimmed) return { ok: false, error: "Message is empty." };
 
   try {
-    await apiRequest<{ ok: true }>("/chat/messages", {
+    const res = await apiRequest<{ ok: true; message: ChatMessage }>("/chat/messages", {
       method: "POST",
       auth: true,
       body: { toEmail, text: trimmed },
     });
-    return { ok: true };
+    return { ok: true, message: res.message };
   } catch (error: any) {
     return { ok: false, error: error?.message || "Could not send message." };
   }
