@@ -22,8 +22,8 @@ export default function Register() {
     if (!isEmailValid(email)) {
       return Alert.alert("Invalid email", "Please enter a valid email address.");
     }
-    if (password.length < 6) {
-      return Alert.alert("Weak password", "Password must be at least 6 characters.");
+    if (password.length < 10) {
+      return Alert.alert("Weak password", "Password must be at least 10 characters.");
     }
 
     setSubmitting(true);

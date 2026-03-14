@@ -8,6 +8,20 @@ const PORT = Number(process.env.PORT || 4000);
 const DATABASE_URL =
   process.env.DATABASE_URL ||
   "postgresql://postgres:postgres@localhost:5432/labourlink";
+const IS_PRODUCTION = String(process.env.NODE_ENV || "").toLowerCase() === "production";
+const ENFORCE_HTTPS =
+  String(process.env.ENFORCE_HTTPS || (IS_PRODUCTION ? "true" : "false")).toLowerCase() === "true";
+const SESSION_TTL_MS = Number(process.env.SESSION_TTL_MS || 1000 * 60 * 60 * 24 * 30);
+const LOGIN_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_RATE_LIMIT_MAX_PER_IP = 10;
+const LOGIN_RATE_LIMIT_MAX_PER_EMAIL = 8;
+const REGISTER_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
+const REGISTER_RATE_LIMIT_MAX_PER_IP = 8;
+const RESET_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
+const RESET_RATE_LIMIT_MAX_PER_IP = 10;
+const RESET_RATE_LIMIT_MAX_PER_EMAIL = 5;
+const SOCIAL_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
+const SOCIAL_RATE_LIMIT_MAX_PER_IP = 12;
 
 const usesNeon = /neon\.tech/i.test(DATABASE_URL);
 const pool = new Pool({
@@ -16,7 +30,6 @@ const pool = new Pool({
   // this keeps local Postgres unchanged while making Neon plug-and-play.
   ssl: usesNeon ? { rejectUnauthorized: false } : undefined,
 });
-const SESSION_TTL_MS = Number(process.env.SESSION_TTL_MS || 1000 * 60 * 60 * 24 * 30);
 const GOOGLE_ALLOWED_CLIENT_IDS = [
   ...(process.env.GOOGLE_OAUTH_CLIENT_IDS || "").split(","),
   process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || "",
@@ -38,7 +51,14 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
   "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
+  "Cache-Control": "no-store",
   "Content-Type": "application/json",
+  "Referrer-Policy": "no-referrer",
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+  "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+  "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
 };
 
 function now() {
@@ -55,6 +75,69 @@ function todayLocalIso() {
 
 function normalizeEmail(v) {
   return String(v || "").trim().toLowerCase();
+}
+
+const OWNER_BOOTSTRAP_EMAIL = normalizeEmail(process.env.OWNER_BOOTSTRAP_EMAIL || "");
+const OWNER_BOOTSTRAP_PASSWORD = String(process.env.OWNER_BOOTSTRAP_PASSWORD || "");
+
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || "")) && String(email || "").length <= 254;
+}
+
+function validatePasswordStrength(password) {
+  const value = String(password || "");
+  if (value.length < 10) return "Password must be at least 10 characters.";
+  if (!/[a-z]/.test(value)) return "Password must include a lowercase letter.";
+  if (!/[A-Z]/.test(value)) return "Password must include an uppercase letter.";
+  if (!/\d/.test(value)) return "Password must include a number.";
+  return null;
+}
+
+function isLocalRequest(req) {
+  const host = String(req.headers.host || "").toLowerCase();
+  return host.includes("localhost") || host.includes("127.0.0.1");
+}
+
+function isSecureRequest(req) {
+  const forwardedProto = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim();
+  return forwardedProto === "https" || Boolean(req.socket?.encrypted);
+}
+
+function getClientIp(req) {
+  const forwardedFor = String(req.headers["x-forwarded-for"] || "")
+    .split(",")[0]
+    .trim();
+  return forwardedFor || req.socket?.remoteAddress || "unknown";
+}
+
+const rateLimitStore = new Map();
+
+function checkRateLimit(key, windowMs, max) {
+  const current = now();
+  const entry = rateLimitStore.get(key);
+  if (!entry || entry.resetAt <= current) {
+    rateLimitStore.set(key, { count: 1, resetAt: current + windowMs });
+    return { allowed: true };
+  }
+
+  if (entry.count >= max) {
+    return { allowed: false, retryAfterMs: Math.max(entry.resetAt - current, 1000) };
+  }
+
+  entry.count += 1;
+  rateLimitStore.set(key, entry);
+  return { allowed: true };
+}
+
+function enforceRateLimit(req, res, key, windowMs, max) {
+  const result = checkRateLimit(key, windowMs, max);
+  if (result.allowed) return true;
+  res.writeHead(429, {
+    ...CORS_HEADERS,
+    "Retry-After": String(Math.ceil((result.retryAfterMs || 1000) / 1000)),
+  });
+  res.end(JSON.stringify({ ok: false, error: "Too many attempts. Please try again later." }));
+  return false;
 }
 
 function decodeBase64Url(input) {
@@ -75,9 +158,6 @@ function parseJwt(token) {
     signature: decodeBase64Url(parts[2]),
   };
 }
-
-const HARD_CODED_OWNER_EMAIL = "hagezakariya@gmail.com";
-const HARD_CODED_OWNER_PASSWORD = "pass123";
 
 function hashPasswordLegacy(password) {
   return crypto.createHash("sha256").update(String(password)).digest("hex");
@@ -867,6 +947,11 @@ const server = http.createServer(async (req, res) => {
     return res.end();
   }
 
+  if (ENFORCE_HTTPS && !isLocalRequest(req) && !isSecureRequest(req)) {
+    res.writeHead(426, CORS_HEADERS);
+    return res.end(JSON.stringify({ ok: false, error: "HTTPS is required." }));
+  }
+
   const url = new URL(req.url, `http://localhost:${PORT}`);
   const pathname = url.pathname;
 
@@ -876,11 +961,24 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "POST" && pathname === "/auth/register") {
+      if (
+        !enforceRateLimit(
+          req,
+          res,
+          `auth-register:${getClientIp(req)}`,
+          REGISTER_RATE_LIMIT_WINDOW_MS,
+          REGISTER_RATE_LIMIT_MAX_PER_IP
+        )
+      ) {
+        return;
+      }
       const body = await parseBody(req);
       const email = normalizeEmail(body.email);
       if (!email) return json(res, 400, { ok: false, error: "Email is required." });
-      if (!body.password || String(body.password).length < 6) {
-        return json(res, 400, { ok: false, error: "Password must be at least 6 characters." });
+      if (!isValidEmail(email)) return json(res, 400, { ok: false, error: "Enter a valid email address." });
+      const passwordError = validatePasswordStrength(body.password);
+      if (passwordError) {
+        return json(res, 400, { ok: false, error: passwordError });
       }
       const requestedRole =
         body.role === "builder" || body.role === "labourer" ? body.role : "pending";
@@ -958,13 +1056,42 @@ const server = http.createServer(async (req, res) => {
       const body = await parseBody(req);
       const email = normalizeEmail(body.email);
       const password = String(body.password || "");
+      if (!email || !password) {
+        return json(res, 400, { ok: false, error: "Email and password are required." });
+      }
+      if (!isValidEmail(email)) {
+        return json(res, 400, { ok: false, error: "Enter a valid email address." });
+      }
+      if (
+        !enforceRateLimit(
+          req,
+          res,
+          `auth-login-ip:${getClientIp(req)}`,
+          LOGIN_RATE_LIMIT_WINDOW_MS,
+          LOGIN_RATE_LIMIT_MAX_PER_IP
+        ) ||
+        !enforceRateLimit(
+          req,
+          res,
+          `auth-login-email:${email}`,
+          LOGIN_RATE_LIMIT_WINDOW_MS,
+          LOGIN_RATE_LIMIT_MAX_PER_EMAIL
+        )
+      ) {
+        return;
+      }
 
-      if (email === HARD_CODED_OWNER_EMAIL && password === HARD_CODED_OWNER_PASSWORD) {
+      if (
+        OWNER_BOOTSTRAP_EMAIL &&
+        OWNER_BOOTSTRAP_PASSWORD &&
+        email === OWNER_BOOTSTRAP_EMAIL &&
+        password === OWNER_BOOTSTRAP_PASSWORD
+      ) {
         const ts = now();
         const ownerRes = await pool.query("SELECT * FROM users WHERE email = $1 LIMIT 1", [email]);
 
         if (!ownerRes.rows.length) {
-          const passwordHash = await hashPassword(HARD_CODED_OWNER_PASSWORD);
+          const passwordHash = await hashPassword(OWNER_BOOTSTRAP_PASSWORD);
           await pool.query(
             `INSERT INTO users (
               email, role, first_name, last_name, about, password_hash, created_at, updated_at
@@ -991,12 +1118,12 @@ const server = http.createServer(async (req, res) => {
       }
 
       const userRes = await pool.query("SELECT * FROM users WHERE email = $1 LIMIT 1", [email]);
-      if (!userRes.rows.length) return json(res, 404, { ok: false, error: "Account not found" });
+      if (!userRes.rows.length) return json(res, 401, { ok: false, error: "Invalid email or password." });
       const row = userRes.rows[0];
       if (row.is_disabled) return json(res, 403, { ok: false, error: "Account is disabled." });
       const validPassword = await verifyPassword(password, row.password_hash);
       if (!validPassword) {
-        return json(res, 401, { ok: false, error: "Incorrect password" });
+        return json(res, 401, { ok: false, error: "Invalid email or password." });
       }
       const token = makeId("sess");
       await pool.query("INSERT INTO sessions (token, email, created_at) VALUES ($1,$2,$3)", [
@@ -1008,6 +1135,17 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "POST" && pathname === "/auth/social/google") {
+      if (
+        !enforceRateLimit(
+          req,
+          res,
+          `auth-social-google:${getClientIp(req)}`,
+          SOCIAL_RATE_LIMIT_WINDOW_MS,
+          SOCIAL_RATE_LIMIT_MAX_PER_IP
+        )
+      ) {
+        return;
+      }
       const body = await parseBody(req);
       const idToken = String(body.idToken || "").trim();
       if (!idToken) return json(res, 400, { ok: false, error: "Google ID token is required." });
@@ -1027,6 +1165,17 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "POST" && pathname === "/auth/social/apple") {
+      if (
+        !enforceRateLimit(
+          req,
+          res,
+          `auth-social-apple:${getClientIp(req)}`,
+          SOCIAL_RATE_LIMIT_WINDOW_MS,
+          SOCIAL_RATE_LIMIT_MAX_PER_IP
+        )
+      ) {
+        return;
+      }
       const body = await parseBody(req);
       const identityToken = String(body.identityToken || "").trim();
       if (!identityToken) return json(res, 400, { ok: false, error: "Apple identity token is required." });
@@ -1169,12 +1318,35 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "POST" && pathname === "/auth/forgot-password") {
+      if (
+        !enforceRateLimit(
+          req,
+          res,
+          `auth-forgot-ip:${getClientIp(req)}`,
+          RESET_RATE_LIMIT_WINDOW_MS,
+          RESET_RATE_LIMIT_MAX_PER_IP
+        )
+      ) {
+        return;
+      }
       const body = await parseBody(req);
       const email = normalizeEmail(body.email);
       if (!email) return json(res, 400, { ok: false, error: "Email is required." });
+      if (!isValidEmail(email)) return json(res, 400, { ok: false, error: "Enter a valid email address." });
+      if (
+        !enforceRateLimit(
+          req,
+          res,
+          `auth-forgot-email:${email}`,
+          RESET_RATE_LIMIT_WINDOW_MS,
+          RESET_RATE_LIMIT_MAX_PER_EMAIL
+        )
+      ) {
+        return;
+      }
 
       const userRes = await pool.query("SELECT email FROM users WHERE email = $1 LIMIT 1", [email]);
-      if (!userRes.rows.length) return json(res, 404, { ok: false, error: "Account not found" });
+      if (!userRes.rows.length) return json(res, 200, { ok: true });
 
       const resetCode = String(crypto.randomInt(100000, 1000000));
       const nowMs = now();
@@ -1191,6 +1363,17 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "POST" && pathname === "/auth/reset-password") {
+      if (
+        !enforceRateLimit(
+          req,
+          res,
+          `auth-reset-ip:${getClientIp(req)}`,
+          RESET_RATE_LIMIT_WINDOW_MS,
+          RESET_RATE_LIMIT_MAX_PER_IP
+        )
+      ) {
+        return;
+      }
       const body = await parseBody(req);
       const email = normalizeEmail(body.email);
       const code = String(body.code || "").trim();
@@ -1198,8 +1381,15 @@ const server = http.createServer(async (req, res) => {
       if (!email || !code || !newPassword) {
         return json(res, 400, { ok: false, error: "Email, code and new password are required." });
       }
-      if (newPassword.length < 6) {
-        return json(res, 400, { ok: false, error: "Password must be at least 6 characters." });
+      if (!isValidEmail(email)) {
+        return json(res, 400, { ok: false, error: "Enter a valid email address." });
+      }
+      if (!/^\d{6}$/.test(code)) {
+        return json(res, 400, { ok: false, error: "Reset code must be 6 digits." });
+      }
+      const passwordError = validatePasswordStrength(newPassword);
+      if (passwordError) {
+        return json(res, 400, { ok: false, error: passwordError });
       }
 
       const resetRes = await pool.query(
@@ -1600,17 +1790,30 @@ const server = http.createServer(async (req, res) => {
       pathname.startsWith("/owner/support/users/") &&
       pathname.endsWith("/reset-password")
     ) {
+      if (
+        !enforceRateLimit(
+          req,
+          res,
+          `owner-reset-password:${getClientIp(req)}`,
+          RESET_RATE_LIMIT_WINDOW_MS,
+          RESET_RATE_LIMIT_MAX_PER_IP
+        )
+      ) {
+        return;
+      }
       const authUser = await requireOwner(req, res);
       if (!authUser) return;
-      const body = await readJson(req);
+      const body = await parseBody(req);
       const targetEmail = normalizeEmail(
         decodeURIComponent(pathname.replace("/owner/support/users/", "").replace("/reset-password", ""))
       );
       if (!targetEmail) return json(res, 400, { ok: false, error: "Email is required." });
+      if (!isValidEmail(targetEmail)) return json(res, 400, { ok: false, error: "Enter a valid email address." });
       const newPassword = typeof body?.newPassword === "string" ? body.newPassword.trim() : "";
       if (!newPassword) return json(res, 400, { ok: false, error: "New password is required." });
-      if (newPassword.length < 8) {
-        return json(res, 400, { ok: false, error: "Password must be at least 8 characters." });
+      const passwordError = validatePasswordStrength(newPassword);
+      if (passwordError) {
+        return json(res, 400, { ok: false, error: passwordError });
       }
 
       const passwordHash = await hashPassword(newPassword);

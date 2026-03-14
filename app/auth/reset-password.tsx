@@ -22,8 +22,8 @@ export default function ResetPasswordScreen() {
     if (!trimmedEmail || !trimmedCode || !newPassword) {
       return Alert.alert("Missing details", "Email, reset code, and new password are required.");
     }
-    if (newPassword.length < 6) {
-      return Alert.alert("Weak password", "Password must be at least 6 characters.");
+    if (newPassword.length < 10) {
+      return Alert.alert("Weak password", "Password must be at least 10 characters.");
     }
     if (newPassword !== confirmPassword) {
       return Alert.alert("Password mismatch", "New password and confirm password do not match.");

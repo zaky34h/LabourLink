@@ -25,6 +25,13 @@ Required:
 - `DATABASE_URL` (Postgres connection string)
 - `PORT` (optional, defaults to `4000`)
 
+Recommended security env vars:
+
+- `OWNER_BOOTSTRAP_EMAIL`
+- `OWNER_BOOTSTRAP_PASSWORD`
+- `ENFORCE_HTTPS=true`
+- `SESSION_TTL_MS` (optional session lifetime override)
+
 Examples:
 
 ```bash

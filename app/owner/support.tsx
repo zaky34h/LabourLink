@@ -85,8 +85,8 @@ export default function OwnerSupport() {
     if (!newPassword.trim()) {
       return Alert.alert("Missing password", "Enter a new password.");
     }
-    if (newPassword.trim().length < 8) {
-      return Alert.alert("Weak password", "Password must be at least 8 characters.");
+    if (newPassword.trim().length < 10) {
+      return Alert.alert("Weak password", "Password must be at least 10 characters.");
     }
     if (newPassword !== confirmPassword) {
       return Alert.alert("Passwords do not match", "Make sure both password fields match.");
