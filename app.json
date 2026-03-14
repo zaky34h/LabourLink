@@ -3,7 +3,7 @@
     "name": "LabourLink",
     "slug": "labourlink",
     "scheme": "labourlink",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/labourlink-app-icon-safe.png",
     "userInterfaceStyle": "light",
