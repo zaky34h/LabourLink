@@ -3,6 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 const SESSION_EMAIL_KEY = "labourlink_session_email";
 const SESSION_TOKEN_KEY = "labourlink_session_token";
 const REQUEST_TIMEOUT_MS = Number(process.env.EXPO_PUBLIC_API_TIMEOUT_MS || 12000);
+const LOCAL_API_FALLBACK = "http://localhost:4000";
 
 function stripTrailingSlash(v: string) {
   return v.endsWith("/") ? v.slice(0, -1) : v;
@@ -20,7 +21,11 @@ function getApiBaseUrls() {
   const configured = process.env.EXPO_PUBLIC_API_BASE_URL;
   if (configured && configured.trim()) return [stripTrailingSlash(configured.trim())];
 
-  return ["http://localhost:4000"];
+  if (__DEV__) return [LOCAL_API_FALLBACK];
+
+  throw new Error(
+    "API base URL is not configured. Set EXPO_PUBLIC_API_BASE_URLS in your build environment before creating a production build."
+  );
 }
 
 export function getApiBaseUrl() {
@@ -59,7 +64,7 @@ function formatNetworkError(baseUrl: string, originalError: unknown): Error {
       : "Network request failed";
 
   return new Error(
-    `Could not reach API at ${baseUrl}. ${message}. Ensure the backend is running (npm run api) and EXPO_PUBLIC_API_BASE_URL points to a reachable host.`
+    `Could not reach API at ${baseUrl}. ${message}. Ensure EXPO_PUBLIC_API_BASE_URLS points to a reachable backend. Local development can use ${LOCAL_API_FALLBACK}.`
   );
 }
 
