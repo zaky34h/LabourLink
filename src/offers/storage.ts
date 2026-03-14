@@ -108,6 +108,7 @@ function makePdfHtml(offer: WorkOffer, logoUri?: string | null) {
     .replace(/Shift:\s*[0-9]{1,2}:\d{2}(?:\s*[AaPp][Mm])?\s*-\s*[0-9]{1,2}:\d{2}(?:\s*[AaPp][Mm])?\s*/i, "")
     .trim();
   const displayNotes = notesWithoutShift || "None";
+  const estimatedPayDisplay = (offer.estimatedHours * offer.rate).toFixed(2);
   const signedByLabourer =
     offer.status === "approved" && offer.labourerSignature?.trim()
       ? offer.labourerSignature.trim()
@@ -150,7 +151,19 @@ function makePdfHtml(offer: WorkOffer, logoUri?: string | null) {
         border-radius: 10px;
         padding: 14px;
         margin-top: 12px;
+        background: #fff;
+        display: block;
+        overflow: hidden;
+        box-decoration-break: clone;
+        -webkit-box-decoration-break: clone;
+      }
+      .legal-section--compact {
         page-break-inside: avoid;
+        break-inside: avoid;
+      }
+      .legal-section--flow {
+        page-break-inside: auto;
+        break-inside: auto;
       }
       .legal h2 { font-size: 16px; margin: 0 0 8px 0; }
       .legal h3 { font-size: 13px; margin: 12px 0 4px 0; }
@@ -190,6 +203,8 @@ function makePdfHtml(offer: WorkOffer, logoUri?: string | null) {
       <div>$${escapeHtml(String(offer.rate))}/hr</div>
       <div class="label">Estimated Hours</div>
       <div>${escapeHtml(String(offer.estimatedHours))}</div>
+      <div class="label">Estimated Pay</div>
+      <div>$${escapeHtml(estimatedPayDisplay)}</div>
       <div class="label">Site Address</div>
       <div>${escapeHtml(offer.siteAddress)}</div>
       <div class="label">Notes</div>
@@ -205,7 +220,7 @@ function makePdfHtml(offer: WorkOffer, logoUri?: string | null) {
     }
 
     <div class="section legal">
-      <div class="legal-section">
+      <div class="legal-section legal-section--compact">
       <h2>Terms and Conditions</h2>
       <p>
         By signing this offer, both parties agree to perform and pay for the listed work in good faith,
@@ -213,7 +228,7 @@ function makePdfHtml(offer: WorkOffer, logoUri?: string | null) {
         Any agreed scope, timing, or rate changes should be recorded in writing.
       </p>
       </div>
-      <div class="legal-section">
+      <div class="legal-section legal-section--compact">
       <h2>Privacy Policy</h2>
       <p><strong>Effective Date:</strong> 16 February 2026</p>
       <p>
@@ -222,6 +237,8 @@ function makePdfHtml(offer: WorkOffer, logoUri?: string | null) {
       <p>
         This Privacy Policy explains how we collect, use, and protect your information when you use our App.
       </p>
+      </div>
+      <div class="legal-section legal-section--compact">
       <h3>1. Information We Collect</h3>
       <p>We may collect the following types of information:</p>
       <p><strong>a) Account Information</strong></p>
@@ -243,6 +260,8 @@ function makePdfHtml(offer: WorkOffer, logoUri?: string | null) {
         If payments are processed in the future, payment data will be securely handled by third-party payment providers.
         LabourLink does not store full payment card details.
       </p>
+      </div>
+      <div class="legal-section legal-section--compact">
       <h3>2. How We Use Your Information</h3>
       <p>We use your information to:</p>
       <ul>
@@ -253,12 +272,16 @@ function makePdfHtml(offer: WorkOffer, logoUri?: string | null) {
         <li>Provide customer support</li>
         <li>Prevent fraud and misuse</li>
       </ul>
+      </div>
+      <div class="legal-section legal-section--compact">
       <h3>3. Data Storage &amp; Security</h3>
       <p>We take reasonable measures to protect your information.</p>
       <p>
         Data is stored securely on protected servers and access is limited to authorized personnel.
       </p>
       <p>However, no method of electronic transmission is 100% secure.</p>
+      </div>
+      <div class="legal-section legal-section--compact">
       <h3>4. Sharing of Information</h3>
       <p>We do not sell your personal information.</p>
       <p>We may share information:</p>
@@ -267,6 +290,8 @@ function makePdfHtml(offer: WorkOffer, logoUri?: string | null) {
         <li>With service providers who help operate the app</li>
         <li>If required by law</li>
       </ul>
+      </div>
+      <div class="legal-section legal-section--compact">
       <h3>5. Your Rights</h3>
       <p>You may:</p>
       <ul>
@@ -275,16 +300,22 @@ function makePdfHtml(offer: WorkOffer, logoUri?: string | null) {
         <li>Contact us regarding your personal data</li>
       </ul>
       <p>To request account deletion, contact: linkgroupapps@gmail.com</p>
+      </div>
+      <div class="legal-section legal-section--compact">
       <h3>6. Third-Party Services</h3>
       <p>
         The app may use third-party services such as hosting providers and analytics tools.
         These providers have their own privacy policies.
       </p>
+      </div>
+      <div class="legal-section legal-section--compact">
       <h3>7. Changes to This Policy</h3>
       <p>
         We may update this Privacy Policy from time to time.
         Updates will be posted within the app or on our website.
       </p>
+      </div>
+      <div class="legal-section legal-section--compact">
       <h3>8. Contact Us</h3>
       <p>If you have questions about this Privacy Policy, contact:</p>
       <p>Email: linkgroupapps@gmail.com</p>

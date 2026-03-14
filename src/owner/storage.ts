@@ -135,10 +135,9 @@ export async function forceLogoutSupportUser(email: string): Promise<void> {
   );
 }
 
-export async function resetSupportUserPassword(email: string): Promise<string> {
-  const res = await apiRequest<{ ok: true; temporaryPassword: string }>(
+export async function resetSupportUserPassword(email: string, newPassword: string): Promise<void> {
+  await apiRequest<{ ok: true }>(
     `/owner/support/users/${encodeURIComponent(email)}/reset-password`,
-    { method: "POST", auth: true }
+    { method: "POST", auth: true, body: { newPassword } }
   );
-  return res.temporaryPassword;
 }

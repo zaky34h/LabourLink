@@ -5,6 +5,9 @@ import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import { getOwnerReport, type OwnerReport } from "../../src/owner/storage";
 
+const BRAND_YELLOW = "#FDE047";
+const BRAND_YELLOW_SOFT = "#FEF9C3";
+
 let cachedLogoUri: string | null | undefined;
 
 function todayIso() {
@@ -122,7 +125,7 @@ function makeReportHtml(report: OwnerReport, logoUri?: string | null) {
         border: 2px solid #111;
         border-radius: 16px;
         padding: 14px;
-        background: linear-gradient(135deg, #fff8d9, #ffffff);
+        background: linear-gradient(135deg, #fef9c3, #ffffff);
       }
       .brand-logo { width: 220px; height: 100px; object-fit: contain; }
       .brand-logo-fallback {
@@ -140,7 +143,7 @@ function makeReportHtml(report: OwnerReport, logoUri?: string | null) {
       .range { margin-top: 10px; font-size: 13px; font-weight: 700; }
 
       .section { margin-top: 16px; border: 1px solid #111; border-radius: 14px; overflow: hidden; }
-      .section-title { margin: 0; padding: 10px 12px; font-size: 16px; background: #111; color: #fef08a; }
+      .section-title { margin: 0; padding: 10px 12px; font-size: 16px; background: #111; color: #fde047; }
       .section-body { padding: 12px; }
 
       .cards { display: flex; gap: 10px; flex-wrap: wrap; }
@@ -299,7 +302,7 @@ export default function OwnerReports() {
           backgroundColor: loading ? "#444" : "#111",
         }}
       >
-        <Text style={{ color: "#FDE047", fontWeight: "900" }}>
+        <Text style={{ color: BRAND_YELLOW, fontWeight: "900" }}>
           {loading ? "Generating..." : "Generate Report"}
         </Text>
       </Pressable>
@@ -312,7 +315,7 @@ export default function OwnerReports() {
           alignItems: "center",
           borderWidth: 1,
           borderColor: "#111111",
-          backgroundColor: "#FEF08A",
+          backgroundColor: BRAND_YELLOW_SOFT,
         }}
       >
         <Text style={{ fontWeight: "900" }}>Export PDF</Text>

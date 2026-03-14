@@ -5,6 +5,9 @@ import { useCurrentUser } from "../../src/auth/useCurrentUser";
 import { clearSession } from "../../src/auth/storage";
 import { getOwnerOverview, type OwnerOverview } from "../../src/owner/storage";
 
+const BRAND_YELLOW = "#FDE047";
+const BRAND_YELLOW_SOFT = "#FEF9C3";
+
 const EMPTY_OVERVIEW: OwnerOverview = {
   buildersSignedUp: 0,
   labourersSignedUp: 0,
@@ -48,26 +51,13 @@ export default function OwnerHome() {
     }, [user?.email, user?.role])
   );
 
-  const participationTotal = overview.buildersSignedUp + overview.labourersSignedUp;
-  const builderShare = participationTotal
-    ? Math.round((overview.buildersSignedUp / participationTotal) * 100)
-    : 0;
-  const labourerShare = participationTotal ? 100 - builderShare : 0;
-  const offersPerBuilder = overview.buildersSignedUp
-    ? (overview.workOffersSent / overview.buildersSignedUp).toFixed(2)
-    : "0.00";
-  const activeAccounts = Math.max(overview.totalUsers - 1, 0);
-
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: "#fff" }}
       contentContainerStyle={{ padding: 20, paddingTop: 60, gap: 14 }}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-    >
+      >
       <Text style={{ fontSize: 28, fontWeight: "900" }}>Owner Portal</Text>
-      <Text style={{ opacity: 0.7 }}>
-        View high-level platform metrics and user data.
-      </Text>
 
       <View style={{ flexDirection: "row", gap: 12 }}>
         <StatCard label="Builders Signed Up" value={overview.buildersSignedUp} />
@@ -78,24 +68,32 @@ export default function OwnerHome() {
         <StatCard label="Total Users" value={overview.totalUsers} />
       </View>
 
-      <View style={{ borderWidth: 1, borderColor: "#111", borderRadius: 16, padding: 14, backgroundColor: "#FFFBEB" }}>
-        <Text style={{ fontWeight: "900", fontSize: 16 }}>Platform Mix</Text>
-        <Text style={{ marginTop: 8, opacity: 0.8 }}>Builders share: {builderShare}%</Text>
-        <Text style={{ marginTop: 3, opacity: 0.8 }}>Labourers share: {labourerShare}%</Text>
-        <Text style={{ marginTop: 3, opacity: 0.8 }}>Offers per builder: {offersPerBuilder}</Text>
-        <Text style={{ marginTop: 3, opacity: 0.8 }}>Non-owner accounts: {activeAccounts}</Text>
-      </View>
-
-      <View style={{ borderWidth: 1, borderColor: "#111", borderRadius: 16, padding: 14, backgroundColor: "#fff" }}>
-        <Text style={{ fontWeight: "900", fontSize: 16 }}>Quick Actions</Text>
-        <View style={{ flexDirection: "row", gap: 10, marginTop: 10 }}>
-          <QuickButton label="View Builders" onPress={() => router.push("/owner/builders")} />
-          <QuickButton label="View Labourers" onPress={() => router.push("/owner/labourers")} />
-        </View>
-        <View style={{ flexDirection: "row", gap: 10, marginTop: 10 }}>
-          <QuickButton label="Open Reports" onPress={() => router.push("/owner/reports")} />
-          <QuickButton label="Open Support" onPress={() => router.push("/owner/support")} />
-        </View>
+      <View style={{ gap: 12 }}>
+        <Text style={{ fontSize: 18, fontWeight: "900" }}>Quick Actions</Text>
+        <QuickButton
+          label="View Builders"
+          subtitle="Review builder accounts"
+          tone="default"
+          onPress={() => router.push("/owner/builders")}
+        />
+        <QuickButton
+          label="View Labourers"
+          subtitle="Review labourer accounts"
+          tone="yellow"
+          onPress={() => router.push("/owner/labourers")}
+        />
+        <QuickButton
+          label="Open Reports"
+          subtitle="Export owner platform reports"
+          tone="default"
+          onPress={() => router.push("/owner/reports")}
+        />
+        <QuickButton
+          label="Open Support"
+          subtitle="Manage support actions"
+          tone="yellow"
+          onPress={() => router.push("/owner/support")}
+        />
       </View>
 
       <Pressable
@@ -106,7 +104,7 @@ export default function OwnerHome() {
           borderRadius: 12,
           borderWidth: 1,
           borderColor: "#111111",
-          backgroundColor: "#FEF08A",
+          backgroundColor: BRAND_YELLOW,
           alignItems: "center",
         }}
       >
@@ -134,21 +132,45 @@ function StatCard({ label, value }: { label: string; value: number }) {
   );
 }
 
-function QuickButton({ label, onPress }: { label: string; onPress: () => void }) {
+function QuickButton({
+  label,
+  subtitle,
+  onPress,
+  tone,
+}: {
+  label: string;
+  subtitle: string;
+  onPress: () => void;
+  tone: "default" | "yellow";
+}) {
+  const isYellow = tone === "yellow";
   return (
     <Pressable
       onPress={onPress}
       style={{
-        flex: 1,
-        borderWidth: 1,
-        borderColor: "#111",
-        borderRadius: 12,
-        paddingVertical: 12,
-        alignItems: "center",
-        backgroundColor: "#fff",
+        backgroundColor: isYellow ? "#FDE047" : "#111",
+        padding: 16,
+        borderRadius: 16,
       }}
     >
-      <Text style={{ fontWeight: "800" }}>{label}</Text>
+      <Text
+        style={{
+          fontWeight: "900",
+          fontSize: 16,
+          color: isYellow ? "#333333" : BRAND_YELLOW,
+        }}
+      >
+        {label}
+      </Text>
+      <Text
+        style={{
+          marginTop: 4,
+          fontWeight: "600",
+          color: isYellow ? "#444444" : BRAND_YELLOW,
+        }}
+      >
+        {subtitle}
+      </Text>
     </Pressable>
   );
 }

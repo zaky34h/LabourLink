@@ -1602,13 +1602,18 @@ const server = http.createServer(async (req, res) => {
     ) {
       const authUser = await requireOwner(req, res);
       if (!authUser) return;
+      const body = await readJson(req);
       const targetEmail = normalizeEmail(
         decodeURIComponent(pathname.replace("/owner/support/users/", "").replace("/reset-password", ""))
       );
       if (!targetEmail) return json(res, 400, { ok: false, error: "Email is required." });
+      const newPassword = typeof body?.newPassword === "string" ? body.newPassword.trim() : "";
+      if (!newPassword) return json(res, 400, { ok: false, error: "New password is required." });
+      if (newPassword.length < 8) {
+        return json(res, 400, { ok: false, error: "Password must be at least 8 characters." });
+      }
 
-      const tempPassword = makeTemporaryPassword();
-      const passwordHash = await hashPassword(tempPassword);
+      const passwordHash = await hashPassword(newPassword);
       const updateRes = await pool.query(
         `UPDATE users
          SET password_hash = $1, updated_at = $2
@@ -1617,7 +1622,7 @@ const server = http.createServer(async (req, res) => {
       );
       if (!updateRes.rowCount) return json(res, 404, { ok: false, error: "User not found." });
       await pool.query(`DELETE FROM sessions WHERE lower(email) = $1`, [targetEmail]);
-      return json(res, 200, { ok: true, temporaryPassword: tempPassword });
+      return json(res, 200, { ok: true });
     }
 
     if (req.method === "GET" && pathname === "/saved-labourers") {

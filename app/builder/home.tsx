@@ -36,7 +36,6 @@ export default function BuilderHome() {
   const [startTime, setStartTime] = useState("");
   const [finishTime, setFinishTime] = useState("");
   const [rate, setRate] = useState("");
-  const [estimatedHours, setEstimatedHours] = useState("");
   const [siteAddress, setSiteAddress] = useState("");
   const [notes, setNotes] = useState("");
   const [sendingOffer, setSendingOffer] = useState(false);
@@ -113,10 +112,39 @@ export default function BuilderHome() {
     setStartTime("");
     setFinishTime("");
     setRate("");
-    setEstimatedHours("");
     setSiteAddress("");
     setNotes("");
   }
+
+  function getEstimatedHoursValue() {
+    const startMinutes = parseTimeToMinutes(startTime);
+    const finishMinutes = parseTimeToMinutes(finishTime);
+    if (startMinutes === null || finishMinutes === null || finishMinutes <= startMinutes) {
+      return "";
+    }
+
+    const hoursPerDay = (finishMinutes - startMinutes) / 60;
+    let dayCount = 1;
+
+    if (startDate && endDate) {
+      const start = new Date(`${startDate}T00:00:00`);
+      const end = new Date(`${endDate}T00:00:00`);
+      const diffDays = Math.floor((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000));
+      if (Number.isFinite(diffDays) && diffDays >= 0) {
+        dayCount = diffDays + 1;
+      }
+    } else if (!startDate) {
+      return "";
+    }
+
+    return String(Number((hoursPerDay * dayCount).toFixed(2)));
+  }
+
+  const estimatedHours = getEstimatedHoursValue();
+  const estimatedPay =
+    estimatedHours && rate.trim()
+      ? Number(estimatedHours) * Number(rate)
+      : null;
 
   function onPickDate(dateString: string) {
     if (!startDate || (startDate && endDate)) {
@@ -637,8 +665,23 @@ export default function BuilderHome() {
               <InputField
                 label="Estimated Hours"
                 value={estimatedHours}
-                onChangeText={setEstimatedHours}
-                keyboardType="numeric"
+                editable={false}
+                selectTextOnFocus={false}
+                inputStyle={{
+                  backgroundColor: "#F3F4F6",
+                  color: "#6B7280",
+                }}
+              />
+
+              <InputField
+                label="Estimated Pay"
+                value={estimatedPay === null || Number.isNaN(estimatedPay) ? "" : `$${estimatedPay.toFixed(2)}`}
+                editable={false}
+                selectTextOnFocus={false}
+                inputStyle={{
+                  backgroundColor: "#F3F4F6",
+                  color: "#6B7280",
+                }}
               />
 
               <InputField
@@ -769,7 +812,7 @@ function ActionButton({
 }
 
 function InputField(props: any) {
-  const { label, ...rest } = props;
+  const { label, inputStyle, ...rest } = props;
   return (
     <View style={{ gap: 6, flex: 1 }}>
       <Text style={{ fontWeight: "700" }}>{label}</Text>
@@ -782,6 +825,7 @@ function InputField(props: any) {
           padding: 12,
           minHeight: rest.multiline ? 90 : undefined,
           textAlignVertical: rest.multiline ? "top" : "auto",
+          ...(inputStyle || {}),
         }}
       />
     </View>

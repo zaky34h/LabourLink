@@ -92,7 +92,7 @@ For social auth, also configure:
 - `POST /owner/support/users/:email/disable`
 - `POST /owner/support/users/:email/enable`
 - `POST /owner/support/users/:email/force-logout`
-- `POST /owner/support/users/:email/reset-password`
+- `POST /owner/support/users/:email/reset-password` with `{ "newPassword": "..." }`
 - `PATCH /builder/profile`
 - `PATCH /labourer/profile`
 - `PATCH /labourer/availability`
