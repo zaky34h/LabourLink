@@ -184,24 +184,26 @@ export function AuthSocialButtons() {
               width: 24,
               height: 24,
               overflow: "hidden",
+              marginLeft: -4,
             }}
           >
             <Image
               source={GOOGLE_BUTTON_LIGHT}
-              resizeMode="contain"
+              resizeMode="stretch"
               style={{
                 position: "absolute",
-                left: 0,
-                width: 108,
-                height: 24,
+                left: -6,
+                top: -7,
+                width: 156,
+                height: 34,
               }}
             />
           </View>
           <Text
             style={{
               color: "#1F1F1F",
-              fontSize: 17,
-              fontWeight: "600",
+              fontSize: 18,
+              fontWeight: "500",
             }}
           >
             Continue with Google
