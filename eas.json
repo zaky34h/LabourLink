@@ -12,7 +12,13 @@
       "distribution": "internal"
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URLS": "https://labourlink-olqr.onrender.com",
+        "EXPO_PUBLIC_RC_API_KEY_IOS": "test_TrMdLOfNQKBZCijjWzKpajqqEeE",
+        "EXPO_PUBLIC_RC_ENTITLEMENT": "LabourLink Pro",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "955569569790-oi41704ie04vpa43at3j1esctldn3hbt.apps.googleusercontent.com"
+      }
     }
   },
   "submit": {
