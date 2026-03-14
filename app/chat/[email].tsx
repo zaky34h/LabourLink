@@ -31,6 +31,7 @@ export default function ChatWithPeer() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [text, setText] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMessages, setLoadingMessages] = useState(true);
   const [meTyping, setMeTyping] = useState(false);
   const [peerTyping, setPeerTyping] = useState(false);
   const [sending, setSending] = useState(false);
@@ -42,6 +43,7 @@ export default function ChatWithPeer() {
 
   async function load() {
     if (!user?.email) return;
+    if (!refreshing) setLoadingMessages(true);
     try {
       const [msgs, typing] = await Promise.all([
         getMessagesWithPeer(user.email, peerEmail),
@@ -70,6 +72,8 @@ export default function ChatWithPeer() {
         Alert.alert("Couldn’t load chat", error?.message || "Please try again.");
         loadErrorShownRef.current = true;
       }
+    } finally {
+      setLoadingMessages(false);
     }
   }
 
@@ -266,7 +270,7 @@ export default function ChatWithPeer() {
         ListEmptyComponent={
           <View style={{ paddingTop: 40 }}>
             <Text style={{ textAlign: "center", opacity: 0.7, fontWeight: "700" }}>
-              No messages yet. Say hello 👋
+              {loadingMessages ? "Loading messages..." : "No messages yet. Say hello 👋"}
             </Text>
           </View>
         }
