@@ -17,7 +17,7 @@ import { Calendar } from "react-native-calendars";
 import { useCurrentUser } from "../../src/auth/useCurrentUser";
 import { getUserByEmail, type LabourerUser } from "../../src/auth/storage";
 import { getThreadsForUser } from "../../src/chat/storage";
-import { createWorkOffer, getOffersForBuilder } from "../../src/offers/storage";
+import { createMultipleWorkOffers, getOffersForBuilder } from "../../src/offers/storage";
 import { getBuilderPayments } from "../../src/payments/storage";
 import { getSavedLabourers } from "../../src/saved-labourers/storage";
 
@@ -30,7 +30,7 @@ export default function BuilderHome() {
   const [offerModalOpen, setOfferModalOpen] = useState(false);
   const [labourers, setLabourers] = useState<LabourerUser[]>([]);
   const [savedLabourersCount, setSavedLabourersCount] = useState(0);
-  const [selectedLabourerEmail, setSelectedLabourerEmail] = useState("");
+  const [selectedLabourerEmails, setSelectedLabourerEmails] = useState<string[]>([]);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [startTime, setStartTime] = useState("");
@@ -46,7 +46,7 @@ export default function BuilderHome() {
   const [timePickerDate, setTimePickerDate] = useState(new Date());
 
   const company = user?.role === "builder" ? user.companyName : "Builder";
-  const selectedLabourer = labourers.find((l) => l.email === selectedLabourerEmail);
+  const selectedLabourers = labourers.filter((l) => selectedLabourerEmails.includes(l.email));
 
   function closeOfferOverlays() {
     setOfferModalOpen(false);
@@ -59,7 +59,7 @@ export default function BuilderHome() {
   async function loadChattedLabourers() {
     if (!user?.email) {
       setLabourers([]);
-      setSelectedLabourerEmail("");
+      setSelectedLabourerEmails([]);
       return;
     }
 
@@ -72,9 +72,12 @@ export default function BuilderHome() {
     );
 
     setLabourers(deduped);
-    if (!selectedLabourerEmail && deduped.length > 0) {
-      setSelectedLabourerEmail(deduped[0].email);
-    }
+    setSelectedLabourerEmails((current) => {
+      const validEmails = new Set(deduped.map((labourer) => labourer.email));
+      const filtered = current.filter((email) => validEmails.has(email));
+      if (filtered.length > 0 || deduped.length === 0) return filtered;
+      return [deduped[0].email];
+    });
   }
 
   async function loadDashboardData() {
@@ -83,7 +86,7 @@ export default function BuilderHome() {
       setPendingOffersCount(0);
       setPendingPayCount(0);
       setLabourers([]);
-      setSelectedLabourerEmail("");
+      setSelectedLabourerEmails([]);
       return;
     }
 
@@ -114,6 +117,7 @@ export default function BuilderHome() {
     setRate("");
     setSiteAddress("");
     setNotes("");
+    setSelectedLabourerEmails((current) => current.slice(0, 1));
   }
 
   function getEstimatedHoursValue() {
@@ -295,8 +299,8 @@ export default function BuilderHome() {
         "Message a labourer first, then generate a work offer."
       );
     }
-    if (!selectedLabourerEmail) {
-      return Alert.alert("Missing labourer", "Please select a labourer.");
+    if (selectedLabourerEmails.length === 0) {
+      return Alert.alert("Missing labourer", "Please select at least one labourer.");
     }
     const startMinutes = parseTimeToMinutes(startTime);
     const finishMinutes = parseTimeToMinutes(finishTime);
@@ -313,23 +317,34 @@ export default function BuilderHome() {
 
     setSendingOffer(true);
     try {
-      const res = await createWorkOffer({
-        builderEmail: user.email,
-        labourerEmail: selectedLabourerEmail,
-        startDate: startDate.trim(),
-        endDate: endDate.trim(),
-        hours: calculatedHours,
-        rate: Number(rate),
-        estimatedHours: Number(estimatedHours),
-        siteAddress: siteAddress.trim(),
-        notes: `Shift: ${formatMinutesTo12Hour(startMinutes)} - ${formatMinutesTo12Hour(finishMinutes)}${notes.trim() ? `\n${notes.trim()}` : ""}`,
-      });
+      const result = await createMultipleWorkOffers(
+        selectedLabourerEmails.map((labourerEmail) => ({
+          builderEmail: user.email,
+          labourerEmail,
+          startDate: startDate.trim(),
+          endDate: endDate.trim(),
+          hours: calculatedHours,
+          rate: Number(rate),
+          estimatedHours: Number(estimatedHours),
+          siteAddress: siteAddress.trim(),
+          notes: `Shift: ${formatMinutesTo12Hour(startMinutes)} - ${formatMinutesTo12Hour(finishMinutes)}${notes.trim() ? `\n${notes.trim()}` : ""}`,
+        }))
+      );
 
-      if (!res.ok) return Alert.alert("Couldn’t generate offer", res.error);
+      if (result.created.length === 0) {
+        const firstError = result.failed[0]?.error || "Please try again.";
+        return Alert.alert("Couldn’t generate offers", firstError);
+      }
 
       closeOfferOverlays();
       resetOfferForm();
-      Alert.alert("Work Offer Generated", "Offer sent to the labourer portal.", [
+      const createdCount = result.created.length;
+      const failedCount = result.failed.length;
+      const message =
+        failedCount > 0
+          ? `${createdCount} work ${createdCount === 1 ? "offer was" : "offers were"} sent. ${failedCount} ${failedCount === 1 ? "offer failed" : "offers failed"}.`
+          : `${createdCount} work ${createdCount === 1 ? "offer was" : "offers were"} sent to the selected labourer${createdCount === 1 ? "" : "s"}.`;
+      Alert.alert(failedCount > 0 ? "Offers Sent With Issues" : "Work Offers Generated", message, [
         { text: "View Offers", onPress: () => router.push("/builder/offers") },
         { text: "OK" },
       ]);
@@ -462,7 +477,7 @@ export default function BuilderHome() {
               contentContainerStyle={{ gap: 10, paddingBottom: 8 }}
             >
               <View style={{ gap: 6 }}>
-                <Text style={{ fontWeight: "800" }}>Select Labourer</Text>
+                <Text style={{ fontWeight: "800" }}>Select Labourers</Text>
                 <Pressable
                   onPress={() => {
                     if (labourers.length === 0) {
@@ -484,9 +499,11 @@ export default function BuilderHome() {
                     <Text style={{ flex: 1, fontWeight: "700", opacity: labourers.length === 0 ? 0.7 : 1 }} numberOfLines={1}>
                       {labourers.length === 0
                         ? "No chatted labourers yet"
-                        : selectedLabourer
-                          ? `${selectedLabourer.firstName} ${selectedLabourer.lastName}`
-                          : "Select labourer"}
+                        : selectedLabourers.length === 0
+                          ? "Select labourers"
+                          : selectedLabourers.length === 1
+                            ? `${selectedLabourers[0].firstName} ${selectedLabourers[0].lastName}`
+                            : `${selectedLabourers.length} labourers selected`}
                     </Text>
                     <Text style={{ opacity: 0.7 }}>▾</Text>
                   </View>
@@ -506,13 +523,16 @@ export default function BuilderHome() {
                   >
                     <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false}>
                       {labourers.map((l) => {
-                        const active = l.email === selectedLabourerEmail;
+                        const active = selectedLabourerEmails.includes(l.email);
                         return (
                           <Pressable
                             key={l.email}
                             onPress={() => {
-                              setSelectedLabourerEmail(l.email);
-                              setShowLabourerDropdownInline(false);
+                              setSelectedLabourerEmails((current) =>
+                                current.includes(l.email)
+                                  ? current.filter((email) => email !== l.email)
+                                  : [...current, l.email]
+                              );
                             }}
                             style={{
                               padding: 10,
@@ -523,14 +543,42 @@ export default function BuilderHome() {
                               backgroundColor: active ? "#111" : "#fff",
                             }}
                           >
-                            <Text style={{ fontWeight: "900", color: active ? "#FDE047" : "#111111" }}>
-                              {l.firstName} {l.lastName}
-                            </Text>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                              <View
+                                style={{
+                                  width: 20,
+                                  height: 20,
+                                  borderRadius: 6,
+                                  borderWidth: 1,
+                                  borderColor: active ? "#FDE047" : "#111111",
+                                  backgroundColor: active ? "#FDE047" : "#fff",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                }}
+                              >
+                                {active ? (
+                                  <Text style={{ fontSize: 12, fontWeight: "900", color: "#111" }}>✓</Text>
+                                ) : null}
+                              </View>
+                              <View style={{ flex: 1 }}>
+                                <Text style={{ fontWeight: "900", color: active ? "#FDE047" : "#111111" }}>
+                                  {l.firstName} {l.lastName}
+                                </Text>
+                                <Text style={{ marginTop: 2, color: active ? "#FDE047" : "#555" }}>
+                                  {l.email}
+                                </Text>
+                              </View>
+                            </View>
                           </Pressable>
                         );
                       })}
                     </ScrollView>
                   </View>
+                ) : null}
+                {selectedLabourers.length > 0 ? (
+                  <Text style={{ fontSize: 12, color: "#555" }}>
+                    A separate work offer will be sent to each selected labourer.
+                  </Text>
                 ) : null}
               </View>
 
@@ -728,7 +776,7 @@ export default function BuilderHome() {
                 }}
               >
                 <Text style={{ color: "#FDE047", fontWeight: "900" }}>
-                  {sendingOffer ? "Generating..." : "Generate"}
+                  {sendingOffer ? "Generating..." : selectedLabourerEmails.length > 1 ? "Generate Offers" : "Generate"}
                 </Text>
               </Pressable>
             </View>

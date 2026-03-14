@@ -43,6 +43,11 @@ export type CreateWorkOfferInput = {
   notes: string;
 };
 
+export type CreateMultipleWorkOffersResult = {
+  created: WorkOffer[];
+  failed: Array<{ labourerEmail: string; error: string }>;
+};
+
 async function getLabourLinkLogoUri() {
   if (cachedLabourLinkLogoUri !== undefined) return cachedLabourLinkLogoUri;
   try {
@@ -345,6 +350,33 @@ export async function createWorkOffer(
   } catch (error: any) {
     return { ok: false, error: error?.message || "Could not create offer." };
   }
+}
+
+export async function createMultipleWorkOffers(
+  inputs: CreateWorkOfferInput[]
+): Promise<CreateMultipleWorkOffersResult> {
+  const results = await Promise.all(
+    inputs.map(async (input) => {
+      const result = await createWorkOffer(input);
+      if (result.ok) {
+        return { ok: true as const, offer: result.offer };
+      }
+      return {
+        ok: false as const,
+        labourerEmail: input.labourerEmail,
+        error: result.error,
+      };
+    })
+  );
+
+  return {
+    created: results.filter((result): result is { ok: true; offer: WorkOffer } => result.ok).map((result) => result.offer),
+    failed: results
+      .filter(
+        (result): result is { ok: false; labourerEmail: string; error: string } => !result.ok
+      )
+      .map(({ labourerEmail, error }) => ({ labourerEmail, error })),
+  };
 }
 
 export async function getOffersForBuilder(_builderEmail: string): Promise<WorkOffer[]> {
