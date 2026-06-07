@@ -202,7 +202,7 @@ export function AuthSocialButtons() {
           <Text
             style={{
               color: "#1F1F1F",
-              fontSize: 18,
+              fontSize: 20,
               fontWeight: "500",
             }}
           >

@@ -1,10 +1,13 @@
 import { useState } from "react";
-import { View, Text, TextInput, Pressable, Alert, Keyboard, Image } from "react-native";
+import { View, Text, Image, Alert, Keyboard, StyleSheet } from "react-native";
 import { router } from "expo-router";
 import { loginUser, registerUser } from "../../src/auth/storage";
 import { routeForUser } from "../../src/auth/routing";
 import { AuthSocialButtons } from "../../src/auth/AuthSocialButtons";
 import { FormScreen } from "../../src/ui/FormScreen";
+import { colors, spacing, radii, type } from "../../src/theme";
+import Button from "../../src/ui/Button";
+import TextField from "../../src/ui/TextField";
 
 export default function Register() {
   const [email, setEmail] = useState("");
@@ -15,6 +18,16 @@ export default function Register() {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
   }
 
+  // Mirrors backend validatePasswordStrength (backend/server.js) so users get the
+  // error before submitting. Keep these rules and messages in sync with the server.
+  function passwordError(value: string) {
+    if (value.length < 6) return "Password must be at least 6 characters.";
+    if (!/[a-z]/.test(value)) return "Password must include a lowercase letter.";
+    if (!/[A-Z]/.test(value)) return "Password must include an uppercase letter.";
+    if (!/\d/.test(value)) return "Password must include a number.";
+    return null;
+  }
+
   async function onCreateAccount() {
     if (submitting) return;
     Keyboard.dismiss();
@@ -22,8 +35,9 @@ export default function Register() {
     if (!isEmailValid(email)) {
       return Alert.alert("Invalid email", "Please enter a valid email address.");
     }
-    if (password.length < 10) {
-      return Alert.alert("Weak password", "Password must be at least 10 characters.");
+    const pwError = passwordError(password);
+    if (pwError) {
+      return Alert.alert("Weak password", pwError);
     }
 
     setSubmitting(true);
@@ -51,122 +65,81 @@ export default function Register() {
   }
 
   return (
-    <FormScreen backgroundColor="#FFF8D9">
-      <View style={{ flex: 1, backgroundColor: "#FFF8D9", padding: 24, paddingTop: 44, gap: 14 }}>
-        <View
-          style={{
-            position: "absolute",
-            top: 0,
-            left: -70,
-            width: 300,
-            height: 300,
-            borderRadius: 150,
-            backgroundColor: "#FFE15A",
-            opacity: 0.45,
-          }}
-        />
-        <View
-          style={{
-            position: "absolute",
-            bottom: 0,
-            right: -70,
-            width: 340,
-            height: 340,
-            borderRadius: 170,
-            backgroundColor: "#111111",
-            opacity: 0.08,
-          }}
-        />
+    <FormScreen backgroundColor={colors.background}>
+      <View style={styles.screen}>
+        {/* soft cream background blobs */}
+        <View style={[styles.blob, { top: -40, left: -50 }]} />
+        <View style={[styles.blob, { bottom: 40, right: -60 }]} />
 
-        <View style={{ alignItems: "center", marginTop: 2 }}>
-          <Image
-            source={require("../../assets/labourlink-logo.png")}
-            style={{ width: 220, height: 96 }}
-            resizeMode="contain"
-          />
-          <Text style={{ marginTop: 2, fontWeight: "700", opacity: 0.75 }}>Create your account</Text>
-          <Text style={{ marginTop: 8, textAlign: "center", opacity: 0.72, lineHeight: 20 }}>
-            Start with your email and password. We’ll collect the rest after your first sign in.
-          </Text>
-        </View>
+        <View style={styles.content}>
+          <View style={styles.header}>
+            <Image
+              source={require("../../assets/labourlink-logo.png")}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+            <Text style={styles.title}>Create your account</Text>
+          </View>
 
-        <View
-          style={{
-            borderWidth: 1,
-            borderColor: "#111111",
-            borderRadius: 18,
-            backgroundColor: "#fff",
-            padding: 16,
-            gap: 14,
-          }}
-        >
-          <AuthSocialButtons />
+          <View style={styles.card}>
+            {/* AuthSocialButtons renders its own "or" divider below the buttons */}
+            <AuthSocialButtons />
 
-          <Field
-            label="Email Address"
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-          />
-          <Field
-            label="Password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            placeholder="Minimum 6 characters"
-          />
+            <TextField
+              label="Email address"
+              placeholder="you@email.com"
+              autoCapitalize="none"
+              keyboardType="email-address"
+              value={email}
+              onChangeText={setEmail}
+            />
 
-          <Pressable
-            onPress={onCreateAccount}
-            disabled={submitting}
-            style={{
-              padding: 16,
-              backgroundColor: submitting ? "#444" : "#111",
-              borderRadius: 12,
-              alignItems: "center",
-              marginTop: 8,
-              opacity: submitting ? 0.85 : 1,
-            }}
-          >
-            <Text style={{ color: "#FDE047", fontWeight: "800" }}>
-              {submitting ? "Creating..." : "Create Account"}
-            </Text>
-          </Pressable>
+            <TextField
+              label="Password"
+              placeholder="Minimum 6 characters"
+              secureToggle
+              value={password}
+              onChangeText={setPassword}
+            />
 
-          <Pressable
-            onPress={() => router.replace("/")}
-            style={{
-              padding: 14,
-              borderWidth: 1,
-              borderColor: "#111111",
-              borderRadius: 12,
-              alignItems: "center",
-              backgroundColor: "#fff",
-            }}
-          >
-            <Text style={{ textAlign: "center", fontWeight: "700" }}>Back to Login</Text>
-          </Pressable>
+            <Button
+              label={submitting ? "Creating..." : "Create Account"}
+              onPress={onCreateAccount}
+              loading={submitting}
+              disabled={submitting}
+              style={{ marginTop: spacing.lg }}
+            />
+            <Button
+              label="Back to Login"
+              variant="secondary"
+              onPress={() => router.replace("/")}
+              style={{ marginTop: spacing.sm }}
+            />
+          </View>
         </View>
       </View>
     </FormScreen>
   );
 }
 
-function Field(props: any) {
-  const { label, ...rest } = props;
-  return (
-    <View style={{ gap: 6 }}>
-      <Text style={{ fontWeight: "700" }}>{label}</Text>
-      <TextInput
-        {...rest}
-        style={{
-          borderWidth: 1,
-          borderColor: "#111111",
-          borderRadius: 10,
-          padding: 14,
-        }}
-      />
-    </View>
-  );
-}
+const styles = StyleSheet.create({
+  screen: { flex: 1, overflow: "hidden" },
+  blob: {
+    position: "absolute",
+    width: 220,
+    height: 220,
+    borderRadius: radii.pill,
+    backgroundColor: colors.surface,
+  },
+  content: { flex: 1, justifyContent: "center", paddingHorizontal: spacing.lg },
+  header: { alignItems: "center", marginBottom: spacing.xl },
+  logo: { width: 240, height: 96 },
+  title: { ...type.h3, marginTop: spacing.sm },
+  card: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.xl,
+    padding: spacing.lg,
+  },
+});

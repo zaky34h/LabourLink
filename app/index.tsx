@@ -1,21 +1,16 @@
-import {
-  View,
-  Text,
-  TextInput,
-  Pressable,
-  Image,
-  Alert,
-  Keyboard,
-  ActivityIndicator,
-} from "react-native";
+import { View, Text, Image, Pressable, Alert, Keyboard, StyleSheet } from "react-native";
 import { useEffect, useState } from "react";
 import { router } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getSessionEmail, getUserByEmail, loginUser } from "../src/auth/storage";
 import { routeForUser } from "../src/auth/routing";
 import { AuthSocialButtons } from "../src/auth/AuthSocialButtons";
 import { clearSessionStorage } from "../src/api/client";
 import { FormScreen } from "../src/ui/FormScreen";
+import { colors, spacing, radii, fontFamily, fontSize, fontWeight, type } from "../src/theme";
+import Button from "../src/ui/Button";
+import TextField from "../src/ui/TextField";
 
 const REMEMBER_ME_KEY = "labourlink_remember_me";
 const REMEMBERED_EMAIL_KEY = "labourlink_remembered_email";
@@ -24,7 +19,6 @@ export default function Login() {
   const [rememberMe, setRememberMe] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [bootstrapping, setBootstrapping] = useState(true);
 
@@ -95,178 +89,128 @@ export default function Login() {
   }
 
   return (
-    <FormScreen backgroundColor="#FFF8D9">
-      <View
-        style={{
-          flex: 1,
-          backgroundColor: "#FFF8D9",
-          padding: 24,
-          paddingTop: 48,
-          gap: 18,
-        }}
-      >
-        <View
-          style={{
-            position: "absolute",
-            top: 0,
-            left: -70,
-            width: 300,
-            height: 300,
-            borderRadius: 150,
-            backgroundColor: "#FFE15A",
-            opacity: 0.45,
-          }}
-        />
-        <View
-          style={{
-            position: "absolute",
-            bottom: 0,
-            right: -70,
-            width: 340,
-            height: 340,
-            borderRadius: 170,
-            backgroundColor: "#111111",
-            opacity: 0.08,
-          }}
-        />
+    <FormScreen backgroundColor={colors.background}>
+      <View style={styles.screen}>
+        {/* soft cream background blobs */}
+        <View style={[styles.blob, { top: -40, left: -50 }]} />
+        <View style={[styles.blob, { bottom: 40, right: -60 }]} />
 
-        <View style={{ alignItems: "center", marginTop: 8 }}>
-          <Image
-            source={require("../assets/labourlink-logo.png")}
-            style={{ width: 280, height: 130 }}
-            resizeMode="contain"
-          />
-          <Text style={{ marginTop: 4, fontWeight: "700", opacity: 0.75 }}>
-            Builders and labourers connected fast
-          </Text>
-        </View>
+        <View style={styles.content}>
+          <View style={styles.header}>
+            <Image
+              source={require("../assets/labourlink-logo.png")}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+            <Text style={styles.tagline}>Builders and labourers connected fast</Text>
+          </View>
 
-        <View
-          style={{
-            borderWidth: 1,
-            borderColor: "#111111",
-            borderRadius: 18,
-            backgroundColor: "#fff",
-            padding: 16,
-            gap: 14,
-          }}
-        >
-          <AuthSocialButtons />
+          <View style={styles.card}>
+            {/* AuthSocialButtons renders its own "or" divider below the buttons */}
+            <AuthSocialButtons />
 
-          <View>
-            <Text style={{ marginBottom: 6, fontWeight: "700" }}>Email Address</Text>
-            <TextInput
-              value={email}
-              onChangeText={setEmail}
+            <TextField
+              label="Email address"
               placeholder="you@email.com"
               autoCapitalize="none"
               keyboardType="email-address"
-              style={{
-                borderWidth: 1,
-                borderColor: "#111111",
-                borderRadius: 10,
-                padding: 14,
-              }}
+              value={email}
+              onChangeText={setEmail}
             />
-          </View>
 
-          <View>
-            <Text style={{ marginBottom: 6, fontWeight: "700" }}>Password</Text>
-            <View style={{ position: "relative", justifyContent: "center" }}>
-              <TextInput
-                value={password}
-                onChangeText={setPassword}
-                placeholder="••••••••"
-                secureTextEntry={!showPassword}
-                style={{
-                  borderWidth: 1,
-                  borderColor: "#111111",
-                  borderRadius: 10,
-                  padding: 14,
-                  paddingRight: 70,
-                }}
-              />
+            <TextField
+              label="Password"
+              placeholder="••••••••"
+              secureToggle
+              value={password}
+              onChangeText={setPassword}
+            />
+
+            <View style={styles.row}>
               <Pressable
-                onPress={() => setShowPassword((prev) => !prev)}
-                style={{ position: "absolute", right: 12, paddingVertical: 6, paddingHorizontal: 4 }}
+                style={styles.remember}
+                onPress={() => setRememberMe(!rememberMe)}
+                hitSlop={6}
               >
-                <Text style={{ fontWeight: "700", color: "#111111" }}>
-                  {showPassword ? "Hide" : "Show"}
-                </Text>
+                <View style={styles.checkbox}>
+                  {rememberMe ? (
+                    <Ionicons name="checkmark" size={13} color={colors.text} />
+                  ) : null}
+                </View>
+                <Text style={styles.rememberLabel}>Remember me</Text>
+              </Pressable>
+              <Pressable hitSlop={6} onPress={() => router.push("/auth/forgot-password")}>
+                <Text style={styles.link}>Forgot password?</Text>
               </Pressable>
             </View>
-          </View>
 
-          <Pressable
-            onPress={() => setRememberMe(!rememberMe)}
-            style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
-          >
-            <View
-              style={{
-                width: 18,
-                height: 18,
-                borderRadius: 4,
-                borderWidth: 1,
-                borderColor: "#111",
-                backgroundColor: rememberMe ? "#111" : "transparent",
-              }}
+            <Button
+              label={bootstrapping ? "Checking session..." : submitting ? "Logging in..." : "Login"}
+              onPress={onLogin}
+              loading={submitting}
+              disabled={submitting || bootstrapping}
+              style={{ marginTop: spacing.lg }}
             />
-            <Text style={{ fontWeight: "600" }}>Remember me</Text>
-          </Pressable>
-
-          <Pressable
-            onPress={() => router.push("/auth/forgot-password")}
-            style={{ alignSelf: "flex-end" }}
-          >
-            <Text style={{ fontWeight: "700", color: "#111111", textDecorationLine: "underline" }}>
-              Forgot password?
-            </Text>
-          </Pressable>
-
-          <Pressable
-            onPress={onLogin}
-            disabled={submitting || bootstrapping}
-            style={{
-              padding: 16,
-              backgroundColor: submitting || bootstrapping ? "#444" : "#111",
-              borderRadius: 12,
-              alignItems: "center",
-              marginTop: 2,
-              opacity: submitting || bootstrapping ? 0.9 : 1,
-              flexDirection: "row",
-              justifyContent: "center",
-              gap: 8,
-            }}
-          >
-            {submitting ? <ActivityIndicator size="small" color="#FDE047" /> : null}
-            <Text style={{ color: "#FDE047", fontWeight: "800" }}>
-              {bootstrapping ? "Checking session..." : submitting ? "Logging in..." : "Login"}
-            </Text>
-          </Pressable>
-
-          <Pressable
-            onPress={() => router.push("/auth/register")}
-            style={{
-              padding: 16,
-              borderWidth: 1,
-              borderColor: "#111111",
-              borderRadius: 12,
-              alignItems: "center",
-              backgroundColor: "#FDE047",
-            }}
-          >
-            <Text
-              style={{
-                textAlign: "center",
-                fontWeight: "700",
-                color: "#111111",
-              }}
-            >
-              Create an account
-            </Text>
-          </Pressable>
+            <Button
+              label="Create an account"
+              variant="secondary"
+              onPress={() => router.push("/auth/register")}
+              style={{ marginTop: spacing.sm }}
+            />
+          </View>
         </View>
       </View>
     </FormScreen>
   );
 }
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, overflow: "hidden" },
+  blob: {
+    position: "absolute",
+    width: 220,
+    height: 220,
+    borderRadius: radii.pill,
+    backgroundColor: colors.surface,
+  },
+  content: { flex: 1, justifyContent: "center", paddingHorizontal: spacing.lg },
+  header: { alignItems: "center", marginBottom: spacing.xl },
+  logo: { width: 240, height: 96 },
+  tagline: { ...type.secondary, marginTop: spacing.sm },
+  card: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.xl,
+    padding: spacing.lg,
+  },
+  row: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: spacing.md,
+  },
+  remember: { flexDirection: "row", alignItems: "center", gap: 7 },
+  checkbox: {
+    width: 16,
+    height: 16,
+    borderWidth: 1.5,
+    borderColor: colors.text,
+    borderRadius: 4,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rememberLabel: {
+    fontFamily,
+    fontSize: fontSize.caption,
+    fontWeight: fontWeight.medium,
+    color: colors.text,
+  },
+  link: {
+    fontFamily,
+    fontSize: fontSize.caption,
+    fontWeight: fontWeight.bold,
+    color: colors.text,
+    textDecorationLine: "underline",
+  },
+});

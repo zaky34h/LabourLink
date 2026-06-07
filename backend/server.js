@@ -86,7 +86,7 @@ function isValidEmail(email) {
 
 function validatePasswordStrength(password) {
   const value = String(password || "");
-  if (value.length < 10) return "Password must be at least 10 characters.";
+  if (value.length < 6) return "Password must be at least 6 characters.";
   if (!/[a-z]/.test(value)) return "Password must include a lowercase letter.";
   if (!/[A-Z]/.test(value)) return "Password must include an uppercase letter.";
   if (!/\d/.test(value)) return "Password must include a number.";
