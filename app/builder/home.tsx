@@ -10,6 +10,7 @@ import {
   RefreshControl,
   KeyboardAvoidingView,
   Platform,
+  StyleSheet,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { router, useFocusEffect } from "expo-router";
@@ -20,6 +21,8 @@ import { getThreadsForUser } from "../../src/chat/storage";
 import { createMultipleWorkOffers, getOffersForBuilder } from "../../src/offers/storage";
 import { getBuilderPayments } from "../../src/payments/storage";
 import { getSavedLabourers } from "../../src/saved-labourers/storage";
+import { colors, spacing, radii, fontFamily, fontSize, fontWeight, type } from "../../src/theme";
+import Button from "../../src/ui/Button";
 
 export default function BuilderHome() {
   const { user } = useCurrentUser();
@@ -178,7 +181,7 @@ export default function BuilderHome() {
     const marks: Record<string, any> = {};
 
     if (startDate && !endDate) {
-      marks[startDate] = { selected: true, color: "#111", textColor: "#FDE047" };
+      marks[startDate] = { selected: true, color: colors.primary, textColor: colors.onPrimary };
       return marks;
     }
     if (!startDate || !endDate) return marks;
@@ -192,8 +195,8 @@ export default function BuilderHome() {
       marks[iso] = {
         startingDay: isStart,
         endingDay: isEnd,
-        color: "#111",
-        textColor: "#FDE047",
+        color: colors.primary,
+        textColor: colors.onPrimary,
       };
       cursor.setDate(cursor.getDate() + 1);
     }
@@ -380,33 +383,33 @@ export default function BuilderHome() {
 
   return (
     <ScrollView
-        style={{ flex: 1, backgroundColor: "#fff" }}
-        contentContainerStyle={{ padding: 20, paddingTop: 60, gap: 20 }}
+        style={{ flex: 1, backgroundColor: colors.background }}
+        contentContainerStyle={{ padding: spacing.xl, paddingTop: 60, gap: spacing.xl }}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.text} />}
       >
       {/* Header */}
       <View style={{ gap: 6 }}>
-        <Text style={{ fontSize: 14, fontWeight: "700", color: "#111111" }}>
+        <Text style={{ ...type.secondary, fontWeight: fontWeight.bold }}>
           Welcome back,
         </Text>
-        <Text style={{ fontSize: 28, fontWeight: "900" }}>{company}</Text>
+        <Text style={type.display} numberOfLines={1}>{company}</Text>
       </View>
 
       {/* Stats */}
-      <View style={{ flexDirection: "row", gap: 12 }}>
+      <View style={{ flexDirection: "row", gap: spacing.md }}>
         <StatCard title="Active Chats" value={String(activeChats)} />
         <StatCard title="Pending Offers" value={String(pendingOffersCount)} />
       </View>
 
-      <View style={{ flexDirection: "row", gap: 12 }}>
+      <View style={{ flexDirection: "row", gap: spacing.md }}>
         <StatCard title="Saved Labourers" value={String(savedLabourersCount)} />
         <StatCard title="Pending Pay" value={String(pendingPayCount)} />
       </View>
 
       {/* Quick Actions */}
-      <View style={{ gap: 12 }}>
-        <Text style={{ fontSize: 18, fontWeight: "900" }}>Quick Actions</Text>
+      <View style={{ gap: spacing.md }}>
+        <Text style={{ ...type.h3, fontWeight: fontWeight.heavy }}>Quick Actions</Text>
 
         <ActionButton
           label="Browse Labourers"
@@ -449,24 +452,16 @@ export default function BuilderHome() {
           style={{ flex: 1 }}
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
-        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "flex-end" }}>
-          <View
-            style={{
-              backgroundColor: "#fff",
-              borderTopLeftRadius: 18,
-              borderTopRightRadius: 18,
-              padding: 16,
-              maxHeight: "88%",
-            }}
-          >
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <Text style={{ fontSize: 18, fontWeight: "900" }}>Generate Work Offer</Text>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.sheet, { maxHeight: "88%" }]}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.sm }}>
+              <Text style={type.h2}>Generate Work Offer</Text>
               <Pressable
                 onPress={() => {
                   closeOfferOverlays();
                 }}
               >
-                <Text style={{ fontWeight: "900" }}>Close</Text>
+                <Text style={{ fontFamily, fontWeight: fontWeight.heavy, color: colors.text }}>Close</Text>
               </Pressable>
             </View>
 
@@ -474,10 +469,10 @@ export default function BuilderHome() {
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
-              contentContainerStyle={{ gap: 10, paddingBottom: 8 }}
+              contentContainerStyle={{ gap: spacing.md, paddingBottom: spacing.sm }}
             >
               <View style={{ gap: 6 }}>
-                <Text style={{ fontWeight: "800" }}>Select Labourers</Text>
+                <Text style={styles.fieldLabel}>Select Labourers</Text>
                 <Pressable
                   onPress={() => {
                     if (labourers.length === 0) {
@@ -487,16 +482,27 @@ export default function BuilderHome() {
                     setShowLabourerDropdownInline((v) => !v);
                   }}
                   style={{
+                    backgroundColor: colors.field,
                     borderWidth: 1,
-                    borderColor: "#111111",
-                    borderRadius: 10,
+                    borderColor: colors.border,
+                    borderRadius: radii.md,
                     minHeight: 52,
                     justifyContent: "center",
-                    paddingHorizontal: 12,
+                    paddingHorizontal: 13,
                   }}
                 >
                   <View style={{ minHeight: 52, justifyContent: "center", flexDirection: "row", alignItems: "center" }}>
-                    <Text style={{ flex: 1, fontWeight: "700", opacity: labourers.length === 0 ? 0.7 : 1 }} numberOfLines={1}>
+                    <Text
+                      style={{
+                        flex: 1,
+                        fontFamily,
+                        fontSize: fontSize.body,
+                        fontWeight: fontWeight.bold,
+                        color: colors.text,
+                        opacity: labourers.length === 0 ? 0.7 : 1,
+                      }}
+                      numberOfLines={1}
+                    >
                       {labourers.length === 0
                         ? "No chatted labourers yet"
                         : selectedLabourers.length === 0
@@ -505,7 +511,7 @@ export default function BuilderHome() {
                             ? `${selectedLabourers[0].firstName} ${selectedLabourers[0].lastName}`
                             : `${selectedLabourers.length} labourers selected`}
                     </Text>
-                    <Text style={{ opacity: 0.7 }}>▾</Text>
+                    <Text style={{ color: colors.textSecondary }}>▾</Text>
                   </View>
                 </Pressable>
 
@@ -513,12 +519,13 @@ export default function BuilderHome() {
                   <View
                     style={{
                       marginTop: 6,
+                      backgroundColor: colors.field,
                       borderWidth: 1,
-                      borderColor: "#111111",
-                      borderRadius: 10,
+                      borderColor: colors.border,
+                      borderRadius: radii.md,
                       maxHeight: 200,
-                      padding: 8,
-                      gap: 8,
+                      padding: spacing.sm,
+                      gap: spacing.sm,
                     }}
                   >
                     <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false}>
@@ -535,36 +542,36 @@ export default function BuilderHome() {
                               );
                             }}
                             style={{
-                              padding: 10,
-                              borderRadius: 10,
+                              padding: spacing.md,
+                              borderRadius: radii.md,
                               borderWidth: 1,
-                              borderColor: "#111111",
-                              marginBottom: 8,
-                              backgroundColor: active ? "#111" : "#fff",
+                              borderColor: active ? colors.primary : colors.border,
+                              marginBottom: spacing.sm,
+                              backgroundColor: active ? colors.primary : colors.surface,
                             }}
                           >
-                            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
                               <View
                                 style={{
                                   width: 20,
                                   height: 20,
-                                  borderRadius: 6,
+                                  borderRadius: radii.sm,
                                   borderWidth: 1,
-                                  borderColor: active ? "#FDE047" : "#111111",
-                                  backgroundColor: active ? "#FDE047" : "#fff",
+                                  borderColor: active ? colors.onPrimary : colors.border,
+                                  backgroundColor: active ? colors.onPrimary : colors.field,
                                   alignItems: "center",
                                   justifyContent: "center",
                                 }}
                               >
                                 {active ? (
-                                  <Text style={{ fontSize: 12, fontWeight: "900", color: "#111" }}>✓</Text>
+                                  <Text style={{ fontFamily, fontSize: fontSize.caption, fontWeight: fontWeight.heavy, color: colors.primary }}>✓</Text>
                                 ) : null}
                               </View>
                               <View style={{ flex: 1 }}>
-                                <Text style={{ fontWeight: "900", color: active ? "#FDE047" : "#111111" }}>
+                                <Text style={{ fontFamily, fontWeight: fontWeight.heavy, color: active ? colors.onPrimary : colors.text }}>
                                   {l.firstName} {l.lastName}
                                 </Text>
-                                <Text style={{ marginTop: 2, color: active ? "#FDE047" : "#555" }}>
+                                <Text style={{ fontFamily, fontSize: fontSize.label, marginTop: 2, color: active ? colors.onPrimary : colors.textSecondary }}>
                                   {l.email}
                                 </Text>
                               </View>
@@ -576,26 +583,19 @@ export default function BuilderHome() {
                   </View>
                 ) : null}
                 {selectedLabourers.length > 0 ? (
-                  <Text style={{ fontSize: 12, color: "#555" }}>
+                  <Text style={{ ...type.secondary }}>
                     A separate work offer will be sent to each selected labourer.
                   </Text>
                 ) : null}
               </View>
 
               <View style={{ gap: 6 }}>
-                <Text style={{ fontWeight: "700" }}>Date Range</Text>
+                <Text style={styles.fieldLabel}>Date Range</Text>
                 <Pressable
                   onPress={() => setShowDatePickerInline((v) => !v)}
-                  style={{
-                    borderWidth: 1,
-                    borderColor: "#111111",
-                    borderRadius: 10,
-                    padding: 12,
-                    minHeight: 52,
-                    justifyContent: "center",
-                  }}
+                  style={[styles.input, { minHeight: 52, justifyContent: "center" }]}
                 >
-                  <Text style={{ fontWeight: "700" }}>
+                  <Text style={{ fontFamily, fontSize: fontSize.body, fontWeight: fontWeight.bold, color: colors.text }}>
                     {startDate && endDate
                       ? `${startDate} to ${endDate}`
                       : startDate
@@ -605,7 +605,7 @@ export default function BuilderHome() {
                 </Pressable>
 
                 {showDatePickerInline ? (
-                  <View style={{ marginTop: 6, borderWidth: 1, borderColor: "#111111", borderRadius: 10, padding: 8 }}>
+                  <View style={{ marginTop: 6, backgroundColor: colors.field, borderWidth: 1, borderColor: colors.border, borderRadius: radii.md, padding: spacing.sm }}>
                     <Calendar
                       markingType="period"
                       markedDates={buildRangeMarkedDates()}
@@ -617,36 +617,26 @@ export default function BuilderHome() {
 
               <RowField>
                 <View style={{ flex: 1, gap: 6 }}>
-                  <Text style={{ fontWeight: "700" }}>Start Time</Text>
+                  <Text style={styles.fieldLabel}>Start Time</Text>
                   <Pressable
                     onPress={() => openTimePicker("start")}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: "#111111",
-                      borderRadius: 10,
-                      padding: 12,
-                      minHeight: 52,
-                      justifyContent: "center",
-                    }}
+                    style={[styles.input, { minHeight: 52, justifyContent: "center" }]}
                   >
-                    <Text style={{ fontWeight: "700" }}>{startTime || "Select start time"}</Text>
+                    <Text style={{ fontFamily, fontSize: fontSize.body, fontWeight: fontWeight.bold, color: startTime ? colors.text : colors.textSecondary }}>
+                      {startTime || "Select start time"}
+                    </Text>
                   </Pressable>
                 </View>
 
                 <View style={{ flex: 1, gap: 6 }}>
-                  <Text style={{ fontWeight: "700" }}>Finish Time</Text>
+                  <Text style={styles.fieldLabel}>Finish Time</Text>
                   <Pressable
                     onPress={() => openTimePicker("finish")}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: "#111111",
-                      borderRadius: 10,
-                      padding: 12,
-                      minHeight: 52,
-                      justifyContent: "center",
-                    }}
+                    style={[styles.input, { minHeight: 52, justifyContent: "center" }]}
                   >
-                    <Text style={{ fontWeight: "700" }}>{finishTime || "Select finish time"}</Text>
+                    <Text style={{ fontFamily, fontSize: fontSize.body, fontWeight: fontWeight.bold, color: finishTime ? colors.text : colors.textSecondary }}>
+                      {finishTime || "Select finish time"}
+                    </Text>
                   </Pressable>
                 </View>
               </RowField>
@@ -654,15 +644,15 @@ export default function BuilderHome() {
               {showTimePicker ? (
                 <View
                   style={{
-                    marginTop: 4,
+                    marginTop: spacing.xs,
+                    backgroundColor: colors.field,
                     borderWidth: 1,
-                    borderColor: "#111111",
-                    borderRadius: 12,
-                    padding: 12,
-                    backgroundColor: "#fff",
+                    borderColor: colors.border,
+                    borderRadius: radii.lg,
+                    padding: spacing.md,
                   }}
                 >
-                  <Text style={{ fontSize: 18, fontWeight: "900", marginBottom: 8 }}>
+                  <Text style={{ ...type.h3, fontWeight: fontWeight.heavy, marginBottom: spacing.sm }}>
                     {activeTimeField === "start" ? "Select Start Time" : "Select Finish Time"}
                   </Text>
                   <DateTimePicker
@@ -673,32 +663,13 @@ export default function BuilderHome() {
                     minuteInterval={15}
                     onChange={onTimePickerChange}
                   />
-                  <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
-                    <Pressable
-                      onPress={closeTimePicker}
-                      style={{
-                        flex: 1,
-                        paddingVertical: 10,
-                        borderWidth: 1,
-                        borderColor: "#111111",
-                        borderRadius: 10,
-                        alignItems: "center",
-                      }}
-                    >
-                      <Text style={{ fontWeight: "900" }}>Cancel</Text>
-                    </Pressable>
-                    <Pressable
-                      onPress={onConfirmTimePicker}
-                      style={{
-                        flex: 1,
-                        paddingVertical: 10,
-                        borderRadius: 10,
-                        backgroundColor: "#111",
-                        alignItems: "center",
-                      }}
-                    >
-                      <Text style={{ fontWeight: "900", color: "#FDE047" }}>Done</Text>
-                    </Pressable>
+                  <View style={{ flexDirection: "row", gap: spacing.md, marginTop: spacing.md }}>
+                    <View style={{ flex: 1 }}>
+                      <Button label="Cancel" variant="secondary" onPress={closeTimePicker} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Button label="Done" onPress={onConfirmTimePicker} />
+                    </View>
                   </View>
                 </View>
               ) : null}
@@ -716,8 +687,8 @@ export default function BuilderHome() {
                 editable={false}
                 selectTextOnFocus={false}
                 inputStyle={{
-                  backgroundColor: "#F3F4F6",
-                  color: "#6B7280",
+                  backgroundColor: colors.surface,
+                  color: colors.textSecondary,
                 }}
               />
 
@@ -727,8 +698,8 @@ export default function BuilderHome() {
                 editable={false}
                 selectTextOnFocus={false}
                 inputStyle={{
-                  backgroundColor: "#F3F4F6",
-                  color: "#6B7280",
+                  backgroundColor: colors.surface,
+                  color: colors.textSecondary,
                 }}
               />
 
@@ -746,39 +717,25 @@ export default function BuilderHome() {
               />
             </ScrollView>
 
-            <View style={{ flexDirection: "row", gap: 10, marginTop: 10 }}>
-              <Pressable
-                onPress={() => {
-                  closeOfferOverlays();
-                  resetOfferForm();
-                }}
-                style={{
-                  flex: 1,
-                  paddingVertical: 12,
-                  borderWidth: 1,
-                  borderColor: "#111111",
-                  borderRadius: 12,
-                  alignItems: "center",
-                }}
-              >
-                <Text style={{ fontWeight: "900" }}>Cancel</Text>
-              </Pressable>
+            <View style={{ flexDirection: "row", gap: spacing.md, marginTop: spacing.md }}>
+              <View style={{ flex: 1 }}>
+                <Button
+                  label="Cancel"
+                  variant="secondary"
+                  onPress={() => {
+                    closeOfferOverlays();
+                    resetOfferForm();
+                  }}
+                />
+              </View>
 
-              <Pressable
-                onPress={onGenerateOffer}
-                disabled={sendingOffer}
-                style={{
-                  flex: 1,
-                  paddingVertical: 12,
-                  borderRadius: 12,
-                  backgroundColor: sendingOffer ? "#444444" : "#111",
-                  alignItems: "center",
-                }}
-              >
-                <Text style={{ color: "#FDE047", fontWeight: "900" }}>
-                  {sendingOffer ? "Generating..." : selectedLabourerEmails.length > 1 ? "Generate Offers" : "Generate"}
-                </Text>
-              </Pressable>
+              <View style={{ flex: 1 }}>
+                <Button
+                  label={sendingOffer ? "Generating..." : selectedLabourerEmails.length > 1 ? "Generate Offers" : "Generate"}
+                  onPress={onGenerateOffer}
+                  disabled={sendingOffer}
+                />
+              </View>
             </View>
           </View>
         </View>
@@ -798,17 +755,17 @@ function StatCard({ title, value }: { title: string; value: string }) {
     <View
       style={{
         flex: 1,
-        backgroundColor: "#fff",
-        padding: 16,
-        borderRadius: 16,
+        backgroundColor: colors.surface,
+        padding: spacing.lg,
+        borderRadius: radii.xl,
         borderWidth: 1,
-        borderColor: "#111111",
+        borderColor: colors.border,
       }}
     >
-      <Text style={{ fontSize: 24, fontWeight: "900" }}>{value}</Text>
-      <Text style={{ marginTop: 6, opacity: 0.7, fontWeight: "700" }}>
-        {title}
+      <Text style={{ fontFamily, fontSize: fontSize.h1, fontWeight: fontWeight.heavy, color: colors.text }}>
+        {value}
       </Text>
+      <Text style={{ ...type.secondary, marginTop: 6, fontWeight: fontWeight.bold }}>{title}</Text>
     </View>
   );
 }
@@ -826,31 +783,37 @@ function ActionButton({
   disabled?: boolean;
   tone?: "default" | "yellow";
 }) {
-  const isYellow = tone === "yellow" || disabled;
+  const highlighted = tone === "yellow" || disabled;
 
   return (
     <Pressable
       onPress={disabled ? undefined : onPress}
       style={{
-        backgroundColor: isYellow ? "#FDE047" : "#111",
-        padding: 16,
-        borderRadius: 16,
+        backgroundColor: highlighted ? colors.primary : colors.surface,
+        borderWidth: 1,
+        borderColor: highlighted ? colors.primary : colors.border,
+        padding: spacing.lg,
+        borderRadius: radii.xl,
       }}
     >
       <Text
         style={{
-          color: isYellow ? "#333333" : "#FDE047",
-          fontWeight: "900",
-          fontSize: 16,
+          fontFamily,
+          fontSize: fontSize.h3,
+          fontWeight: fontWeight.heavy,
+          color: highlighted ? colors.onPrimary : colors.text,
         }}
       >
         {label}
       </Text>
       <Text
         style={{
-          color: isYellow ? "#444444" : "#FDE047",
+          fontFamily,
+          fontSize: fontSize.label,
+          fontWeight: fontWeight.medium,
           marginTop: 4,
-          fontWeight: "600",
+          color: highlighted ? colors.onPrimary : colors.textSecondary,
+          opacity: highlighted ? 0.85 : 1,
         }}
       >
         {subtitle}
@@ -863,14 +826,12 @@ function InputField(props: any) {
   const { label, inputStyle, ...rest } = props;
   return (
     <View style={{ gap: 6, flex: 1 }}>
-      <Text style={{ fontWeight: "700" }}>{label}</Text>
+      <Text style={styles.fieldLabel}>{label}</Text>
       <TextInput
         {...rest}
+        placeholderTextColor={colors.textSecondary}
         style={{
-          borderWidth: 1,
-          borderColor: "#111111",
-          borderRadius: 10,
-          padding: 12,
+          ...styles.input,
           minHeight: rest.multiline ? 90 : undefined,
           textAlignVertical: rest.multiline ? "top" : "auto",
           ...(inputStyle || {}),
@@ -881,5 +842,34 @@ function InputField(props: any) {
 }
 
 function RowField({ children }: { children: React.ReactNode }) {
-  return <View style={{ flexDirection: "row", gap: 10 }}>{children}</View>;
+  return <View style={{ flexDirection: "row", gap: spacing.md }}>{children}</View>;
 }
+
+const styles = StyleSheet.create({
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "flex-end" },
+  sheet: {
+    backgroundColor: colors.background,
+    borderTopLeftRadius: radii.xl,
+    borderTopRightRadius: radii.xl,
+    padding: spacing.lg,
+  },
+  fieldLabel: {
+    fontFamily,
+    fontSize: fontSize.eyebrow,
+    fontWeight: fontWeight.bold,
+    color: colors.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: 1.4,
+  },
+  input: {
+    backgroundColor: colors.field,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    paddingHorizontal: 13,
+    paddingVertical: 12,
+    fontFamily,
+    fontSize: fontSize.body,
+    color: colors.text,
+  },
+});

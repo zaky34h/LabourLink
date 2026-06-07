@@ -8,6 +8,7 @@ import {
   Image,
   Modal,
   ScrollView,
+  StyleSheet,
 } from "react-native";
 import { useState, useEffect } from "react";
 import { router } from "expo-router";
@@ -16,6 +17,8 @@ import { clearSession, deleteAccount, type BuilderReview } from "../../src/auth/
 import { useCurrentUser } from "../../src/auth/useCurrentUser";
 import { updateBuilderProfile } from "../../src/auth/updateProfile";
 import { FormScreen } from "../../src/ui/FormScreen";
+import { colors, spacing, radii, fontFamily, fontSize, fontWeight, type } from "../../src/theme";
+import Button from "../../src/ui/Button";
 
 export default function BuilderProfile() {
   const { user, loading, reload } = useCurrentUser();
@@ -110,18 +113,18 @@ export default function BuilderProfile() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator />
+      <View style={styles.centered}>
+        <ActivityIndicator color={colors.text} />
       </View>
     );
   }
 
   if (!user || user.role !== "builder") {
     return (
-      <View style={{ flex: 1, padding: 24, paddingTop: 12 }}>
-        <Text style={{ fontSize: 20, fontWeight: "900" }}>Not logged in</Text>
-        <Pressable onPress={() => router.replace("/")} style={{ marginTop: 12 }}>
-          <Text style={{ fontWeight: "800" }}>Go to Login</Text>
+      <View style={{ flex: 1, padding: spacing.xl, paddingTop: 60, backgroundColor: colors.background }}>
+        <Text style={type.h2}>Not logged in</Text>
+        <Pressable onPress={() => router.replace("/")} style={{ marginTop: spacing.md }}>
+          <Text style={{ ...type.body, fontWeight: fontWeight.heavy }}>Go to Login</Text>
         </Pressable>
       </View>
     );
@@ -140,188 +143,114 @@ export default function BuilderProfile() {
     "☆".repeat(5 - Math.round(normalizedRating));
 
   return (
-    <FormScreen>
-      <View style={{ padding: 24, paddingTop: 12, gap: 14, paddingBottom: 30 }}>
-      <Text style={{ fontSize: 26, fontWeight: "900" }}>Profile</Text>
+    <FormScreen backgroundColor={colors.background}>
+      <View style={{ padding: spacing.xl, paddingTop: spacing.md, gap: spacing.md, paddingBottom: 30 }}>
+        <Text style={type.h1}>Profile</Text>
 
-      <View style={{ padding: 14, borderWidth: 1, borderColor: "#111111", borderRadius: 12, gap: 10 }}>
-        <Text style={{ fontWeight: "900" }}>Company Logo</Text>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-          <View
-            style={{
-              width: 72,
-              height: 72,
-              borderRadius: 14,
-              overflow: "hidden",
-              backgroundColor: "#FDE047",
-              borderWidth: 1,
-              borderColor: "#111111",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            {companyLogoUrl.trim() ? (
-              <Image source={{ uri: companyLogoUrl.trim() }} style={{ width: "100%", height: "100%" }} />
-            ) : (
-              <Text style={{ fontWeight: "900", fontSize: 22 }}>
-                {companyName.trim().slice(0, 1).toUpperCase() || "C"}
-              </Text>
-            )}
-          </View>
-
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={{ fontSize: 18, fontWeight: "900" }} numberOfLines={2}>
-              {companyName || "Company Name"}
-            </Text>
-          </View>
-        </View>
-
-        <View style={{ flexDirection: "row", gap: 10 }}>
-          <Pressable
-            onPress={chooseLogoFromCameraRoll}
-            style={{
-              flex: 1,
-              paddingVertical: 12,
-              borderRadius: 12,
-              backgroundColor: "#111",
-              alignItems: "center",
-            }}
-          >
-            <Text style={{ color: "#FDE047", fontWeight: "900" }}>Choose from Camera Roll</Text>
-          </Pressable>
-
-          <Pressable
-            onPress={() => setCompanyLogoUrl("")}
-            style={{
-              paddingHorizontal: 12,
-              borderRadius: 12,
-              borderWidth: 1,
-              borderColor: "#111111",
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: "#fff",
-            }}
-          >
-            <Text style={{ fontWeight: "900" }}>Remove</Text>
-          </Pressable>
-        </View>
-      </View>
-
-      <View style={{ padding: 14, borderWidth: 1, borderColor: "#111111", borderRadius: 12 }}>
-        <Text style={{ fontWeight: "800" }}>Company Rating</Text>
-        <Text style={{ marginTop: 6, opacity: 0.85, fontWeight: "800" }}>
-          {normalizedRating.toFixed(1)} / 5.0
-        </Text>
-        <Text style={{ marginTop: 4, opacity: 0.75 }}>
-          {stars} ({reviews.length} review{reviews.length === 1 ? "" : "s"})
-        </Text>
-      </View>
-
-      <Field label="First Name" value={firstName} onChangeText={setFirstName} />
-      <Field label="Last Name" value={lastName} onChangeText={setLastName} />
-      <Field label="Company Name" value={companyName} onChangeText={setCompanyName} />
-      <Field label="About Yourself" value={about} onChangeText={setAbout} multiline />
-      <Field label="Address" value={address} onChangeText={setAddress} />
-
-      <Pressable
-        onPress={() => setReviewsOpen(true)}
-        style={{ padding: 16, borderWidth: 1, borderColor: "#111111", borderRadius: 12, alignItems: "center" }}
-      >
-        <Text style={{ fontWeight: "900" }}>
-          Reviews ({reviews.length})
-        </Text>
-      </Pressable>
-
-      <Pressable
-        onPress={onSave}
-        disabled={deleting}
-        style={{ padding: 16, backgroundColor: "#111", borderRadius: 12, alignItems: "center", marginTop: 6 }}
-      >
-        <Text style={{ color: "#FDE047", fontWeight: "800" }}>Save Changes</Text>
-      </Pressable>
-
-      <Pressable
-        onPress={logout}
-        disabled={deleting}
-        style={{
-          padding: 16,
-          borderWidth: 1,
-          borderColor: "#111111",
-          borderRadius: 12,
-          alignItems: "center",
-          opacity: deleting ? 0.7 : 1,
-        }}
-      >
-        <Text style={{ fontWeight: "800" }}>Logout</Text>
-      </Pressable>
-
-      <Pressable
-        onPress={onDeleteAccountPress}
-        disabled={deleting}
-        style={{
-          padding: 16,
-          borderWidth: 1,
-          borderColor: "#DC2626",
-          borderRadius: 12,
-          alignItems: "center",
-          backgroundColor: "#FEF2F2",
-          opacity: deleting ? 0.7 : 1,
-        }}
-      >
-        <Text style={{ fontWeight: "800", color: "#B91C1C" }}>
-          {deleting ? "Deleting Account..." : "Delete Account"}
-        </Text>
-      </Pressable>
-
-      <Modal visible={reviewsOpen} animationType="slide" transparent>
-        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "flex-end" }}>
-          <View style={{ maxHeight: "75%", backgroundColor: "#fff", borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 16 }}>
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <Text style={{ fontSize: 18, fontWeight: "900" }}>Company Reviews</Text>
-              <Pressable onPress={() => setReviewsOpen(false)}>
-                <Text style={{ fontWeight: "900" }}>Done</Text>
-              </Pressable>
+        <View style={styles.card}>
+          <Text style={styles.fieldLabel}>Company Logo</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
+            <View style={styles.avatar}>
+              {companyLogoUrl.trim() ? (
+                <Image source={{ uri: companyLogoUrl.trim() }} style={{ width: "100%", height: "100%" }} />
+              ) : (
+                <Text style={{ fontFamily, fontWeight: fontWeight.heavy, fontSize: fontSize.h2, color: colors.text }}>
+                  {companyName.trim().slice(0, 1).toUpperCase() || "C"}
+                </Text>
+              )}
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {reviews.length === 0 ? (
-                <Text style={{ opacity: 0.7, fontWeight: "700", marginTop: 6 }}>
-                  No reviews yet.
-                </Text>
-              ) : (
-                reviews
-                  .slice()
-                  .sort((a, b) => b.createdAt - a.createdAt)
-                  .map((review) => (
-                    <View
-                      key={review.id}
-                      style={{
-                        padding: 12,
-                        borderWidth: 1,
-                        borderColor: "#111111",
-                        borderRadius: 12,
-                        marginBottom: 10,
-                        backgroundColor: "#fff",
-                      }}
-                    >
-                      <Text style={{ fontWeight: "900" }}>{review.labourerName}</Text>
-                      <Text style={{ marginTop: 4, opacity: 0.8 }}>
-                        {"★".repeat(Math.round(Math.max(0, Math.min(5, review.rating))))}
-                        {"☆".repeat(5 - Math.round(Math.max(0, Math.min(5, review.rating))))}
-                        {"  "}
-                        {Math.max(0, Math.min(5, review.rating)).toFixed(1)} / 5.0
-                      </Text>
-                      <Text style={{ marginTop: 6, opacity: 0.85 }}>{review.comment}</Text>
-                      <Text style={{ marginTop: 6, opacity: 0.6, fontSize: 12 }}>
-                        {new Date(review.createdAt).toLocaleDateString()}
-                      </Text>
-                    </View>
-                  ))
-              )}
-            </ScrollView>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={{ fontFamily, fontSize: fontSize.h3, fontWeight: fontWeight.heavy, color: colors.text }} numberOfLines={2}>
+                {companyName || "Company Name"}
+              </Text>
+            </View>
+          </View>
+
+          <View style={{ flexDirection: "row", gap: spacing.sm }}>
+            <View style={{ flex: 1 }}>
+              <Button label="Choose from Camera Roll" onPress={chooseLogoFromCameraRoll} />
+            </View>
+            <View style={{ width: 96 }}>
+              <Button label="Remove" variant="secondary" onPress={() => setCompanyLogoUrl("")} />
+            </View>
           </View>
         </View>
-      </Modal>
+
+        <View style={[styles.card, { gap: 6 }]}>
+          <Text style={styles.fieldLabel}>Company Rating</Text>
+          <Text style={{ ...type.body, fontWeight: fontWeight.heavy }}>
+            {normalizedRating.toFixed(1)} / 5.0
+          </Text>
+          <Text style={type.secondary}>
+            {stars} ({reviews.length} review{reviews.length === 1 ? "" : "s"})
+          </Text>
+        </View>
+
+        <Field label="First Name" value={firstName} onChangeText={setFirstName} />
+        <Field label="Last Name" value={lastName} onChangeText={setLastName} />
+        <Field label="Company Name" value={companyName} onChangeText={setCompanyName} />
+        <Field label="About Yourself" value={about} onChangeText={setAbout} multiline />
+        <Field label="Address" value={address} onChangeText={setAddress} />
+
+        <Button label={`Reviews (${reviews.length})`} variant="secondary" onPress={() => setReviewsOpen(true)} />
+
+        <Button
+          label="Save Changes"
+          onPress={onSave}
+          disabled={deleting}
+          style={{ marginTop: spacing.xs }}
+        />
+
+        <Button label="Logout" variant="secondary" onPress={logout} disabled={deleting} />
+
+        <Button
+          label={deleting ? "Deleting Account..." : "Delete Account"}
+          variant="destructive"
+          onPress={onDeleteAccountPress}
+          loading={deleting}
+          disabled={deleting}
+        />
+
+        <Modal visible={reviewsOpen} animationType="slide" transparent>
+          <View style={styles.modalOverlay}>
+            <View style={styles.sheet}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.sm }}>
+                <Text style={type.h2}>Company Reviews</Text>
+                <Pressable onPress={() => setReviewsOpen(false)}>
+                  <Text style={{ fontFamily, fontWeight: fontWeight.heavy, color: colors.text }}>Done</Text>
+                </Pressable>
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {reviews.length === 0 ? (
+                  <Text style={{ ...type.secondary, marginTop: 6 }}>
+                    No reviews yet.
+                  </Text>
+                ) : (
+                  reviews
+                    .slice()
+                    .sort((a, b) => b.createdAt - a.createdAt)
+                    .map((review) => (
+                      <View key={review.id} style={styles.reviewCard}>
+                        <Text style={{ fontFamily, fontWeight: fontWeight.heavy, color: colors.text }}>{review.labourerName}</Text>
+                        <Text style={{ ...type.secondary, marginTop: 4 }}>
+                          {"★".repeat(Math.round(Math.max(0, Math.min(5, review.rating))))}
+                          {"☆".repeat(5 - Math.round(Math.max(0, Math.min(5, review.rating))))}
+                          {"  "}
+                          {Math.max(0, Math.min(5, review.rating)).toFixed(1)} / 5.0
+                        </Text>
+                        <Text style={{ ...type.body, marginTop: 6 }}>{review.comment}</Text>
+                        <Text style={{ ...type.secondary, marginTop: 6, fontSize: fontSize.caption }}>
+                          {new Date(review.createdAt).toLocaleDateString()}
+                        </Text>
+                      </View>
+                    ))
+                )}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
       </View>
     </FormScreen>
   );
@@ -331,18 +260,73 @@ function Field(props: any) {
   const { label, ...rest } = props;
   return (
     <View style={{ gap: 6 }}>
-      <Text style={{ fontWeight: "700" }}>{label}</Text>
+      <Text style={styles.fieldLabel}>{label}</Text>
       <TextInput
         {...rest}
-        style={{
-          borderWidth: 1,
-          borderColor: "#111111",
-          borderRadius: 10,
-          padding: 14,
-          minHeight: rest.multiline ? 90 : undefined,
-          textAlignVertical: rest.multiline ? "top" : "auto",
-        }}
+        placeholderTextColor={colors.textSecondary}
+        style={[
+          styles.input,
+          rest.multiline ? { minHeight: 90, textAlignVertical: "top", paddingTop: 12 } : null,
+        ]}
       />
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  centered: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.background },
+  card: {
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.xl,
+    backgroundColor: colors.surface,
+    gap: spacing.sm,
+  },
+  avatar: {
+    width: 72,
+    height: 72,
+    borderRadius: radii.lg,
+    backgroundColor: colors.field,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reviewCard: {
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.lg,
+    marginBottom: spacing.sm,
+    backgroundColor: colors.surface,
+  },
+  fieldLabel: {
+    fontFamily,
+    fontSize: fontSize.eyebrow,
+    fontWeight: fontWeight.bold,
+    color: colors.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: 1.4,
+  },
+  input: {
+    backgroundColor: colors.field,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    paddingHorizontal: 13,
+    paddingVertical: 12,
+    fontFamily,
+    fontSize: fontSize.body,
+    color: colors.text,
+  },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "flex-end" },
+  sheet: {
+    maxHeight: "75%",
+    backgroundColor: colors.background,
+    borderTopLeftRadius: radii.xl,
+    borderTopRightRadius: radii.xl,
+    padding: spacing.lg,
+  },
+});

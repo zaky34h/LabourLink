@@ -1,8 +1,11 @@
 import { useMemo, useState } from "react";
-import { View, Text, TextInput, Pressable, Alert } from "react-native";
+import { View, Text, Alert, StyleSheet } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { resetPassword } from "../../src/auth/storage";
 import { FormScreen } from "../../src/ui/FormScreen";
+import { colors, spacing, radii, type } from "../../src/theme";
+import Button from "../../src/ui/Button";
+import TextField from "../../src/ui/TextField";
 
 export default function ResetPasswordScreen() {
   const params = useLocalSearchParams<{ email?: string; code?: string }>();
@@ -43,81 +46,77 @@ export default function ResetPasswordScreen() {
   }
 
   return (
-    <FormScreen>
-      <View style={{ flex: 1, padding: 24, paddingTop: 48, gap: 14 }}>
-        <Text style={{ fontSize: 26, fontWeight: "900" }}>Reset Password</Text>
-        <Text style={{ opacity: 0.75 }}>
+    <FormScreen backgroundColor={colors.background}>
+      <View style={styles.content}>
+        <Text style={styles.title}>Reset Password</Text>
+        <Text style={styles.subtitle}>
           Enter your reset code and choose a new password.
         </Text>
 
-        <Field
-          label="Email Address"
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          keyboardType="email-address"
-          placeholder="you@email.com"
-        />
-        <Field
-          label="Reset Code"
-          value={code}
-          onChangeText={setCode}
-          keyboardType="number-pad"
-          placeholder="6-digit code"
-        />
-        <Field
-          label="New Password"
-          value={newPassword}
-          onChangeText={setNewPassword}
-          secureTextEntry
-          placeholder="New password"
-        />
-        <Field
-          label="Confirm New Password"
-          value={confirmPassword}
-          onChangeText={setConfirmPassword}
-          secureTextEntry
-          placeholder="Confirm password"
-        />
+        <View style={styles.card}>
+          <TextField
+            label="Email Address"
+            value={email}
+            onChangeText={setEmail}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            placeholder="you@email.com"
+          />
+          <TextField
+            label="Reset Code"
+            value={code}
+            onChangeText={setCode}
+            keyboardType="number-pad"
+            placeholder="6-digit code"
+          />
+          <TextField
+            label="New Password"
+            value={newPassword}
+            onChangeText={setNewPassword}
+            secureToggle
+            placeholder="New password"
+          />
+          <TextField
+            label="Confirm New Password"
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            secureToggle
+            placeholder="Confirm password"
+          />
 
-        <Pressable
-          onPress={onResetPassword}
-          disabled={submitting}
-          style={{
-            padding: 16,
-            backgroundColor: submitting ? "#444444" : "#111111",
-            borderRadius: 12,
-            alignItems: "center",
-            marginTop: 4,
-          }}
-        >
-          <Text style={{ color: "#FDE047", fontWeight: "900" }}>
-            {submitting ? "Resetting..." : "Reset password"}
-          </Text>
-        </Pressable>
+          <Button
+            label={submitting ? "Resetting..." : "Reset password"}
+            onPress={onResetPassword}
+            loading={submitting}
+            disabled={submitting}
+            style={{ marginTop: spacing.sm }}
+          />
 
-        <Pressable onPress={() => router.replace("/")}>
-          <Text style={{ textAlign: "center", fontWeight: "700" }}>Back to Login</Text>
-        </Pressable>
+          <Button
+            label="Back to Login"
+            variant="secondary"
+            onPress={() => router.replace("/")}
+            style={{ marginTop: spacing.sm }}
+          />
+        </View>
       </View>
     </FormScreen>
   );
 }
 
-function Field(props: any) {
-  const { label, ...rest } = props;
-  return (
-    <View style={{ gap: 6 }}>
-      <Text style={{ fontWeight: "700" }}>{label}</Text>
-      <TextInput
-        {...rest}
-        style={{
-          borderWidth: 1,
-          borderColor: "#111111",
-          borderRadius: 10,
-          padding: 14,
-        }}
-      />
-    </View>
-  );
-}
+const styles = StyleSheet.create({
+  content: {
+    flex: 1,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.xxl,
+  },
+  title: { ...type.h1 },
+  subtitle: { ...type.secondary, marginTop: spacing.sm, marginBottom: spacing.lg },
+  card: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.xl,
+    padding: spacing.lg,
+  },
+});

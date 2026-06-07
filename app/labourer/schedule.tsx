@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { View, Text, Pressable, ActivityIndicator, Alert, ScrollView, RefreshControl, Modal } from "react-native";
+import { View, Text, Pressable, ActivityIndicator, Alert, ScrollView, RefreshControl, Modal, StyleSheet } from "react-native";
 import { Calendar } from "react-native-calendars";
 import { useCurrentUser } from "../../src/auth/useCurrentUser";
 import { updateLabourerAvailability } from "../../src/auth/updateAvailability";
 import { completeWorkOffer, getOffersForLabourer, type WorkOffer } from "../../src/offers/storage";
+import { colors, spacing, radii, fontFamily, fontSize, fontWeight, type } from "../../src/theme";
+import Button from "../../src/ui/Button";
 
 export default function LabourerSchedule() {
   const { user, loading, reload } = useCurrentUser();
@@ -41,7 +43,7 @@ export default function LabourerSchedule() {
 
   const markedDates = useMemo(() => {
     return selectedUnavailableDates.reduce((acc, d) => {
-      acc[d] = { selected: true, selectedColor: "#111", selectedTextColor: "#FDE047" };
+      acc[d] = { selected: true, selectedColor: colors.primary, selectedTextColor: colors.onPrimary };
       return acc;
     }, {} as Record<string, any>);
   }, [selectedUnavailableDates]);
@@ -86,114 +88,99 @@ export default function LabourerSchedule() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator />
+      <View style={styles.centered}>
+        <ActivityIndicator color={colors.text} />
       </View>
     );
   }
 
   if (!user || user.role !== "labourer") {
     return (
-      <View style={{ flex: 1, padding: 24, paddingTop: 60 }}>
-        <Text style={{ fontSize: 20, fontWeight: "900" }}>Not logged in</Text>
+      <View style={{ flex: 1, padding: spacing.xl, paddingTop: 60, backgroundColor: colors.background }}>
+        <Text style={type.h2}>Not logged in</Text>
       </View>
     );
   }
 
   return (
     <ScrollView
-      style={{ flex: 1, backgroundColor: "#fff" }}
-      contentContainerStyle={{ padding: 16, paddingTop: 60, paddingBottom: 20 }}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      style={{ flex: 1, backgroundColor: colors.background }}
+      contentContainerStyle={{ padding: spacing.lg, paddingTop: 60, paddingBottom: spacing.xl }}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.text} />}
     >
-      <Text style={{ fontSize: 26, fontWeight: "900" }}>Schedule</Text>
-      <Text style={{ marginTop: 6, opacity: 0.7 }}>
+      <Text style={type.h1}>Schedule</Text>
+      <Text style={{ ...type.secondary, marginTop: 6, lineHeight: 20 }}>
         All days are available by default. Add only your unavailabilities below.
       </Text>
 
-      <View style={{ height: 14 }} />
+      <View style={{ height: spacing.md }} />
 
-      <View style={{ backgroundColor: "#fff", borderRadius: 16, borderWidth: 1, borderColor: "#111111", padding: 10 }}>
-        <Calendar onDayPress={(day) => toggleUnavailableDate(day.dateString)} markedDates={markedDates} />
+      <View style={styles.calendarCard}>
+        <Calendar
+          onDayPress={(day) => toggleUnavailableDate(day.dateString)}
+          markedDates={markedDates}
+          theme={{
+            calendarBackground: colors.surface,
+            monthTextColor: colors.text,
+            textMonthFontFamily: fontFamily,
+            textMonthFontWeight: "800",
+            textSectionTitleColor: colors.textSecondary,
+            dayTextColor: colors.text,
+            textDayFontFamily: fontFamily,
+            textDayHeaderFontFamily: fontFamily,
+            textDisabledColor: colors.border,
+            todayTextColor: colors.dangerText,
+            arrowColor: colors.text,
+          }}
+        />
       </View>
 
-      <Text style={{ marginTop: 12, opacity: 0.7, fontWeight: "700" }}>
+      <Text style={{ ...type.secondary, marginTop: spacing.md, fontWeight: fontWeight.bold }}>
         Unavailabilities: {selectedUnavailableDates.length}
       </Text>
 
-      <Pressable
+      <Button
+        label="Clear Unavailabilities"
+        variant="secondary"
         onPress={() => setSelectedUnavailableDates([])}
-        style={{
-          marginTop: 8,
-          paddingVertical: 10,
-          borderRadius: 10,
-          borderWidth: 1,
-          borderColor: "#111111",
-          alignItems: "center",
-          backgroundColor: "#fff",
-        }}
-      >
-        <Text style={{ fontWeight: "800" }}>Clear Unavailabilities</Text>
-      </Pressable>
+        style={{ marginTop: spacing.sm }}
+      />
 
-      <Pressable
+      <Button
+        label={saving ? "Saving..." : "Save Unavailabilities"}
         onPress={onSave}
+        loading={saving}
         disabled={saving}
-        style={{
-          marginTop: 14,
-          padding: 16,
-          borderRadius: 14,
-          backgroundColor: saving ? "#444" : "#111",
-          alignItems: "center",
-        }}
-      >
-        <Text style={{ color: "#FDE047", fontWeight: "900" }}>
-          {saving ? "Saving..." : "Save Unavailabilities"}
-        </Text>
-      </Pressable>
+        style={{ marginTop: spacing.md }}
+      />
 
-      <View style={{ marginTop: 24, gap: 10 }}>
-        <Text style={{ fontSize: 24, fontWeight: "900" }}>Confirmed Work</Text>
+      <View style={{ marginTop: spacing.xl, gap: spacing.sm }}>
+        <Text style={type.h1}>Confirmed Work</Text>
         {scheduledWork.length === 0 ? (
-          <Text style={{ opacity: 0.7, fontWeight: "700" }}>
+          <Text style={{ ...type.secondary, lineHeight: 20 }}>
             No confirmed jobs yet. Approved offers will appear here automatically.
           </Text>
         ) : (
           scheduledWork.map((offer) => (
-            <View
-              key={offer.id}
-              style={{
-                borderWidth: 1,
-                borderColor: "#111111",
-                borderRadius: 14,
-                padding: 12,
-                backgroundColor: "#fff",
-                gap: 6,
-              }}
-            >
-              <Text style={{ fontSize: 17, fontWeight: "900" }}>{offer.builderCompanyName}</Text>
-              <Text style={{ opacity: 0.8 }}>{offer.startDate} to {offer.endDate}</Text>
-              <Text style={{ opacity: 0.8 }}>{offer.siteAddress}</Text>
+            <View key={offer.id} style={styles.card}>
+              <Text style={{ fontFamily, fontSize: fontSize.h3, fontWeight: fontWeight.heavy, color: colors.text }}>
+                {offer.builderCompanyName}
+              </Text>
+              <Text style={type.secondary}>{offer.startDate} to {offer.endDate}</Text>
+              <Text style={type.secondary}>{offer.siteAddress}</Text>
               {offer.status === "completed" ? (
-                <Text style={{ marginTop: 4, fontWeight: "800", color: "#166534" }}>
+                <Text style={{ fontFamily, marginTop: 4, fontWeight: fontWeight.heavy, color: colors.successText }}>
                   Completed • Rated {offer.labourerCompanyRating ?? "N/A"}/5
                 </Text>
               ) : (
-                <Pressable
+                <Button
+                  label="Complete Work"
                   onPress={() => {
                     setSelectedRating(5);
                     setRatingModalOffer(offer);
                   }}
-                  style={{
-                    marginTop: 6,
-                    paddingVertical: 10,
-                    borderRadius: 10,
-                    backgroundColor: "#111",
-                    alignItems: "center",
-                  }}
-                >
-                  <Text style={{ color: "#FDE047", fontWeight: "900" }}>Complete Work</Text>
-                </Pressable>
+                  style={{ marginTop: spacing.sm }}
+                />
               )}
             </View>
           ))
@@ -201,14 +188,14 @@ export default function LabourerSchedule() {
       </View>
 
       <Modal visible={!!ratingModalOffer} transparent animationType="slide">
-        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "flex-end" }}>
-          <View style={{ backgroundColor: "#fff", borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 16 }}>
-            <Text style={{ fontSize: 20, fontWeight: "900" }}>Rate Company</Text>
-            <Text style={{ marginTop: 6, opacity: 0.75 }}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.sheet}>
+            <Text style={type.h2}>Rate Company</Text>
+            <Text style={{ ...type.secondary, marginTop: 6 }}>
               How would you rate {ratingModalOffer?.builderCompanyName}?
             </Text>
 
-            <View style={{ flexDirection: "row", gap: 8, marginTop: 14 }}>
+            <View style={{ flexDirection: "row", gap: spacing.sm, marginTop: spacing.md }}>
               {[1, 2, 3, 4, 5].map((star) => {
                 const active = star <= selectedRating;
                 return (
@@ -218,14 +205,14 @@ export default function LabourerSchedule() {
                     style={{
                       flex: 1,
                       paddingVertical: 10,
-                      borderRadius: 10,
+                      borderRadius: radii.md,
                       borderWidth: 1,
-                      borderColor: "#111111",
-                      backgroundColor: active ? "#111" : "#fff",
+                      borderColor: active ? colors.primary : colors.border,
+                      backgroundColor: active ? colors.primary : colors.field,
                       alignItems: "center",
                     }}
                   >
-                    <Text style={{ color: active ? "#FDE047" : "#111111", fontWeight: "900" }}>
+                    <Text style={{ fontFamily, color: active ? colors.onPrimary : colors.text, fontWeight: fontWeight.heavy }}>
                       {star}★
                     </Text>
                   </Pressable>
@@ -233,35 +220,18 @@ export default function LabourerSchedule() {
               })}
             </View>
 
-            <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
-              <Pressable
-                onPress={() => setRatingModalOffer(null)}
-                style={{
-                  flex: 1,
-                  paddingVertical: 12,
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: "#111111",
-                  alignItems: "center",
-                }}
-              >
-                <Text style={{ fontWeight: "900" }}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                onPress={onConfirmCompleteWork}
-                disabled={submittingCompletion}
-                style={{
-                  flex: 1,
-                  paddingVertical: 12,
-                  borderRadius: 12,
-                  backgroundColor: "#111",
-                  alignItems: "center",
-                }}
-              >
-                <Text style={{ color: "#FDE047", fontWeight: "900" }}>
-                  {submittingCompletion ? "Saving..." : "Submit Rating"}
-                </Text>
-              </Pressable>
+            <View style={{ flexDirection: "row", gap: spacing.md, marginTop: spacing.lg }}>
+              <View style={{ flex: 1 }}>
+                <Button label="Cancel" variant="secondary" onPress={() => setRatingModalOffer(null)} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Button
+                  label={submittingCompletion ? "Saving..." : "Submit Rating"}
+                  onPress={onConfirmCompleteWork}
+                  loading={submittingCompletion}
+                  disabled={submittingCompletion}
+                />
+              </View>
             </View>
           </View>
         </View>
@@ -269,3 +239,30 @@ export default function LabourerSchedule() {
     </ScrollView>
   );
 }
+
+const styles = StyleSheet.create({
+  centered: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.background },
+  calendarCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.sm,
+    overflow: "hidden",
+  },
+  card: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.xl,
+    padding: spacing.lg,
+    backgroundColor: colors.surface,
+    gap: 6,
+  },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "flex-end" },
+  sheet: {
+    backgroundColor: colors.background,
+    borderTopLeftRadius: radii.xl,
+    borderTopRightRadius: radii.xl,
+    padding: spacing.lg,
+  },
+});

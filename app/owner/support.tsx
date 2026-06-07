@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { View, Text, TextInput, Pressable, FlatList, Alert, RefreshControl, Modal } from "react-native";
+import { View, Text, TextInput, Pressable, FlatList, Alert, RefreshControl, Modal, StyleSheet } from "react-native";
 import { useFocusEffect } from "expo-router";
 import {
   disableSupportUser,
@@ -9,8 +9,9 @@ import {
   searchSupportUsers,
   type SupportUser,
 } from "../../src/owner/storage";
+import { colors, spacing, radii, fontFamily, fontSize, fontWeight, type } from "../../src/theme";
+import Button from "../../src/ui/Button";
 
-const BRAND_YELLOW = "#FDE047";
 export default function OwnerSupport() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
@@ -109,186 +110,124 @@ export default function OwnerSupport() {
   return (
     <>
       <FlatList
-        style={{ flex: 1, backgroundColor: "#fff" }}
-        contentContainerStyle={{ padding: 16, paddingTop: 60, paddingBottom: 24 }}
+        style={{ flex: 1, backgroundColor: colors.background }}
+        contentContainerStyle={{ padding: spacing.lg, paddingTop: 60, paddingBottom: spacing.xl }}
         data={users}
         keyExtractor={(item) => item.email}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         ListHeaderComponent={
-          <View style={{ marginBottom: 12, gap: 10 }}>
-            <Text style={{ fontSize: 24, fontWeight: "900" }}>Support</Text>
-            <Text style={{ opacity: 0.75 }}>
+          <View style={{ marginBottom: spacing.md, gap: spacing.sm }}>
+            <Text style={type.h1}>Support</Text>
+            <Text style={type.secondary}>
               Search users and run admin actions: disable account, reset password, force logout.
             </Text>
-            <View style={{ flexDirection: "row", gap: 8 }}>
+            <View style={{ flexDirection: "row", gap: spacing.sm }}>
               <TextInput
                 value={query}
                 onChangeText={setQuery}
                 placeholder="Search name or email"
+                placeholderTextColor={colors.textSecondary}
                 autoCapitalize="none"
-                style={{
-                  flex: 1,
-                  borderWidth: 1,
-                  borderColor: "#111111",
-                  borderRadius: 10,
-                  paddingHorizontal: 12,
-                  paddingVertical: 10,
-                }}
+                style={[styles.input, { flex: 1 }]}
               />
               <Pressable
                 onPress={() => loadUsers(query.trim())}
                 disabled={loading}
-                style={{
-                  paddingHorizontal: 14,
-                  justifyContent: "center",
-                  borderRadius: 10,
-                  backgroundColor: loading ? "#444" : "#111",
-                }}
+                style={({ pressed }) => [
+                  styles.searchButton,
+                  pressed && { opacity: 0.85 },
+                  loading && { opacity: 0.45 },
+                ]}
               >
-                <Text style={{ color: BRAND_YELLOW, fontWeight: "900" }}>Search</Text>
+                <Text style={styles.searchButtonLabel}>Search</Text>
               </Pressable>
             </View>
           </View>
         }
-        ListEmptyComponent={<Text style={{ opacity: 0.7 }}>{loading ? "Loading..." : "No users found."}</Text>}
+        ListEmptyComponent={<Text style={type.secondary}>{loading ? "Loading..." : "No users found."}</Text>}
         renderItem={({ item }) => (
-          <View
-            style={{
-              borderWidth: 1,
-              borderColor: "#111111",
-              borderRadius: 14,
-              padding: 12,
-              marginBottom: 10,
-              backgroundColor: "#fff",
-            }}
-          >
-            <Text style={{ fontWeight: "900" }}>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>
               {item.firstName} {item.lastName}
             </Text>
-            <Text style={{ marginTop: 3, opacity: 0.8 }}>{item.email}</Text>
-            <Text style={{ marginTop: 3, opacity: 0.8 }}>
+            <Text style={{ ...type.secondary, marginTop: 3 }}>{item.email}</Text>
+            <Text style={{ ...type.secondary, marginTop: 3 }}>
               Role: {item.role}
               {item.role === "builder" && item.companyName ? ` | ${item.companyName}` : ""}
               {item.role === "labourer" && item.occupation ? ` | ${item.occupation}` : ""}
             </Text>
-            <Text style={{ marginTop: 3, fontWeight: "700", color: item.isDisabled ? "#B91C1C" : "#166534" }}>
-              {item.isDisabled ? "Disabled" : "Active"}
-            </Text>
-
-            <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
-              <Pressable
-                onPress={() => (item.isDisabled ? onEnable(item.email) : onDisable(item.email))}
-                style={{
-                  flex: 1,
-                  paddingVertical: 10,
-                  borderRadius: 10,
-                  alignItems: "center",
-                  backgroundColor: item.isDisabled ? "#16A34A" : "#B91C1C",
-                }}
-              >
-                <Text style={{ color: "#fff", fontWeight: "900" }}>
-                  {item.isDisabled ? "Enable" : "Disable"}
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => onForceLogout(item.email)}
-                style={{
-                  flex: 1,
-                  paddingVertical: 10,
-                  borderRadius: 10,
-                  alignItems: "center",
-                  backgroundColor: "#111",
-                }}
-              >
-                <Text style={{ color: BRAND_YELLOW, fontWeight: "900" }}>Force Logout</Text>
-              </Pressable>
+            <View style={[styles.statusPill, { backgroundColor: item.isDisabled ? colors.dangerBg : colors.successBg, marginTop: spacing.sm }]}>
+              <Text style={{ fontFamily, fontWeight: fontWeight.heavy, fontSize: fontSize.caption, color: item.isDisabled ? colors.dangerText : colors.successText }}>
+                {item.isDisabled ? "DISABLED" : "ACTIVE"}
+              </Text>
             </View>
 
-            <Pressable
+            <View style={{ flexDirection: "row", gap: spacing.sm, marginTop: spacing.md }}>
+              <View style={{ flex: 1 }}>
+                <Button
+                  label={item.isDisabled ? "Enable" : "Disable"}
+                  variant={item.isDisabled ? "primary" : "destructive"}
+                  onPress={() => (item.isDisabled ? onEnable(item.email) : onDisable(item.email))}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Button label="Force Logout" variant="destructive" onPress={() => onForceLogout(item.email)} />
+              </View>
+            </View>
+
+            <Button
+              label="Reset Password"
+              variant="secondary"
               onPress={() => onResetPassword(item.email)}
-              style={{
-                marginTop: 8,
-                paddingVertical: 10,
-                borderRadius: 10,
-                borderWidth: 1,
-                borderColor: "#111111",
-                alignItems: "center",
-                backgroundColor: BRAND_YELLOW,
-              }}
-            >
-              <Text style={{ fontWeight: "900" }}>Reset Password</Text>
-            </Pressable>
+              style={{ marginTop: spacing.sm }}
+            />
           </View>
         )}
       />
 
       <Modal visible={Boolean(resetPasswordEmail)} transparent animationType="fade">
-        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "center", padding: 20 }}>
-          <View style={{ backgroundColor: "#fff", borderRadius: 16, padding: 16, gap: 12 }}>
-            <Text style={{ fontSize: 18, fontWeight: "900" }}>Reset Password</Text>
-            <Text style={{ opacity: 0.8 }}>{resetPasswordEmail}</Text>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={type.h2}>Reset Password</Text>
+            <Text style={type.secondary}>{resetPasswordEmail}</Text>
             <TextInput
               value={newPassword}
               onChangeText={setNewPassword}
               placeholder="New password"
+              placeholderTextColor={colors.textSecondary}
               secureTextEntry
               autoCapitalize="none"
-              style={{
-                borderWidth: 1,
-                borderColor: "#111111",
-                borderRadius: 10,
-                paddingHorizontal: 12,
-                paddingVertical: 10,
-              }}
+              style={styles.input}
             />
             <TextInput
               value={confirmPassword}
               onChangeText={setConfirmPassword}
               placeholder="Confirm new password"
+              placeholderTextColor={colors.textSecondary}
               secureTextEntry
               autoCapitalize="none"
-              style={{
-                borderWidth: 1,
-                borderColor: "#111111",
-                borderRadius: 10,
-                paddingHorizontal: 12,
-                paddingVertical: 10,
-              }}
+              style={styles.input}
             />
-            <View style={{ flexDirection: "row", gap: 10 }}>
-              <Pressable
-                onPress={() => {
-                  if (resettingPassword) return;
-                  setResetPasswordEmail(null);
-                  setNewPassword("");
-                  setConfirmPassword("");
-                }}
-                style={{
-                  flex: 1,
-                  paddingVertical: 12,
-                  borderRadius: 10,
-                  borderWidth: 1,
-                  borderColor: "#111111",
-                  alignItems: "center",
-                }}
-              >
-                <Text style={{ fontWeight: "900" }}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                onPress={onConfirmResetPassword}
-                disabled={resettingPassword}
-                style={{
-                  flex: 1,
-                  paddingVertical: 12,
-                  borderRadius: 10,
-                  alignItems: "center",
-                  backgroundColor: resettingPassword ? "#444" : "#111",
-                }}
-              >
-                <Text style={{ color: BRAND_YELLOW, fontWeight: "900" }}>
-                  {resettingPassword ? "Resetting..." : "Save Password"}
-                </Text>
-              </Pressable>
+            <View style={{ flexDirection: "row", gap: spacing.sm }}>
+              <View style={{ flex: 1 }}>
+                <Button
+                  label="Cancel"
+                  variant="secondary"
+                  onPress={() => {
+                    if (resettingPassword) return;
+                    setResetPasswordEmail(null);
+                    setNewPassword("");
+                    setConfirmPassword("");
+                  }}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Button
+                  label={resettingPassword ? "Resetting..." : "Save Password"}
+                  onPress={onConfirmResetPassword}
+                  disabled={resettingPassword}
+                />
+              </View>
             </View>
           </View>
         </View>
@@ -296,3 +235,61 @@ export default function OwnerSupport() {
     </>
   );
 }
+
+const styles = StyleSheet.create({
+  input: {
+    backgroundColor: colors.field,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    paddingHorizontal: 13,
+    paddingVertical: 12,
+    fontFamily,
+    fontSize: fontSize.body,
+    color: colors.text,
+  },
+  searchButton: {
+    paddingHorizontal: 14,
+    justifyContent: "center",
+    borderRadius: radii.md,
+    backgroundColor: colors.primary,
+  },
+  searchButtonLabel: {
+    fontFamily,
+    fontWeight: fontWeight.heavy,
+    fontSize: fontSize.body,
+    color: colors.onPrimary,
+  },
+  card: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.xl,
+    padding: spacing.lg,
+    marginBottom: spacing.sm,
+    backgroundColor: colors.surface,
+  },
+  cardTitle: {
+    fontFamily,
+    fontSize: fontSize.h3,
+    fontWeight: fontWeight.heavy,
+    color: colors.text,
+  },
+  statusPill: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radii.pill,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    justifyContent: "center",
+    padding: spacing.xl,
+  },
+  modalCard: {
+    backgroundColor: colors.background,
+    borderRadius: radii.xl,
+    padding: spacing.lg,
+    gap: spacing.md,
+  },
+});

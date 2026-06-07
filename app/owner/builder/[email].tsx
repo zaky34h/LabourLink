@@ -1,8 +1,9 @@
 import { useCallback, useState, type ReactNode } from "react";
-import { View, Text, ScrollView, Pressable, Alert, RefreshControl } from "react-native";
+import { View, Text, ScrollView, Pressable, Alert, RefreshControl, StyleSheet } from "react-native";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { type BuilderUser, getUserByEmail } from "../../../src/auth/storage";
 import { useCurrentUser } from "../../../src/auth/useCurrentUser";
+import { colors, spacing, radii, fontFamily, fontSize, fontWeight, type } from "../../../src/theme";
 
 export default function OwnerBuilderDetails() {
   const params = useLocalSearchParams<{ email?: string }>();
@@ -45,20 +46,20 @@ export default function OwnerBuilderDetails() {
 
   return (
     <ScrollView
-      style={{ flex: 1, backgroundColor: "#fff" }}
-      contentContainerStyle={{ padding: 16, paddingTop: 60, gap: 12 }}
+      style={{ flex: 1, backgroundColor: colors.background }}
+      contentContainerStyle={{ padding: spacing.lg, paddingTop: 60, gap: spacing.md }}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
-      <Pressable onPress={() => router.back()}>
-        <Text style={{ fontWeight: "800" }}>Back</Text>
+      <Pressable onPress={() => router.back()} style={styles.headerBtn}>
+        <Text style={styles.headerBtnText}>Back</Text>
       </Pressable>
 
-      <Text style={{ fontSize: 24, fontWeight: "900" }}>Builder Profile</Text>
+      <Text style={type.h1}>Builder Profile</Text>
 
       {!builder ? (
-        <View style={{ borderWidth: 1, borderColor: "#111", borderRadius: 12, padding: 14 }}>
-          <Text style={{ fontWeight: "700" }}>Builder not found</Text>
-          <Text style={{ opacity: 0.7, marginTop: 4 }}>{builderEmail || "Missing email parameter."}</Text>
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Builder not found</Text>
+          <Text style={{ ...type.secondary, marginTop: 4 }}>{builderEmail || "Missing email parameter."}</Text>
         </View>
       ) : (
         <>
@@ -76,7 +77,7 @@ export default function OwnerBuilderDetails() {
           </Card>
 
           <Card title="Bio">
-            <Text style={{ opacity: 0.85 }}>{builder.about || "No about text."}</Text>
+            <Text style={type.secondary}>{builder.about || "No about text."}</Text>
           </Card>
 
           <Card title="Subscription">
@@ -93,8 +94,8 @@ export default function OwnerBuilderDetails() {
 
 function Card(props: { title: string; children: ReactNode }) {
   return (
-    <View style={{ borderWidth: 1, borderColor: "#111", borderRadius: 12, padding: 12, gap: 8 }}>
-      <Text style={{ fontWeight: "900" }}>{props.title}</Text>
+    <View style={styles.card}>
+      <Text style={styles.cardTitle}>{props.title}</Text>
       {props.children}
     </View>
   );
@@ -103,8 +104,52 @@ function Card(props: { title: string; children: ReactNode }) {
 function Row(props: { label: string; value: string }) {
   return (
     <View style={{ gap: 3 }}>
-      <Text style={{ fontWeight: "700", opacity: 0.7 }}>{props.label}</Text>
-      <Text style={{ fontWeight: "500" }}>{props.value}</Text>
+      <Text style={styles.rowLabel}>{props.label}</Text>
+      <Text style={styles.rowValue}>{props.value}</Text>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  headerBtn: {
+    alignSelf: "flex-start",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: radii.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  headerBtnText: {
+    fontFamily,
+    fontWeight: fontWeight.heavy,
+    color: colors.text,
+  },
+  card: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.xl,
+    padding: spacing.md,
+    gap: spacing.sm,
+    backgroundColor: colors.surface,
+  },
+  cardTitle: {
+    fontFamily,
+    fontSize: fontSize.h3,
+    fontWeight: fontWeight.heavy,
+    color: colors.text,
+  },
+  rowLabel: {
+    fontFamily,
+    fontSize: fontSize.eyebrow,
+    fontWeight: fontWeight.bold,
+    color: colors.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: 1.4,
+  },
+  rowValue: {
+    fontFamily,
+    fontSize: fontSize.h3,
+    color: colors.text,
+  },
+});

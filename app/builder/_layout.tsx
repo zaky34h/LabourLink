@@ -1,7 +1,7 @@
 import { Tabs } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
-import { View } from "react-native";
 import { useUnreadMessagesBadge } from "../../src/chat/useUnreadMessagesBadge";
+import { TabBarIcon } from "../../src/ui/TabBarIcon";
+import { colors, fontFamily, fontWeight } from "../../src/theme";
 
 export default function BuilderTabsLayout() {
   const hasUnreadMessages = useUnreadMessagesBadge();
@@ -11,9 +11,21 @@ export default function BuilderTabsLayout() {
       detachInactiveScreens={false}
       screenOptions={{
         headerShown: false,
-        tabBarLabelStyle: { fontWeight: "700" },
-        tabBarActiveTintColor: "#111",
-        tabBarInactiveTintColor: "#444444",
+        tabBarActiveTintColor: colors.text,
+        tabBarInactiveTintColor: colors.textSecondary,
+        tabBarStyle: {
+          backgroundColor: colors.background,
+          borderTopWidth: 1,
+          borderTopColor: colors.border,
+          paddingTop: 8,
+        },
+        tabBarLabelStyle: {
+          fontFamily,
+          fontWeight: fontWeight.bold,
+          fontSize: 11,
+          letterSpacing: 0.2,
+        },
+        tabBarItemStyle: { paddingTop: 2 },
       }}
     >
       {/* Home */}
@@ -21,9 +33,7 @@ export default function BuilderTabsLayout() {
         name="home"
         options={{
           title: "Home",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home" size={size} color={color} />
-          ),
+          tabBarIcon: ({ focused }) => <TabBarIcon name="home" focused={focused} />,
         }}
       />
 
@@ -32,9 +42,7 @@ export default function BuilderTabsLayout() {
         name="browse"
         options={{
           title: "Browse",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="list" size={size} color={color} />
-          ),
+          tabBarIcon: ({ focused }) => <TabBarIcon name="list" focused={focused} />,
         }}
       />
 
@@ -43,7 +51,9 @@ export default function BuilderTabsLayout() {
         name="messages"
         options={{
           title: "Messages",
-          tabBarIcon: ({ color, size }) => <MessageTabIcon color={color} size={size} showDot={hasUnreadMessages} />,
+          tabBarIcon: ({ focused }) => (
+            <TabBarIcon name="chatbubble" focused={focused} showDot={hasUnreadMessages} />
+          ),
         }}
       />
 
@@ -52,9 +62,7 @@ export default function BuilderTabsLayout() {
         name="offers"
         options={{
           title: "Offers",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="document-text" size={size} color={color} />
-          ),
+          tabBarIcon: ({ focused }) => <TabBarIcon name="document-text" focused={focused} />,
         }}
       />
 
@@ -62,9 +70,7 @@ export default function BuilderTabsLayout() {
         name="pay"
         options={{
           title: "Pay",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="card" size={size} color={color} />
-          ),
+          tabBarIcon: ({ focused }) => <TabBarIcon name="card" focused={focused} />,
         }}
       />
 
@@ -73,9 +79,7 @@ export default function BuilderTabsLayout() {
         name="profile"
         options={{
           title: "Profile",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person" size={size} color={color} />
-          ),
+          tabBarIcon: ({ focused }) => <TabBarIcon name="person" focused={focused} />,
         }}
       />
 
@@ -93,34 +97,5 @@ export default function BuilderTabsLayout() {
         options={{ href: null }}
       />
     </Tabs>
-  );
-}
-
-function MessageTabIcon({
-  color,
-  size,
-  showDot,
-}: {
-  color: string;
-  size: number;
-  showDot: boolean;
-}) {
-  return (
-    <View style={{ width: size + 10, height: size + 10, alignItems: "center", justifyContent: "center" }}>
-      <Ionicons name="chatbubble" size={size} color={color} />
-      {showDot ? (
-        <View
-          style={{
-            position: "absolute",
-            right: 0,
-            top: 1,
-            width: 8,
-            height: 8,
-            borderRadius: 4,
-            backgroundColor: "#DC2626",
-          }}
-        />
-      ) : null}
-    </View>
   );
 }

@@ -1,12 +1,12 @@
 import { useState } from "react";
-import { View, Text, TextInput, Pressable, Alert, ScrollView } from "react-native";
+import { View, Text, Alert, ScrollView, StyleSheet } from "react-native";
 import { Asset } from "expo-asset";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import { getOwnerReport, type OwnerReport } from "../../src/owner/storage";
-
-const BRAND_YELLOW = "#FDE047";
-const BRAND_YELLOW_SOFT = "#FEF9C3";
+import { colors, spacing, radii, fontFamily, fontSize, fontWeight, type } from "../../src/theme";
+import Button from "../../src/ui/Button";
+import TextField from "../../src/ui/TextField";
 
 let cachedLogoUri: string | null | undefined;
 
@@ -283,73 +283,52 @@ export default function OwnerReports() {
 
   return (
     <ScrollView
-      style={{ flex: 1, backgroundColor: "#fff" }}
-      contentContainerStyle={{ padding: 16, paddingTop: 60, gap: 12 }}
+      style={{ flex: 1, backgroundColor: colors.background }}
+      contentContainerStyle={{ padding: spacing.lg, paddingTop: 60, gap: spacing.md }}
     >
-      <Text style={{ fontSize: 24, fontWeight: "900" }}>Reports</Text>
-      <Text style={{ opacity: 0.75 }}>Choose date range and export owner report PDF (no IDs included).</Text>
+      <Text style={type.h1}>Reports</Text>
+      <Text style={type.secondary}>Choose date range and export owner report PDF (no IDs included).</Text>
 
-      <Field label="From Date (YYYY-MM-DD)" value={fromDate} onChangeText={setFromDate} />
-      <Field label="To Date (YYYY-MM-DD)" value={toDate} onChangeText={setToDate} />
+      <TextField label="From Date (YYYY-MM-DD)" value={fromDate} onChangeText={setFromDate} />
+      <TextField label="To Date (YYYY-MM-DD)" value={toDate} onChangeText={setToDate} />
 
-      <Pressable
+      <Button
+        label={loading ? "Generating..." : "Generate Report"}
         onPress={onGenerateReport}
         disabled={loading}
-        style={{
-          padding: 14,
-          borderRadius: 12,
-          alignItems: "center",
-          backgroundColor: loading ? "#444" : "#111",
-        }}
-      >
-        <Text style={{ color: BRAND_YELLOW, fontWeight: "900" }}>
-          {loading ? "Generating..." : "Generate Report"}
-        </Text>
-      </Pressable>
+      />
 
-      <Pressable
-        onPress={onExportPdf}
-        style={{
-          padding: 14,
-          borderRadius: 12,
-          alignItems: "center",
-          borderWidth: 1,
-          borderColor: "#111111",
-          backgroundColor: BRAND_YELLOW_SOFT,
-        }}
-      >
-        <Text style={{ fontWeight: "900" }}>Export PDF</Text>
-      </Pressable>
+      <Button label="Export PDF" variant="secondary" onPress={onExportPdf} />
 
       {report ? (
-        <View style={{ borderWidth: 1, borderColor: "#111111", borderRadius: 12, padding: 12, marginTop: 6 }}>
-          <Text style={{ fontWeight: "900", marginBottom: 6 }}>Summary</Text>
-          <Text>Builders signed up: {report.summary.buildersSignedUp}</Text>
-          <Text>Labourers signed up: {report.summary.labourersSignedUp}</Text>
-          <Text>Offers sent: {report.summary.offersSent}</Text>
-          <Text>Payments created: {report.summary.paymentsCreated}</Text>
-          <Text>Total payment amount: ${report.summary.totalPaymentAmount.toFixed(2)}</Text>
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Summary</Text>
+          <Text style={type.body}>Builders signed up: {report.summary.buildersSignedUp}</Text>
+          <Text style={type.body}>Labourers signed up: {report.summary.labourersSignedUp}</Text>
+          <Text style={type.body}>Offers sent: {report.summary.offersSent}</Text>
+          <Text style={type.body}>Payments created: {report.summary.paymentsCreated}</Text>
+          <Text style={type.body}>Total payment amount: ${report.summary.totalPaymentAmount.toFixed(2)}</Text>
         </View>
       ) : null}
     </ScrollView>
   );
 }
 
-function Field(props: { label: string; value: string; onChangeText: (v: string) => void }) {
-  return (
-    <View style={{ gap: 6 }}>
-      <Text style={{ fontWeight: "700" }}>{props.label}</Text>
-      <TextInput
-        value={props.value}
-        onChangeText={props.onChangeText}
-        style={{
-          borderWidth: 1,
-          borderColor: "#111111",
-          borderRadius: 10,
-          padding: 12,
-          backgroundColor: "#fff",
-        }}
-      />
-    </View>
-  );
-}
+const styles = StyleSheet.create({
+  card: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.xl,
+    padding: spacing.lg,
+    marginTop: spacing.xs,
+    backgroundColor: colors.surface,
+    gap: spacing.xs,
+  },
+  cardTitle: {
+    fontFamily,
+    fontSize: fontSize.h3,
+    fontWeight: fontWeight.heavy,
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+});

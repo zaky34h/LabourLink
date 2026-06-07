@@ -8,6 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  StyleSheet,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useCurrentUser } from "../../src/auth/useCurrentUser";
@@ -21,6 +22,7 @@ import {
   type ChatMessage,
 } from "../../src/chat/storage";
 import { getUserByEmail } from "../../src/auth/storage";
+import { colors, spacing, radii, fontFamily, fontSize, fontWeight, type } from "../../src/theme";
 
 export default function ChatWithPeer() {
   const { email } = useLocalSearchParams<{ email: string }>();
@@ -195,7 +197,7 @@ export default function ChatWithPeer() {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: "#fff" }}
+      style={{ flex: 1, backgroundColor: colors.background }}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
     >
@@ -204,40 +206,30 @@ export default function ChatWithPeer() {
         ref={listRef}
         data={grouped}
         keyExtractor={(m) => m.id}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 12, paddingTop: 60, flexGrow: 1 }}
+        contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.md, paddingTop: 60, flexGrow: 1 }}
         refreshing={refreshing}
         onRefresh={onRefresh}
         ListHeaderComponent={
-          <View style={{ paddingBottom: 12, flexDirection: "row", alignItems: "center", gap: 12 }}>
-            <Pressable onPress={() => router.back()} style={{ padding: 10, borderRadius: 10, backgroundColor: "#fff", borderWidth: 1, borderColor: "#111111" }}>
-              <Text style={{ fontWeight: "900" }}>Back</Text>
+          <View style={{ paddingBottom: spacing.md, flexDirection: "row", alignItems: "center", gap: spacing.md }}>
+            <Pressable onPress={() => router.back()} style={styles.headerBtn}>
+              <Text style={styles.headerBtnText}>Back</Text>
             </Pressable>
 
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 18, fontWeight: "900" }} numberOfLines={1}>
+              <Text style={{ fontFamily, fontSize: fontSize.h3, fontWeight: fontWeight.heavy, color: colors.text }} numberOfLines={1}>
                 {peerName}
               </Text>
-              <Text style={{ opacity: 0.65 }} numberOfLines={1}>
+              <Text style={type.secondary} numberOfLines={1}>
                 {peerEmail}
               </Text>
               {peerTyping ? (
-                <Text style={{ marginTop: 2, color: "#B45309", fontWeight: "700", fontSize: 12 }}>
+                <Text style={{ fontFamily, marginTop: 2, color: colors.pendingText, fontWeight: fontWeight.bold, fontSize: fontSize.caption }}>
                   Typing...
                 </Text>
               ) : null}
             </View>
-            <Pressable
-              onPress={onCloseChat}
-              style={{
-                paddingVertical: 8,
-                paddingHorizontal: 10,
-                borderRadius: 10,
-                borderWidth: 1,
-                borderColor: "#111111",
-                backgroundColor: "#fff",
-              }}
-            >
-              <Text style={{ fontWeight: "900", fontSize: 12 }}>Close Chat</Text>
+            <Pressable onPress={onCloseChat} style={styles.headerBtn}>
+              <Text style={[styles.headerBtnText, { fontSize: fontSize.caption }]}>Close Chat</Text>
             </Pressable>
           </View>
         }
@@ -245,22 +237,22 @@ export default function ChatWithPeer() {
         renderItem={({ item }) => {
           const mine = item.from.toLowerCase() === myEmail.toLowerCase();
           return (
-            <View style={{ marginBottom: 10, alignItems: mine ? "flex-end" : "flex-start" }}>
+            <View style={{ marginBottom: spacing.sm, alignItems: mine ? "flex-end" : "flex-start" }}>
               <View
                 style={{
                   maxWidth: "80%",
                   paddingVertical: 10,
                   paddingHorizontal: 12,
-                  borderRadius: 16,
-                  backgroundColor: mine ? "#111" : "#FEF08A",
+                  borderRadius: radii.xl,
+                  backgroundColor: mine ? colors.primary : colors.surface,
                   borderWidth: mine ? 0 : 1,
-                  borderColor: "#111111",
+                  borderColor: colors.border,
                 }}
               >
-                <Text style={{ color: mine ? "#FDE047" : "#111", fontWeight: "700" }}>
+                <Text style={{ fontFamily, color: mine ? colors.onPrimary : colors.text, fontWeight: fontWeight.medium }}>
                   {item.text}
                 </Text>
-                <Text style={{ color: mine ? "#FDE047" : "#333333", marginTop: 6, fontSize: 11 }}>
+                <Text style={{ fontFamily, color: mine ? colors.onPrimary : colors.textSecondary, marginTop: 6, fontSize: fontSize.caption, opacity: mine ? 0.8 : 1 }}>
                   {new Date(item.createdAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
                 </Text>
               </View>
@@ -269,7 +261,7 @@ export default function ChatWithPeer() {
         }}
         ListEmptyComponent={
           <View style={{ paddingTop: 40 }}>
-            <Text style={{ textAlign: "center", opacity: 0.7, fontWeight: "700" }}>
+            <Text style={{ ...type.secondary, textAlign: "center" }}>
               {loadingMessages ? "Loading messages..." : "No messages yet. Say hello 👋"}
             </Text>
           </View>
@@ -277,26 +269,29 @@ export default function ChatWithPeer() {
       />
 
       {/* Input */}
-      <View style={{ padding: 12, paddingBottom: 20, borderTopWidth: 1, borderTopColor: "#111111", backgroundColor: "#fff" }}>
+      <View style={{ padding: spacing.md, paddingBottom: 20, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.background }}>
         {meTyping ? (
-          <Text style={{ marginBottom: 8, opacity: 0.65, fontWeight: "700", fontSize: 12 }}>
+          <Text style={{ ...type.secondary, marginBottom: spacing.sm, fontSize: fontSize.caption }}>
             You are typing...
           </Text>
         ) : null}
-        <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
+        <View style={{ flexDirection: "row", gap: spacing.sm, alignItems: "center" }}>
           <TextInput
             value={text}
             onChangeText={setText}
             placeholder="Message..."
+            placeholderTextColor={colors.textSecondary}
             style={{
               flex: 1,
               borderWidth: 1,
-              borderColor: "#111111",
-              borderRadius: 14,
+              borderColor: colors.border,
+              borderRadius: radii.lg,
               paddingHorizontal: 14,
               paddingVertical: 12,
-              backgroundColor: "#fff",
-              fontWeight: "600",
+              backgroundColor: colors.field,
+              fontFamily,
+              fontSize: fontSize.body,
+              color: colors.text,
             }}
           />
           <Pressable
@@ -304,12 +299,13 @@ export default function ChatWithPeer() {
             disabled={sending || text.trim().length === 0}
             style={{
               paddingVertical: 12,
-              paddingHorizontal: 16,
-              borderRadius: 14,
-              backgroundColor: sending || text.trim().length === 0 ? "#444" : "#111",
+              paddingHorizontal: 18,
+              borderRadius: radii.lg,
+              backgroundColor: colors.primary,
+              opacity: sending || text.trim().length === 0 ? 0.45 : 1,
             }}
           >
-            <Text style={{ color: "#FDE047", fontWeight: "900" }}>
+            <Text style={{ fontFamily, color: colors.onPrimary, fontWeight: fontWeight.heavy }}>
               {sending ? "Sending..." : "Send"}
             </Text>
           </Pressable>
@@ -318,3 +314,19 @@ export default function ChatWithPeer() {
     </KeyboardAvoidingView>
   );
 }
+
+const styles = StyleSheet.create({
+  headerBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: radii.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  headerBtnText: {
+    fontFamily,
+    fontWeight: fontWeight.heavy,
+    color: colors.text,
+  },
+});

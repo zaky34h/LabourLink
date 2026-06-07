@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
-import { View, Text, Pressable, ActivityIndicator, Image, ScrollView, Alert } from "react-native";
+import { View, Text, Pressable, ActivityIndicator, Image, ScrollView, Alert, StyleSheet } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Calendar } from "react-native-calendars";
 import { getUserByEmail, type LabourerUser } from "../../../src/auth/storage";
 import { useCurrentUser } from "../../../src/auth/useCurrentUser";
 import { isLabourerSaved, saveLabourer, unsaveLabourer } from "../../../src/saved-labourers/storage";
+import { colors, spacing, radii, fontFamily, fontSize, fontWeight, type } from "../../../src/theme";
+import Button from "../../../src/ui/Button";
 
 export default function LabourerProfileView() {
   const { email } = useLocalSearchParams<{ email: string }>();
@@ -57,18 +59,18 @@ export default function LabourerProfileView() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator />
+      <View style={styles.centered}>
+        <ActivityIndicator color={colors.text} />
       </View>
     );
   }
 
   if (!labourer) {
     return (
-      <View style={{ flex: 1, padding: 24, paddingTop: 60 }}>
-        <Text style={{ fontSize: 20, fontWeight: "900" }}>Labourer not found</Text>
-        <Pressable onPress={() => router.back()} style={{ marginTop: 12 }}>
-          <Text style={{ fontWeight: "900" }}>Go back</Text>
+      <View style={{ flex: 1, padding: spacing.xl, paddingTop: 60, backgroundColor: colors.background }}>
+        <Text style={type.h2}>Labourer not found</Text>
+        <Pressable onPress={() => router.back()} style={{ marginTop: spacing.md }}>
+          <Text style={{ ...type.body, fontWeight: fontWeight.heavy }}>Go back</Text>
         </Pressable>
       </View>
     );
@@ -84,60 +86,57 @@ export default function LabourerProfileView() {
   const markedDates = currentMonthUnavailableDates.reduce((acc, d) => {
     acc[d] = {
       selected: true,
-      selectedColor: "#111",
-      selectedTextColor: "#FDE047",
+      selectedColor: colors.primary,
+      selectedTextColor: colors.onPrimary,
     };
     return acc;
   }, {} as Record<string, any>);
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: "#fff" }} contentContainerStyle={{ padding: 16, paddingTop: 60, paddingBottom: 30, gap: 14 }}>
+    <ScrollView
+      style={{ flex: 1, backgroundColor: colors.background }}
+      contentContainerStyle={{ padding: spacing.lg, paddingTop: 60, paddingBottom: 30, gap: spacing.md }}
+    >
       {/* Header */}
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-        <Pressable
-          onPress={() => router.back()}
-          style={{ paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, backgroundColor: "#fff", borderWidth: 1, borderColor: "#111111" }}
-        >
-          <Text style={{ fontWeight: "900" }}>Back</Text>
-        </Pressable>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+        <View style={{ width: 84 }}>
+          <Button label="Back" variant="secondary" onPress={() => router.back()} />
+        </View>
 
-        <Pressable
-          onPress={() => router.push(`/chat/${encodeURIComponent(labourer.email)}`)}
-          style={{ marginLeft: "auto", paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, backgroundColor: "#111" }}
-        >
-          <Text style={{ color: "#FDE047", fontWeight: "900" }}>Message</Text>
-        </Pressable>
+        <View style={{ marginLeft: "auto", width: 110 }}>
+          <Button label="Message" onPress={() => router.push(`/chat/${encodeURIComponent(labourer.email)}`)} />
+        </View>
 
         {user?.role === "builder" ? (
           <Pressable
             disabled={saving}
             onPress={onToggleSaved}
-            style={{
-              paddingVertical: 10,
-              paddingHorizontal: 12,
-              borderRadius: 12,
-              borderWidth: 1,
-              borderColor: "#111111",
-              backgroundColor: saved ? "#FDE047" : "#fff",
-              marginLeft: 8,
-              opacity: saving ? 0.6 : 1,
-            }}
+            style={[
+              styles.saveBtn,
+              {
+                backgroundColor: saved ? colors.primary : colors.field,
+                borderColor: saved ? colors.borderStrong : colors.border,
+                opacity: saving ? 0.6 : 1,
+              },
+            ]}
           >
-            <Text style={{ fontWeight: "900" }}>{saved ? "★ Saved" : "☆ Save"}</Text>
+            <Text style={{ fontFamily, fontWeight: fontWeight.heavy, color: saved ? colors.onPrimary : colors.text }}>
+              {saved ? "★ Saved" : "☆ Save"}
+            </Text>
           </Pressable>
         ) : null}
       </View>
 
       {/* Profile card */}
-      <View style={{ backgroundColor: "#fff", borderRadius: 18, borderWidth: 1, borderColor: "#111111", padding: 16, gap: 12 }}>
+      <View style={styles.card}>
         {/* Photo */}
-        <View style={{ flexDirection: "row", gap: 14, alignItems: "center" }}>
-          <View style={{ width: 72, height: 72, borderRadius: 18, backgroundColor: "#FDE047", overflow: "hidden", borderWidth: 1, borderColor: "#111111" }}>
+        <View style={{ flexDirection: "row", gap: spacing.md, alignItems: "center" }}>
+          <View style={styles.avatar}>
             {labourer.photoUrl ? (
               <Image source={{ uri: labourer.photoUrl }} style={{ width: "100%", height: "100%" }} />
             ) : (
               <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-                <Text style={{ fontWeight: "900", fontSize: 22 }}>
+                <Text style={{ fontFamily, fontWeight: fontWeight.heavy, fontSize: fontSize.h2, color: colors.text }}>
                   {labourer.firstName[0]}
                   {labourer.lastName[0]}
                 </Text>
@@ -146,42 +145,42 @@ export default function LabourerProfileView() {
           </View>
 
           <View style={{ flex: 1, gap: 4 }}>
-            <Text style={{ fontSize: 20, fontWeight: "900" }}>{fullName}</Text>
-            <Text style={{ opacity: 0.75 }}>${labourer.pricePerHour}/hr</Text>
+            <Text style={{ fontFamily, fontSize: fontSize.h3, fontWeight: fontWeight.heavy, color: colors.text }}>{fullName}</Text>
+            <Text style={type.secondary}>${labourer.pricePerHour}/hr</Text>
           </View>
         </View>
 
         {/* About */}
-        <View style={{ paddingTop: 8, borderTopWidth: 1, borderTopColor: "#FDE047" }}>
-          <Text style={{ fontWeight: "900" }}>About</Text>
-          <Text style={{ marginTop: 6, opacity: 0.8 }}>{labourer.about}</Text>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>About</Text>
+          <Text style={{ ...type.body, marginTop: 6 }}>{labourer.about}</Text>
         </View>
 
         {/* Experience */}
-        <View style={{ paddingTop: 8, borderTopWidth: 1, borderTopColor: "#FDE047" }}>
-          <Text style={{ fontWeight: "900" }}>Experience</Text>
-          <Text style={{ marginTop: 6, opacity: 0.8 }}>{exp} years</Text>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Experience</Text>
+          <Text style={{ ...type.body, marginTop: 6 }}>{exp} years</Text>
         </View>
 
         {/* Certifications */}
-        <View style={{ paddingTop: 8, borderTopWidth: 1, borderTopColor: "#FDE047" }}>
-          <Text style={{ fontWeight: "900" }}>Certifications</Text>
-          <View style={{ marginTop: 8, gap: 8 }}>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Certifications</Text>
+          <View style={{ marginTop: spacing.sm, gap: spacing.sm }}>
             {certs.map((c) => (
-              <View key={c} style={{ paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, backgroundColor: "#FDE047" }}>
-                <Text style={{ fontWeight: "800" }}>{c}</Text>
+              <View key={c} style={styles.pill}>
+                <Text style={{ fontFamily, fontWeight: fontWeight.heavy, color: colors.text }}>{c}</Text>
               </View>
             ))}
           </View>
         </View>
 
         {/* Availability */}
-        <View style={{ paddingTop: 8, borderTopWidth: 1, borderTopColor: "#FDE047" }}>
-          <Text style={{ fontWeight: "900" }}>Availability</Text>
-          <Text style={{ marginTop: 6, opacity: 0.8, fontWeight: "700" }}>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Availability</Text>
+          <Text style={{ ...type.secondary, marginTop: 6 }}>
             Unavailable this month: {currentMonthUnavailableDates.length} date(s)
           </Text>
-          <View style={{ marginTop: 8, borderWidth: 1, borderColor: "#111111", borderRadius: 12, padding: 8 }}>
+          <View style={styles.calendarWrap}>
             <Calendar
               current={currentMonthCalendarDate}
               markedDates={markedDates}
@@ -192,7 +191,7 @@ export default function LabourerProfileView() {
             />
           </View>
           {!currentMonthUnavailableDates.length ? (
-            <Text style={{ marginTop: 8, opacity: 0.75 }}>No unavailabilities set in this month.</Text>
+            <Text style={{ ...type.secondary, marginTop: spacing.sm }}>No unavailabilities set in this month.</Text>
           ) : null}
         </View>
       </View>
@@ -215,3 +214,59 @@ function getCurrentMonthAnchorIso() {
   const mm = String(now.getMonth() + 1).padStart(2, "0");
   return `${yyyy}-${mm}-01`;
 }
+
+const styles = StyleSheet.create({
+  centered: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.background },
+  saveBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    marginLeft: spacing.sm,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.lg,
+    gap: spacing.md,
+  },
+  avatar: {
+    width: 72,
+    height: 72,
+    borderRadius: radii.lg,
+    backgroundColor: colors.field,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  section: {
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  sectionTitle: {
+    fontFamily,
+    fontSize: fontSize.h3,
+    fontWeight: fontWeight.heavy,
+    color: colors.text,
+  },
+  pill: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: radii.pill,
+    backgroundColor: colors.field,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  calendarWrap: {
+    marginTop: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    padding: spacing.sm,
+  },
+});

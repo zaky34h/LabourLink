@@ -1,33 +1,30 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Animated,
   Image,
-  PanResponder,
   Pressable,
   Text,
   TextInput,
   View,
+  StyleSheet,
 } from "react-native";
 import { router } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { completeOnboarding, deleteAccount } from "../../src/auth/storage";
 import { routeForUser } from "../../src/auth/routing";
 import { useCurrentUser } from "../../src/auth/useCurrentUser";
 import { FormScreen } from "../../src/ui/FormScreen";
-
-const THUMB_SIZE = 64;
-const TRACK_INSET = 5;
+import { colors, spacing, radii, fontFamily, fontSize, fontWeight, type } from "../../src/theme";
+import Button from "../../src/ui/Button";
 
 export default function OnboardingScreen() {
   const { user, loading, reload } = useCurrentUser();
   const [selectedRole, setSelectedRole] = useState<"builder" | "labourer" | null>(null);
-  const [sliderWidth, setSliderWidth] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [discarding, setDiscarding] = useState(false);
 
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
+  const [fullName, setFullName] = useState("");
   const [about, setAbout] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [address, setAddress] = useState("");
@@ -37,21 +34,6 @@ export default function OnboardingScreen() {
   const [bsb, setBsb] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
 
-  const thumbX = useRef(new Animated.Value(0)).current;
-  const thumbOffsetRef = useRef(0);
-  const dragStartRef = useRef(0);
-
-  const sliderTravel = Math.max(sliderWidth - THUMB_SIZE - TRACK_INSET * 2, 0);
-
-  useEffect(() => {
-    const id = thumbX.addListener(({ value }) => {
-      thumbOffsetRef.current = value;
-    });
-    return () => {
-      thumbX.removeListener(id);
-    };
-  }, [thumbX]);
-
   useEffect(() => {
     if (loading || !user) return;
     if (user.role !== "pending") {
@@ -59,35 +41,9 @@ export default function OnboardingScreen() {
     }
   }, [loading, user]);
 
-  function animateThumbTo(role: "builder" | "labourer") {
-    const toValue = role === "labourer" ? 0 : sliderTravel;
-    Animated.spring(thumbX, {
-      toValue,
-      useNativeDriver: false,
-      bounciness: 8,
-    }).start();
+  function selectRole(role: "builder" | "labourer") {
     setSelectedRole(role);
   }
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: () => sliderTravel > 0,
-      onPanResponderGrant: () => {
-        dragStartRef.current = thumbOffsetRef.current;
-      },
-      onPanResponderMove: (_, gestureState) => {
-        const next = Math.max(0, Math.min(sliderTravel, dragStartRef.current + gestureState.dx));
-        thumbX.setValue(next);
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        const projected = Math.max(0, Math.min(sliderTravel, dragStartRef.current + gestureState.dx));
-        animateThumbTo(projected >= sliderTravel / 2 ? "builder" : "labourer");
-      },
-      onPanResponderTerminate: () => {
-        animateThumbTo(selectedRole === "builder" ? "builder" : "labourer");
-      },
-    })
-  ).current;
 
   function updateCertification(index: number, value: string) {
     setCertifications((prev) => {
@@ -110,12 +66,19 @@ export default function OnboardingScreen() {
 
   async function onSubmit() {
     if (!selectedRole || submitting || discarding) {
-      return Alert.alert("Pick a role", "Slide to choose whether you’re a builder or labourer.");
+      return Alert.alert("Pick a role", "Tap to choose whether you’re a builder or labourer.");
     }
 
-    if (!firstName.trim() || !lastName.trim() || !about.trim()) {
+    if (!fullName.trim() || !about.trim()) {
       return Alert.alert("Missing info", "Please complete your name and short bio.");
     }
+
+    // Split the single "Full Name" field into first/last for the backend
+    // (first word = first name, remainder = last name).
+    const trimmedName = fullName.trim();
+    const firstSpace = trimmedName.indexOf(" ");
+    const firstName = firstSpace === -1 ? trimmedName : trimmedName.slice(0, firstSpace);
+    const lastName = firstSpace === -1 ? "" : trimmedName.slice(firstSpace + 1).trim();
 
     setSubmitting(true);
     try {
@@ -171,291 +134,155 @@ export default function OnboardingScreen() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator />
+      <View style={styles.centered}>
+        <ActivityIndicator color={colors.text} />
       </View>
     );
   }
 
   if (!user) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 24 }}>
-        <Text style={{ fontSize: 20, fontWeight: "900" }}>No active session</Text>
-        <Pressable onPress={() => router.replace("/")} style={{ marginTop: 12 }}>
-          <Text style={{ fontWeight: "800" }}>Go to Login</Text>
+      <View style={[styles.centered, { padding: spacing.xl }]}>
+        <Text style={type.h2}>No active session</Text>
+        <Pressable onPress={() => router.replace("/")} style={{ marginTop: spacing.md }}>
+          <Text style={{ ...type.body, fontWeight: fontWeight.heavy }}>Go to Login</Text>
         </Pressable>
       </View>
     );
   }
 
   return (
-    <FormScreen backgroundColor="#FFF8D9">
-      <View style={{ flex: 1, backgroundColor: "#FFF8D9", padding: 24, paddingTop: 32, gap: 18 }}>
-        <View
-          style={{
-            position: "absolute",
-            top: -40,
-            right: -80,
-            width: 280,
-            height: 280,
-            borderRadius: 140,
-            backgroundColor: "#FDE047",
-            opacity: 0.4,
-          }}
-        />
-        <View
-          style={{
-            position: "absolute",
-            bottom: -60,
-            left: -60,
-            width: 260,
-            height: 260,
-            borderRadius: 130,
-            backgroundColor: "#111111",
-            opacity: 0.08,
-          }}
-        />
+    <FormScreen backgroundColor={colors.background}>
+      <View style={styles.screen}>
+        {/* soft cream background blobs */}
+        <View style={[styles.blob, { top: -40, right: -60 }]} />
+        <View style={[styles.blob, { bottom: -20, left: -60 }]} />
 
-        <View style={{ alignItems: "center" }}>
-          <Image
-            source={require("../../assets/labourlink-logo.png")}
-            style={{ width: 220, height: 90 }}
-            resizeMode="contain"
-          />
-          <Text style={{ marginTop: 8, fontSize: 28, fontWeight: "900", color: "#111111" }}>
-            Which one are you?
-          </Text>
-        </View>
+        <View style={styles.content}>
+          <View style={{ alignItems: "center" }}>
+            <Image
+              source={require("../../assets/labourlink-logo.png")}
+              style={{ width: 220, height: 90 }}
+              resizeMode="contain"
+            />
+            <Text style={[type.display, { marginTop: spacing.sm }]}>Which one are you?</Text>
+          </View>
 
-        <View style={{ gap: 12 }}>
-          <View style={{ flexDirection: "row", gap: 12 }}>
+          <View style={{ flexDirection: "row", gap: spacing.md }}>
             <RoleCard
               title="Labourer"
               subtitle="Looking for jobs and availability"
               active={selectedRole === "labourer"}
-              onPress={() => animateThumbTo("labourer")}
+              onPress={() => selectRole("labourer")}
             />
             <RoleCard
               title="Builder"
               subtitle="Hiring crews and posting work"
               active={selectedRole === "builder"}
-              onPress={() => animateThumbTo("builder")}
+              onPress={() => selectRole("builder")}
             />
           </View>
 
-          <View style={{ flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 8 }}>
-            <Text style={{ fontWeight: "800", color: selectedRole === "labourer" ? "#111111" : "#11111188" }}>
-              Labourer
+          <View style={styles.card}>
+            <Text style={type.h2}>
+              {selectedRole === "labourer"
+                ? "Labourer details"
+                : selectedRole === "builder"
+                  ? "Builder details"
+                  : "Pick your side to continue"}
             </Text>
-            <Text style={{ fontWeight: "800", color: selectedRole === "builder" ? "#111111" : "#11111188" }}>
-              Builder
-            </Text>
-          </View>
 
-          <View
-            onLayout={(event) => {
-              const width = event.nativeEvent.layout.width;
-              setSliderWidth(width);
-              if (selectedRole) {
-                thumbX.setValue(selectedRole === "labourer" ? 0 : Math.max(width - THUMB_SIZE - TRACK_INSET * 2, 0));
-              }
-            }}
-            style={{
-              height: 74,
-              borderRadius: 37,
-              backgroundColor: "#111111",
-              padding: 5,
-              justifyContent: "center",
-              overflow: "visible",
-            }}
-          >
-            <View
-              style={{
-                position: "absolute",
-                left: 0,
-                right: 0,
-                alignItems: "center",
-              }}
-            >
-              <Text style={{ color: "#fff", fontWeight: "700", opacity: 0.2 }}>
-                Slide to choose your side
-              </Text>
-            </View>
-            <Animated.View
-              {...panResponder.panHandlers}
-              style={{
-                width: THUMB_SIZE,
-                height: THUMB_SIZE,
-                borderRadius: THUMB_SIZE / 2,
-                backgroundColor: "#FDE047",
-                borderWidth: 2,
-                borderColor: "#111111",
-                alignItems: "center",
-                justifyContent: "center",
-                transform: [{ translateX: thumbX }],
-              }}
-            >
-              <View
-                style={{
-                  width: 28,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  transform: [{ translateX: selectedRole === "builder" ? -1 : 0 }],
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 26,
-                    lineHeight: 26,
-                    fontWeight: "900",
-                    color: "#111111",
-                    textAlign: "center",
-                    includeFontPadding: false,
-                  }}
-                >
-                  {selectedRole === "builder" ? "B" : "L"}
-                </Text>
-              </View>
-            </Animated.View>
-          </View>
-        </View>
+            {selectedRole ? (
+              <>
+                <Field label="Full Name" value={fullName} onChangeText={setFullName} />
+                <Field label="About Yourself" value={about} onChangeText={setAbout} multiline />
 
-        <View
-          style={{
-            borderWidth: 1,
-            borderColor: "#111111",
-            borderRadius: 22,
-            backgroundColor: "#fff",
-            padding: 18,
-            gap: 14,
-          }}
-        >
-          <Text style={{ fontSize: 20, fontWeight: "900" }}>
-            {selectedRole === "labourer"
-              ? "Labourer details"
-              : selectedRole === "builder"
-                ? "Builder details"
-                : "Pick your side to continue"}
-          </Text>
+                {selectedRole === "labourer" ? (
+                  <>
+                    <Field
+                      label="Rate ($/hr)"
+                      value={pricePerHour}
+                      onChangeText={setPricePerHour}
+                      keyboardType="numeric"
+                    />
+                    <Field
+                      label="Experience (years)"
+                      value={experienceYears}
+                      onChangeText={setExperienceYears}
+                      keyboardType="numeric"
+                    />
 
-          {selectedRole ? (
-            <>
-              <Field label="First Name" value={firstName} onChangeText={setFirstName} />
-              <Field label="Last Name" value={lastName} onChangeText={setLastName} />
-              <Field label="About Yourself" value={about} onChangeText={setAbout} multiline />
-
-              {selectedRole === "labourer" ? (
-                <>
-                  <Field
-                    label="Rate ($/hr)"
-                    value={pricePerHour}
-                    onChangeText={setPricePerHour}
-                    keyboardType="numeric"
-                  />
-                  <Field
-                    label="Experience (years)"
-                    value={experienceYears}
-                    onChangeText={setExperienceYears}
-                    keyboardType="numeric"
-                  />
-
-                  <View style={{ gap: 8 }}>
-                    <Text style={{ fontWeight: "700" }}>Certifications</Text>
-                    {certifications.map((certification, index) => (
-                      <View key={`cert-${index}`} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                        <TextInput
-                          value={certification}
-                          onChangeText={(value) => updateCertification(index, value)}
-                          placeholder="e.g. White Card"
-                          style={{
-                            flex: 1,
-                            borderWidth: 1,
-                            borderColor: "#111111",
-                            borderRadius: 10,
-                            padding: 14,
-                          }}
-                        />
-                        <Pressable
-                          onPress={index === certifications.length - 1 ? addCertificationRow : () => removeCertificationRow(index)}
-                          style={{
-                            width: 38,
-                            height: 38,
-                            borderRadius: 19,
-                            borderWidth: 1,
-                            borderColor: "#111111",
-                            backgroundColor: index === certifications.length - 1 ? "#111111" : "#fff",
-                            alignItems: "center",
-                            justifyContent: "center",
-                          }}
-                        >
-                          <Text
+                    <View style={{ gap: spacing.sm }}>
+                      <Text style={styles.fieldLabel}>Certifications</Text>
+                      {certifications.map((certification, index) => (
+                        <View key={`cert-${index}`} style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+                          <TextInput
+                            value={certification}
+                            onChangeText={(value) => updateCertification(index, value)}
+                            placeholder="e.g. White Card"
+                            placeholderTextColor={colors.textSecondary}
+                            style={[styles.input, { flex: 1 }]}
+                          />
+                          <Pressable
+                            onPress={index === certifications.length - 1 ? addCertificationRow : () => removeCertificationRow(index)}
                             style={{
-                              fontWeight: "900",
-                              fontSize: 18,
-                              color: index === certifications.length - 1 ? "#FDE047" : "#111111",
+                              width: 38,
+                              height: 38,
+                              borderRadius: 19,
+                              borderWidth: 1,
+                              borderColor: index === certifications.length - 1 ? colors.borderStrong : colors.border,
+                              backgroundColor: index === certifications.length - 1 ? colors.primary : colors.field,
+                              alignItems: "center",
+                              justifyContent: "center",
                             }}
                           >
-                            {index === certifications.length - 1 ? "+" : "-"}
-                          </Text>
-                        </Pressable>
-                      </View>
-                    ))}
-                  </View>
+                            <Ionicons
+                              name={index === certifications.length - 1 ? "add" : "remove"}
+                              size={20}
+                              color={index === certifications.length - 1 ? colors.onPrimary : colors.text}
+                            />
+                          </Pressable>
+                        </View>
+                      ))}
+                    </View>
 
-                  <Field label="BSB" value={bsb} onChangeText={setBsb} keyboardType="number-pad" />
-                  <Field
-                    label="Account Number"
-                    value={accountNumber}
-                    onChangeText={setAccountNumber}
-                    keyboardType="number-pad"
-                  />
-                </>
-              ) : (
-                <>
-                  <Field label="Company Name" value={companyName} onChangeText={setCompanyName} />
-                  <Field label="Address" value={address} onChangeText={setAddress} />
-                </>
-              )}
-            </>
-          ) : (
-            <Text style={{ lineHeight: 21, opacity: 0.72 }}>
-              Move the slider left for labourer or right for builder. The matching setup form will appear here.
-            </Text>
-          )}
+                    <Field label="BSB" value={bsb} onChangeText={setBsb} keyboardType="number-pad" />
+                    <Field
+                      label="Account Number"
+                      value={accountNumber}
+                      onChangeText={setAccountNumber}
+                      keyboardType="number-pad"
+                    />
+                  </>
+                ) : (
+                  <>
+                    <Field label="Company Name" value={companyName} onChangeText={setCompanyName} />
+                    <Field label="Address" value={address} onChangeText={setAddress} />
+                  </>
+                )}
+              </>
+            ) : (
+              <Text style={{ ...type.secondary, lineHeight: 21 }}>
+                Tap Labourer or Builder above to choose your side. The matching setup form will appear here.
+              </Text>
+            )}
 
-          <Pressable
-            onPress={onSubmit}
-            disabled={submitting || discarding || !selectedRole}
-            style={{
-              padding: 16,
-              borderRadius: 14,
-              backgroundColor: submitting || discarding || !selectedRole ? "#444" : "#111111",
-              alignItems: "center",
-              marginTop: 6,
-            }}
-          >
-            <Text style={{ color: "#FDE047", fontWeight: "900" }}>
-              {submitting ? "Finishing setup..." : "Finish Account Setup"}
-            </Text>
-          </Pressable>
+            <Button
+              label={submitting ? "Finishing setup..." : "Finish Account Setup"}
+              onPress={onSubmit}
+              loading={submitting}
+              disabled={submitting || discarding || !selectedRole}
+              style={{ marginTop: spacing.sm }}
+            />
 
-          <Pressable
-            onPress={onBackPress}
-            disabled={submitting || discarding}
-            style={{
-              padding: 14,
-              borderRadius: 14,
-              borderWidth: 1,
-              borderColor: "#111111",
-              alignItems: "center",
-              backgroundColor: "#fff",
-              opacity: submitting || discarding ? 0.7 : 1,
-            }}
-          >
-            <Text style={{ fontWeight: "900", color: "#111111" }}>
-              {discarding ? "Deleting account..." : "Back"}
-            </Text>
-          </Pressable>
+            <Button
+              label={discarding ? "Deleting account..." : "Back"}
+              variant="secondary"
+              onPress={onBackPress}
+              disabled={submitting || discarding}
+              style={{ marginTop: spacing.sm }}
+            />
+          </View>
         </View>
       </View>
     </FormScreen>
@@ -479,16 +306,33 @@ function RoleCard({
       style={{
         flex: 1,
         minHeight: 112,
-        borderRadius: 18,
-        padding: 16,
-        backgroundColor: active ? "#111111" : "#fff8d9",
+        borderRadius: radii.lg,
+        padding: spacing.lg,
+        backgroundColor: active ? colors.primary : colors.field,
         borderWidth: 1,
-        borderColor: "#111111",
+        borderColor: active ? colors.primary : colors.border,
         justifyContent: "space-between",
       }}
     >
-      <Text style={{ fontSize: 18, fontWeight: "900", color: active ? "#FDE047" : "#111111" }}>{title}</Text>
-      <Text style={{ lineHeight: 19, opacity: active ? 0.9 : 0.72, color: active ? "#fff" : "#111111" }}>
+      <Text
+        style={{
+          fontFamily,
+          fontSize: fontSize.h3,
+          fontWeight: fontWeight.heavy,
+          color: active ? colors.onPrimary : colors.text,
+        }}
+      >
+        {title}
+      </Text>
+      <Text
+        style={{
+          fontFamily,
+          fontSize: fontSize.label,
+          lineHeight: 19,
+          color: active ? colors.onPrimary : colors.textSecondary,
+          opacity: active ? 0.9 : 1,
+        }}
+      >
         {subtitle}
       </Text>
     </Pressable>
@@ -499,18 +343,60 @@ function Field(props: any) {
   const { label, ...rest } = props;
   return (
     <View style={{ gap: 6 }}>
-      <Text style={{ fontWeight: "700" }}>{label}</Text>
+      <Text style={styles.fieldLabel}>{label}</Text>
       <TextInput
         {...rest}
-        style={{
-          borderWidth: 1,
-          borderColor: "#111111",
-          borderRadius: 10,
-          padding: 14,
-          minHeight: rest.multiline ? 90 : undefined,
-          textAlignVertical: rest.multiline ? "top" : "auto",
-        }}
+        placeholderTextColor={colors.textSecondary}
+        style={[
+          styles.input,
+          rest.multiline ? { minHeight: 90, textAlignVertical: "top", paddingTop: 12 } : null,
+        ]}
       />
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  centered: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.background },
+  screen: { flex: 1, overflow: "hidden" },
+  blob: {
+    position: "absolute",
+    width: 240,
+    height: 240,
+    borderRadius: radii.pill,
+    backgroundColor: colors.surface,
+  },
+  content: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.lg,
+    gap: spacing.lg,
+  },
+  card: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.xl,
+    padding: spacing.lg,
+    gap: spacing.md,
+  },
+  fieldLabel: {
+    fontFamily,
+    fontSize: fontSize.eyebrow,
+    fontWeight: fontWeight.bold,
+    color: colors.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: 1.4,
+  },
+  input: {
+    backgroundColor: colors.field,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    paddingHorizontal: 13,
+    paddingVertical: 12,
+    fontFamily,
+    fontSize: fontSize.body,
+    color: colors.text,
+  },
+});

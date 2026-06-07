@@ -1,9 +1,10 @@
 import { useCallback, useRef, useState } from "react";
-import { View, Text, Pressable, FlatList, ActivityIndicator, Alert } from "react-native";
+import { View, Text, Pressable, FlatList, ActivityIndicator, Alert, StyleSheet } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useCurrentUser } from "../../src/auth/useCurrentUser";
 import { getSavedLabourers, unsaveLabourer } from "../../src/saved-labourers/storage";
 import type { LabourerUser } from "../../src/auth/storage";
+import { colors, spacing, radii, fontFamily, fontSize, fontWeight, type } from "../../src/theme";
 
 export default function BuilderSavedLabourers() {
   const { user } = useCurrentUser();
@@ -54,16 +55,16 @@ export default function BuilderSavedLabourers() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#fff" }}>
-        <ActivityIndicator />
+      <View style={styles.centered}>
+        <ActivityIndicator color={colors.text} />
       </View>
     );
   }
 
   return (
     <FlatList
-      style={{ flex: 1, backgroundColor: "#fff" }}
-      contentContainerStyle={{ paddingTop: 60, paddingHorizontal: 16, paddingBottom: 16, flexGrow: 1 }}
+      style={{ flex: 1, backgroundColor: colors.background }}
+      contentContainerStyle={{ paddingTop: 60, paddingHorizontal: spacing.lg, paddingBottom: spacing.lg, flexGrow: 1 }}
       data={labourers}
       keyExtractor={(item) => item.email}
       showsVerticalScrollIndicator={false}
@@ -71,77 +72,44 @@ export default function BuilderSavedLabourers() {
       onRefresh={onRefresh}
       ListHeaderComponent={
         <View>
-          <Text style={{ fontSize: 24, fontWeight: "900" }}>Saved Labourers</Text>
-          <Text style={{ marginTop: 8, opacity: 0.75, fontWeight: "700" }}>
+          <Text style={type.h1}>Saved Labourers</Text>
+          <Text style={{ ...type.secondary, marginTop: spacing.sm, fontWeight: fontWeight.bold }}>
             Star labourers on their profile to save them here.
           </Text>
-          <View style={{ height: 12 }} />
+          <View style={{ height: spacing.md }} />
         </View>
       }
       ListEmptyComponent={
-        <Text style={{ marginTop: 24, opacity: 0.7, fontWeight: "700" }}>
+        <Text style={{ ...type.secondary, marginTop: spacing.xl, fontWeight: fontWeight.bold }}>
           No saved labourers yet.
         </Text>
       }
       renderItem={({ item }) => (
-        <View
-          style={{
-            borderWidth: 1,
-            borderColor: "#111111",
-            borderRadius: 14,
-            padding: 14,
-            marginBottom: 10,
-            backgroundColor: "#fff",
-          }}
-        >
-          <Text style={{ fontWeight: "900", fontSize: 16 }}>
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>
             {item.firstName} {item.lastName}
           </Text>
-          <Text style={{ marginTop: 4, opacity: 0.75 }}>${item.pricePerHour}/hr</Text>
+          <Text style={{ ...type.secondary, marginTop: 4 }}>${item.pricePerHour}/hr</Text>
 
-          <View style={{ marginTop: 12, flexDirection: "row", gap: 10 }}>
+          <View style={{ marginTop: spacing.md, flexDirection: "row", gap: spacing.sm }}>
             <Pressable
               onPress={() => router.push(`/builder/labourer/${encodeURIComponent(item.email)}`)}
-              style={{
-                flex: 1,
-                paddingVertical: 10,
-                borderRadius: 10,
-                backgroundColor: "#111",
-                alignItems: "center",
-              }}
+              style={styles.primaryBtn}
             >
-              <Text style={{ color: "#FDE047", fontWeight: "900" }}>View</Text>
+              <Text style={styles.primaryBtnLabel}>View</Text>
             </Pressable>
             <Pressable
               onPress={() => router.push(`/chat/${encodeURIComponent(item.email)}`)}
-              style={{
-                flex: 1,
-                paddingVertical: 10,
-                borderRadius: 10,
-                borderWidth: 1,
-                borderColor: "#111111",
-                alignItems: "center",
-                backgroundColor: "#FEF08A",
-              }}
+              style={styles.secondaryBtn}
             >
-              <Text style={{ fontWeight: "900" }}>Message</Text>
+              <Text style={styles.secondaryBtnLabel}>Message</Text>
             </Pressable>
             <Pressable
               disabled={busyEmail === item.email}
               onPress={() => onUnsave(item.email)}
-              style={{
-                paddingVertical: 10,
-                paddingHorizontal: 12,
-                borderRadius: 10,
-                borderWidth: 1,
-                borderColor: "#111111",
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: "#fff",
-                opacity: busyEmail === item.email ? 0.6 : 1,
-              }}
+              style={[styles.unsaveBtn, { opacity: busyEmail === item.email ? 0.6 : 1 }]}
             >
-              <Text style={{ fontWeight: "900" }}>{busyEmail === item.email ? "..." : "Unsave"}</Text>
+              <Text style={styles.secondaryBtnLabel}>{busyEmail === item.email ? "..." : "Unsave"}</Text>
             </Pressable>
           </View>
         </View>
@@ -149,3 +117,44 @@ export default function BuilderSavedLabourers() {
     />
   );
 }
+
+const styles = StyleSheet.create({
+  centered: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.background },
+  card: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.xl,
+    padding: spacing.lg,
+    marginBottom: spacing.sm,
+    backgroundColor: colors.surface,
+  },
+  cardTitle: { fontFamily, fontSize: fontSize.h3, fontWeight: fontWeight.heavy, color: colors.text },
+  primaryBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: radii.md,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+  },
+  primaryBtnLabel: { fontFamily, fontSize: fontSize.body, fontWeight: fontWeight.heavy, color: colors.onPrimary },
+  secondaryBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: "center",
+    backgroundColor: colors.field,
+  },
+  secondaryBtnLabel: { fontFamily, fontSize: fontSize.body, fontWeight: fontWeight.heavy, color: colors.text },
+  unsaveBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: spacing.md,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.field,
+  },
+});

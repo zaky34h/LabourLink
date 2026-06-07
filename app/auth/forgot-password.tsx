@@ -1,8 +1,11 @@
 import { useState } from "react";
-import { View, Text, TextInput, Pressable, Alert } from "react-native";
+import { View, Text, Alert, StyleSheet } from "react-native";
 import { router } from "expo-router";
 import { requestPasswordReset } from "../../src/auth/storage";
 import { FormScreen } from "../../src/ui/FormScreen";
+import { colors, spacing, radii, type } from "../../src/theme";
+import Button from "../../src/ui/Button";
+import TextField from "../../src/ui/TextField";
 
 export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState("");
@@ -49,49 +52,56 @@ export default function ForgotPasswordScreen() {
   }
 
   return (
-    <FormScreen>
-      <View style={{ flex: 1, padding: 24, paddingTop: 48, gap: 16 }}>
-        <Text style={{ fontSize: 26, fontWeight: "900" }}>Forgot Password</Text>
-        <Text style={{ opacity: 0.75 }}>
+    <FormScreen backgroundColor={colors.background}>
+      <View style={styles.content}>
+        <Text style={styles.title}>Forgot Password</Text>
+        <Text style={styles.subtitle}>
           Enter your account email and we will generate a reset code.
         </Text>
 
-        <View style={{ gap: 6 }}>
-          <Text style={{ fontWeight: "700" }}>Email Address</Text>
-          <TextInput
+        <View style={styles.card}>
+          <TextField
+            label="Email Address"
             value={email}
             onChangeText={setEmail}
             autoCapitalize="none"
             keyboardType="email-address"
             placeholder="you@email.com"
-            style={{
-              borderWidth: 1,
-              borderColor: "#111111",
-              borderRadius: 10,
-              padding: 14,
-            }}
+          />
+
+          <Button
+            label={submitting ? "Sending..." : "Send reset code"}
+            onPress={onSendResetCode}
+            loading={submitting}
+            disabled={submitting}
+            style={{ marginTop: spacing.sm }}
+          />
+
+          <Button
+            label="Back to Login"
+            variant="secondary"
+            onPress={() => router.replace("/")}
+            style={{ marginTop: spacing.sm }}
           />
         </View>
-
-        <Pressable
-          onPress={onSendResetCode}
-          disabled={submitting}
-          style={{
-            padding: 16,
-            backgroundColor: submitting ? "#444444" : "#111111",
-            borderRadius: 12,
-            alignItems: "center",
-          }}
-        >
-          <Text style={{ color: "#FDE047", fontWeight: "900" }}>
-            {submitting ? "Sending..." : "Send reset code"}
-          </Text>
-        </Pressable>
-
-        <Pressable onPress={() => router.replace("/")}>
-          <Text style={{ textAlign: "center", fontWeight: "700" }}>Back to Login</Text>
-        </Pressable>
       </View>
     </FormScreen>
   );
 }
+
+const styles = StyleSheet.create({
+  content: {
+    flex: 1,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.xxl,
+  },
+  title: { ...type.h1 },
+  subtitle: { ...type.secondary, marginTop: spacing.sm, marginBottom: spacing.lg },
+  card: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.xl,
+    padding: spacing.lg,
+  },
+});

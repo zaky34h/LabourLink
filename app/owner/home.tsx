@@ -4,9 +4,8 @@ import { router, useFocusEffect } from "expo-router";
 import { useCurrentUser } from "../../src/auth/useCurrentUser";
 import { clearSession } from "../../src/auth/storage";
 import { getOwnerOverview, type OwnerOverview } from "../../src/owner/storage";
-
-const BRAND_YELLOW = "#FDE047";
-const BRAND_YELLOW_SOFT = "#FEF9C3";
+import { colors, spacing, radii, fontFamily, fontSize, fontWeight, type } from "../../src/theme";
+import Button from "../../src/ui/Button";
 
 const EMPTY_OVERVIEW: OwnerOverview = {
   buildersSignedUp: 0,
@@ -53,23 +52,24 @@ export default function OwnerHome() {
 
   return (
     <ScrollView
-      style={{ flex: 1, backgroundColor: "#fff" }}
-      contentContainerStyle={{ padding: 20, paddingTop: 60, gap: 14 }}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      style={{ flex: 1, backgroundColor: colors.background }}
+      contentContainerStyle={{ padding: spacing.xl, paddingTop: 60, gap: spacing.lg }}
+      showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.text} />}
       >
-      <Text style={{ fontSize: 28, fontWeight: "900" }}>Owner Portal</Text>
+      <Text style={type.display}>Owner Portal</Text>
 
-      <View style={{ flexDirection: "row", gap: 12 }}>
+      <View style={{ flexDirection: "row", gap: spacing.md }}>
         <StatCard label="Builders Signed Up" value={overview.buildersSignedUp} />
         <StatCard label="Labourers Signed Up" value={overview.labourersSignedUp} />
       </View>
-      <View style={{ flexDirection: "row", gap: 12 }}>
+      <View style={{ flexDirection: "row", gap: spacing.md }}>
         <StatCard label="Work Offers Sent" value={overview.workOffersSent} />
         <StatCard label="Total Users" value={overview.totalUsers} />
       </View>
 
-      <View style={{ gap: 12 }}>
-        <Text style={{ fontSize: 18, fontWeight: "900" }}>Quick Actions</Text>
+      <View style={{ gap: spacing.md }}>
+        <Text style={{ ...type.h3, fontWeight: fontWeight.heavy }}>Quick Actions</Text>
         <QuickButton
           label="View Builders"
           subtitle="Review builder accounts"
@@ -96,20 +96,7 @@ export default function OwnerHome() {
         />
       </View>
 
-      <Pressable
-        onPress={onLogout}
-        style={{
-          marginTop: 4,
-          padding: 14,
-          borderRadius: 12,
-          borderWidth: 1,
-          borderColor: "#111111",
-          backgroundColor: BRAND_YELLOW,
-          alignItems: "center",
-        }}
-      >
-        <Text style={{ fontWeight: "900" }}>Logout</Text>
-      </Pressable>
+      <Button label="Logout" variant="destructive" onPress={onLogout} style={{ marginTop: spacing.xs }} />
     </ScrollView>
   );
 }
@@ -120,14 +107,16 @@ function StatCard({ label, value }: { label: string; value: number }) {
       style={{
         flex: 1,
         borderWidth: 1,
-        borderColor: "#111111",
-        borderRadius: 16,
-        backgroundColor: "#fff",
-        padding: 14,
+        borderColor: colors.border,
+        borderRadius: radii.xl,
+        backgroundColor: colors.surface,
+        padding: spacing.lg,
       }}
     >
-      <Text style={{ fontSize: 24, fontWeight: "900" }}>{value}</Text>
-      <Text style={{ marginTop: 6, opacity: 0.75, fontWeight: "700" }}>{label}</Text>
+      <Text style={{ fontFamily, fontSize: fontSize.h1, fontWeight: fontWeight.heavy, color: colors.text }}>
+        {value}
+      </Text>
+      <Text style={{ ...type.secondary, marginTop: 6, fontWeight: fontWeight.bold }}>{label}</Text>
     </View>
   );
 }
@@ -143,30 +132,36 @@ function QuickButton({
   onPress: () => void;
   tone: "default" | "yellow";
 }) {
-  const isYellow = tone === "yellow";
+  const highlighted = tone === "yellow";
   return (
     <Pressable
       onPress={onPress}
       style={{
-        backgroundColor: isYellow ? "#FDE047" : "#111",
-        padding: 16,
-        borderRadius: 16,
+        backgroundColor: highlighted ? colors.primary : colors.surface,
+        borderWidth: 1,
+        borderColor: highlighted ? colors.primary : colors.border,
+        padding: spacing.lg,
+        borderRadius: radii.xl,
       }}
     >
       <Text
         style={{
-          fontWeight: "900",
-          fontSize: 16,
-          color: isYellow ? "#333333" : BRAND_YELLOW,
+          fontFamily,
+          fontSize: fontSize.h3,
+          fontWeight: fontWeight.heavy,
+          color: highlighted ? colors.onPrimary : colors.text,
         }}
       >
         {label}
       </Text>
       <Text
         style={{
+          fontFamily,
+          fontSize: fontSize.label,
+          fontWeight: fontWeight.medium,
           marginTop: 4,
-          fontWeight: "600",
-          color: isYellow ? "#444444" : BRAND_YELLOW,
+          color: highlighted ? colors.onPrimary : colors.textSecondary,
+          opacity: highlighted ? 0.85 : 1,
         }}
       >
         {subtitle}

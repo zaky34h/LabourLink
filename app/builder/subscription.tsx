@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { View, Text, ActivityIndicator, ScrollView, RefreshControl } from "react-native";
+import { View, Text, ActivityIndicator, ScrollView, RefreshControl, StyleSheet } from "react-native";
 import { useCurrentUser } from "../../src/auth/useCurrentUser";
+import { colors, spacing, radii, fontFamily, fontSize, fontWeight, type } from "../../src/theme";
 
 const defaultSubscription = {
   planName: "Starter",
@@ -21,17 +22,17 @@ export default function BuilderSubscription() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator />
+      <View style={styles.centered}>
+        <ActivityIndicator color={colors.text} />
       </View>
     );
   }
 
   if (!user || user.role !== "builder") {
     return (
-      <View style={{ flex: 1, padding: 24, paddingTop: 60 }}>
-        <Text style={{ fontSize: 20, fontWeight: "900" }}>No builder account</Text>
-        <Text style={{ marginTop: 6, opacity: 0.7 }}>
+      <View style={{ flex: 1, backgroundColor: colors.background, padding: spacing.xl, paddingTop: 60 }}>
+        <Text style={type.h2}>No builder account</Text>
+        <Text style={{ ...type.secondary, marginTop: 6 }}>
           Log in as a builder to see subscription details.
         </Text>
       </View>
@@ -45,23 +46,13 @@ export default function BuilderSubscription() {
 
   return (
     <ScrollView
-      style={{ flex: 1, backgroundColor: "#fff" }}
-      contentContainerStyle={{ padding: 24, paddingTop: 60, paddingBottom: 20 }}
+      style={{ flex: 1, backgroundColor: colors.background }}
+      contentContainerStyle={{ padding: spacing.xl, paddingTop: 60, paddingBottom: spacing.xl }}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
-      <Text style={{ fontSize: 26, fontWeight: "900" }}>Subscription</Text>
+      <Text style={type.h1}>Subscription</Text>
 
-      <View
-        style={{
-          marginTop: 16,
-          backgroundColor: "#fff",
-          borderRadius: 14,
-          borderWidth: 1,
-          borderColor: "#111111",
-          padding: 16,
-          gap: 10,
-        }}
-      >
+      <View style={styles.card}>
         <Row label="Plan" value={sub.planName} />
         <Row label="Status" value={sub.status.replace("_", " ")} />
         <Row
@@ -76,9 +67,24 @@ export default function BuilderSubscription() {
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 10 }}>
-      <Text style={{ opacity: 0.7, fontWeight: "700" }}>{label}</Text>
-      <Text style={{ fontWeight: "900", textTransform: "capitalize" }}>{value}</Text>
+    <View style={{ flexDirection: "row", justifyContent: "space-between", gap: spacing.sm }}>
+      <Text style={{ ...type.secondary, fontWeight: fontWeight.bold }}>{label}</Text>
+      <Text style={{ fontFamily, fontSize: fontSize.body, fontWeight: fontWeight.heavy, color: colors.text, textTransform: "capitalize" }}>
+        {value}
+      </Text>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  centered: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.background },
+  card: {
+    marginTop: spacing.lg,
+    backgroundColor: colors.surface,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.lg,
+    gap: spacing.md,
+  },
+});

@@ -7,10 +7,12 @@ import {
   Modal,
   ActivityIndicator,
   Image,
+  StyleSheet,
 } from "react-native";
 import { Calendar } from "react-native-calendars";
 import { router, useFocusEffect } from "expo-router";
 import { getUsers, type LabourerUser } from "../../src/auth/storage";
+import { colors, spacing, radii, fontFamily, fontSize, fontWeight, type } from "../../src/theme";
 
 const PAGE_SIZE = 10;
 
@@ -78,17 +80,17 @@ export default function BuilderBrowse() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator />
+      <View style={styles.centered}>
+        <ActivityIndicator color={colors.text} />
       </View>
     );
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#fff" }}>
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
       <FlatList
-        style={{ flex: 1, backgroundColor: "#fff" }}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 60, paddingBottom: 16, flexGrow: 1 }}
+        style={{ flex: 1, backgroundColor: colors.background }}
+        contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingTop: 60, paddingBottom: spacing.lg, flexGrow: 1 }}
         data={pagedResults}
         keyExtractor={(x) => x.email}
         showsVerticalScrollIndicator={false}
@@ -98,135 +100,80 @@ export default function BuilderBrowse() {
         onEndReachedThreshold={0.4}
         ListHeaderComponent={
           <View>
-            <Text style={{ fontSize: 24, fontWeight: "900" }}>Browse</Text>
+            <Text style={type.h1}>Browse</Text>
 
-            <View
-              style={{
-                marginTop: 14,
-                padding: 14,
-                borderRadius: 16,
-                backgroundColor: "#fff",
-                borderWidth: 1,
-                borderColor: "#111111",
-                gap: 12,
-              }}
-            >
-              <View style={{ gap: 8 }}>
-                <Text style={{ fontWeight: "800" }}>Date</Text>
-                <Pressable
-                  onPress={() => setCalendarOpen(true)}
-                  style={fieldStyle}
-                >
-                  <Text style={{ fontWeight: "700" }}>{formatNiceDate(selectedDate)}</Text>
-                  <Text style={{ opacity: 0.7 }}>📅</Text>
+            <View style={styles.searchCard}>
+              <View style={{ gap: spacing.sm }}>
+                <Text style={styles.fieldLabel}>Date</Text>
+                <Pressable onPress={() => setCalendarOpen(true)} style={styles.field}>
+                  <Text style={{ fontFamily, fontSize: fontSize.body, fontWeight: fontWeight.bold, color: colors.text }}>
+                    {formatNiceDate(selectedDate)}
+                  </Text>
+                  <Text style={{ color: colors.textSecondary }}>📅</Text>
                 </Pressable>
               </View>
 
-              <Pressable
-                onPress={onSearch}
-                style={{
-                  padding: 14,
-                  borderRadius: 14,
-                  backgroundColor: "#111",
-                  alignItems: "center",
-                  marginTop: 4,
-                }}
-              >
-                <Text style={{ color: "#FDE047", fontWeight: "900" }}>Search</Text>
+              <Pressable onPress={onSearch} style={styles.searchBtn}>
+                <Text style={styles.searchBtnLabel}>Search</Text>
               </Pressable>
             </View>
 
-            <Text style={{ marginTop: 14, marginBottom: 10, opacity: 0.7, fontWeight: "700" }}>
+            <Text style={{ ...type.secondary, marginTop: spacing.md, marginBottom: spacing.sm, fontWeight: fontWeight.bold }}>
               Showing {Math.min(pagedResults.length, filteredResults.length)} of {filteredResults.length}
             </Text>
           </View>
         }
         ListEmptyComponent={
-          <Text style={{ marginTop: 26, opacity: 0.7 }}>
+          <Text style={{ ...type.secondary, marginTop: spacing.xl }}>
             No labourers available for that date.
           </Text>
         }
         renderItem={({ item }) => (
-          <View
-            style={{
-              padding: 16,
-              borderRadius: 18,
-              backgroundColor: "#fff",
-              borderWidth: 1,
-              borderColor: "#111111",
-              marginBottom: 12,
-            }}
-          >
+          <View style={styles.card}>
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1, minWidth: 0, paddingRight: 10 }}>
-                <View
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 999,
-                    borderWidth: 1,
-                    borderColor: "#111111",
-                    backgroundColor: "#FDE047",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    overflow: "hidden",
-                  }}
-                >
+              <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, flex: 1, minWidth: 0, paddingRight: spacing.sm }}>
+                <View style={styles.avatar}>
                   {item.photoUrl ? (
                     <Image source={{ uri: item.photoUrl }} style={{ width: "100%", height: "100%" }} />
                   ) : (
-                    <Text style={{ fontWeight: "900" }}>
+                    <Text style={{ fontFamily, fontWeight: fontWeight.heavy, color: colors.text }}>
                       {(item.firstName?.[0] ?? "L").toUpperCase()}
                       {(item.lastName?.[0] ?? "").toUpperCase()}
                     </Text>
                   )}
                 </View>
-                <Text style={{ fontSize: 16, fontWeight: "900", flexShrink: 1 }} numberOfLines={1}>
+                <Text style={[styles.cardTitle, { flexShrink: 1 }]} numberOfLines={1}>
                   {item.firstName} {item.lastName}
                 </Text>
               </View>
-              <View style={{ paddingVertical: 6, paddingHorizontal: 10, borderRadius: 999, backgroundColor: "#FDE047" }}>
-                <Text style={{ fontWeight: "800" }}>${item.pricePerHour}/hr</Text>
+              <View style={styles.ratePill}>
+                <Text style={{ fontFamily, fontWeight: fontWeight.heavy, fontSize: fontSize.label, color: colors.primary }}>
+                  ${item.pricePerHour}/hr
+                </Text>
               </View>
             </View>
 
-            <Text style={{ marginTop: 8, opacity: 0.75 }} numberOfLines={2}>
+            <Text style={{ ...type.secondary, marginTop: spacing.sm }} numberOfLines={2}>
               {item.about}
             </Text>
 
-            <Text style={{ marginTop: 10, opacity: 0.7, fontWeight: "700" }}>
+            <Text style={{ ...type.secondary, marginTop: spacing.sm, fontWeight: fontWeight.bold }}>
               Unavailable dates set: {(item.unavailableDates ?? []).length}
             </Text>
 
-            <View style={{ marginTop: 12, flexDirection: "row", gap: 10 }}>
+            <View style={{ marginTop: spacing.md, flexDirection: "row", gap: spacing.sm }}>
               <Pressable
                 onPress={() => router.push(`/builder/labourer/${encodeURIComponent(item.email)}`)}
-                style={{
-                  flex: 1,
-                  padding: 12,
-                  borderRadius: 12,
-                  backgroundColor: "#111",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
+                style={styles.primaryBtn}
               >
-                <Text style={{ color: "#FDE047", fontWeight: "900" }}>View</Text>
+                <Text style={styles.primaryBtnLabel}>View</Text>
               </Pressable>
 
               <Pressable
                 onPress={() => router.push(`/chat/${encodeURIComponent(item.email)}`)}
-                style={({ pressed }) => ({
-                  flex: 1,
-                  paddingVertical: 12,
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: "#111111",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: pressed ? "#FDE047" : "#FEF08A",
-                })}
+                style={({ pressed }) => [styles.secondaryBtn, pressed && { opacity: 0.85 }]}
               >
-                <Text style={{ fontWeight: "900" }}>Message</Text>
+                <Text style={styles.secondaryBtnLabel}>Message</Text>
               </Pressable>
             </View>
           </View>
@@ -235,12 +182,12 @@ export default function BuilderBrowse() {
 
       {/* Calendar modal */}
       <Modal visible={calendarOpen} animationType="slide" transparent>
-        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "flex-end" }}>
-          <View style={{ backgroundColor: "#fff", borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 16 }}>
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <Text style={{ fontSize: 18, fontWeight: "900" }}>Pick a date</Text>
+        <View style={styles.modalOverlay}>
+          <View style={styles.sheet}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.sm }}>
+              <Text style={type.h2}>Pick a date</Text>
               <Pressable onPress={() => setCalendarOpen(false)}>
-                <Text style={{ fontWeight: "900" }}>Done</Text>
+                <Text style={{ fontFamily, fontWeight: fontWeight.heavy, color: colors.text }}>Done</Text>
               </Pressable>
             </View>
 
@@ -251,22 +198,102 @@ export default function BuilderBrowse() {
           </View>
         </View>
       </Modal>
-
     </View>
   );
 }
 
-const fieldStyle = {
-  paddingVertical: 12,
-  paddingHorizontal: 12,
-  borderRadius: 12,
-  borderWidth: 1,
-  borderColor: "#111111",
-  backgroundColor: "#fff",
-  flexDirection: "row" as const,
-  justifyContent: "space-between" as const,
-  alignItems: "center" as const,
-};
+const styles = StyleSheet.create({
+  centered: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.background },
+  searchCard: {
+    marginTop: spacing.md,
+    padding: spacing.lg,
+    borderRadius: radii.xl,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: spacing.md,
+  },
+  fieldLabel: {
+    fontFamily,
+    fontSize: fontSize.eyebrow,
+    fontWeight: fontWeight.bold,
+    color: colors.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: 1.4,
+  },
+  field: {
+    paddingVertical: 12,
+    paddingHorizontal: 13,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.field,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  searchBtn: {
+    paddingVertical: 13,
+    borderRadius: radii.md,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    marginTop: spacing.xs,
+  },
+  searchBtnLabel: { fontFamily, fontSize: fontSize.body, fontWeight: fontWeight.heavy, color: colors.onPrimary },
+  card: {
+    padding: spacing.lg,
+    borderRadius: radii.xl,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: spacing.md,
+  },
+  cardTitle: { fontFamily, fontSize: fontSize.h3, fontWeight: fontWeight.heavy, color: colors.text },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.field,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  ratePill: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: radii.pill,
+    backgroundColor: colors.successBg,
+  },
+  primaryBtn: {
+    flex: 1,
+    padding: 12,
+    borderRadius: radii.md,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  primaryBtnLabel: { fontFamily, fontSize: fontSize.body, fontWeight: fontWeight.heavy, color: colors.onPrimary },
+  secondaryBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.field,
+  },
+  secondaryBtnLabel: { fontFamily, fontSize: fontSize.body, fontWeight: fontWeight.heavy, color: colors.text },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "flex-end" },
+  sheet: {
+    backgroundColor: colors.background,
+    borderTopLeftRadius: radii.xl,
+    borderTopRightRadius: radii.xl,
+    padding: spacing.lg,
+  },
+});
 
 function todayISO() {
   const d = new Date();

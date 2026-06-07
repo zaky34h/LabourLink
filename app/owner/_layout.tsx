@@ -1,49 +1,62 @@
 import { Tabs } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { TabBarIcon } from "../../src/ui/TabBarIcon";
+import { colors, fontFamily, fontWeight } from "../../src/theme";
 
 export default function OwnerTabsLayout() {
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarLabelStyle: { fontWeight: "700" },
-        tabBarActiveTintColor: "#111",
-        tabBarInactiveTintColor: "#444444",
+        tabBarActiveTintColor: colors.text,
+        tabBarInactiveTintColor: colors.textSecondary,
+        tabBarStyle: {
+          backgroundColor: colors.background,
+          borderTopWidth: 1,
+          borderTopColor: colors.border,
+          paddingTop: 8,
+        },
+        tabBarLabelStyle: {
+          fontFamily,
+          fontWeight: fontWeight.bold,
+          fontSize: 11,
+          letterSpacing: 0.2,
+        },
+        tabBarItemStyle: { paddingTop: 2 },
       }}
     >
       <Tabs.Screen
         name="home"
         options={{
           title: "Home",
-          tabBarIcon: ({ color, size }) => <Ionicons name="home" size={size} color={color} />,
+          tabBarIcon: ({ focused }) => <TabBarIcon name="home" focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="builders"
         options={{
           title: "Builders",
-          tabBarIcon: ({ color, size }) => <Ionicons name="business" size={size} color={color} />,
+          tabBarIcon: ({ focused }) => <TabBarIcon name="business" focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="labourers"
         options={{
           title: "Labourers",
-          tabBarIcon: ({ color, size }) => <Ionicons name="people" size={size} color={color} />,
+          tabBarIcon: ({ focused }) => <TabBarIcon name="people" focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="reports"
         options={{
           title: "Reports",
-          tabBarIcon: ({ color, size }) => <Ionicons name="document-text" size={size} color={color} />,
+          tabBarIcon: ({ focused }) => <TabBarIcon name="document-text" focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="support"
         options={{
           title: "Support",
-          tabBarIcon: ({ color, size }) => <Ionicons name="shield-checkmark" size={size} color={color} />,
+          tabBarIcon: ({ focused }) => <TabBarIcon name="shield-checkmark" focused={focused} />,
         }}
       />
       <Tabs.Screen

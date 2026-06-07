@@ -1,8 +1,9 @@
 import { useCallback, useRef, useState } from "react";
-import { View, Text, Pressable, FlatList, ActivityIndicator } from "react-native";
+import { View, Text, Pressable, FlatList, ActivityIndicator, StyleSheet } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useCurrentUser } from "../../src/auth/useCurrentUser";
 import { getThreadsForUser, type ChatThread } from "../../src/chat/storage";
+import { colors, spacing, radii, fontFamily, fontSize, fontWeight, type } from "../../src/theme";
 
 export default function BuilderMessages() {
   const { user, loading: userLoading } = useCurrentUser();
@@ -52,16 +53,16 @@ export default function BuilderMessages() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator />
+      <View style={styles.centered}>
+        <ActivityIndicator color={colors.text} />
       </View>
     );
   }
 
   return (
     <FlatList
-      style={{ flex: 1, backgroundColor: "#fff" }}
-      contentContainerStyle={{ paddingTop: 60, paddingHorizontal: 16, paddingBottom: 16, flexGrow: 1 }}
+      style={{ flex: 1, backgroundColor: colors.background }}
+      contentContainerStyle={{ paddingTop: 60, paddingHorizontal: spacing.lg, paddingBottom: spacing.lg, flexGrow: 1 }}
       data={threads}
       keyExtractor={(t) => t.threadId}
       showsVerticalScrollIndicator={false}
@@ -69,30 +70,18 @@ export default function BuilderMessages() {
       onRefresh={onRefresh}
       ListHeaderComponent={
         <View>
-          <Text style={{ fontSize: 24, fontWeight: "900" }}>Messages</Text>
-          <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
+          <Text style={type.h1}>Messages</Text>
+
+          <View style={styles.segment}>
             <Pressable
               onPress={async () => {
                 if (selectedTab === "active") return;
                 setSelectedTab("active");
                 await load({ silent: true, view: "active" });
               }}
-              style={{
-                flex: 1,
-                paddingVertical: 10,
-                borderRadius: 10,
-                borderWidth: 1,
-                borderColor: "#111111",
-                backgroundColor: selectedTab === "active" ? "#111111" : "#ffffff",
-                alignItems: "center",
-              }}
+              style={[styles.segmentItem, selectedTab === "active" && styles.segmentItemActive]}
             >
-              <Text
-                style={{
-                  fontWeight: "900",
-                  color: selectedTab === "active" ? "#FDE047" : "#111111",
-                }}
-              >
+              <Text style={[styles.segmentLabel, { color: selectedTab === "active" ? colors.onPrimary : colors.textSecondary }]}>
                 Active
               </Text>
             </Pressable>
@@ -102,34 +91,20 @@ export default function BuilderMessages() {
                 setSelectedTab("history");
                 await load({ silent: true, view: "history" });
               }}
-              style={{
-                flex: 1,
-                paddingVertical: 10,
-                borderRadius: 10,
-                borderWidth: 1,
-                borderColor: "#111111",
-                backgroundColor: selectedTab === "history" ? "#111111" : "#ffffff",
-                alignItems: "center",
-              }}
+              style={[styles.segmentItem, selectedTab === "history" && styles.segmentItemActive]}
             >
-              <Text
-                style={{
-                  fontWeight: "900",
-                  color: selectedTab === "history" ? "#FDE047" : "#111111",
-                }}
-              >
+              <Text style={[styles.segmentLabel, { color: selectedTab === "history" ? colors.onPrimary : colors.textSecondary }]}>
                 History
               </Text>
             </Pressable>
           </View>
-          {error ? (
-            <Text style={{ marginTop: 8, color: "#B91C1C", fontWeight: "700" }}>{error}</Text>
-          ) : null}
-          <View style={{ height: 14 }} />
+
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+          <View style={{ height: spacing.md }} />
         </View>
       }
       ListEmptyComponent={
-        <Text style={{ marginTop: 26, opacity: 0.7, fontWeight: "700" }}>
+        <Text style={{ ...type.secondary, marginTop: 26, lineHeight: 20 }}>
           {selectedTab === "active"
             ? "No active chats yet. Browse labourers and message one."
             : "No chat history yet."}
@@ -138,22 +113,15 @@ export default function BuilderMessages() {
       renderItem={({ item }) => (
         <Pressable
           onPress={() => router.push(`/chat/${encodeURIComponent(item.peerEmail)}`)}
-          style={{
-            padding: 14,
-            borderRadius: 16,
-            backgroundColor: "#fff",
-            borderWidth: 1,
-            borderColor: "#111111",
-            marginBottom: 12,
-          }}
+          style={styles.card}
         >
-          <Text style={{ fontWeight: "900", fontSize: 16 }}>
+          <Text style={{ fontFamily, fontWeight: fontWeight.heavy, fontSize: fontSize.h3, color: colors.text }}>
             {item.peerName ?? item.peerEmail}
           </Text>
-          <Text style={{ marginTop: 6, opacity: 0.75 }} numberOfLines={1}>
+          <Text style={{ ...type.secondary, marginTop: 6 }} numberOfLines={1}>
             {item.lastMessageText}
           </Text>
-          <Text style={{ marginTop: 8, opacity: 0.6, fontSize: 12 }}>
+          <Text style={{ ...type.secondary, marginTop: 8, fontSize: fontSize.caption }}>
             {new Date(item.lastMessageAt).toLocaleString()}
           </Text>
         </Pressable>
@@ -161,3 +129,45 @@ export default function BuilderMessages() {
     />
   );
 }
+
+const styles = StyleSheet.create({
+  centered: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.background },
+  segment: {
+    flexDirection: "row",
+    marginTop: spacing.md,
+    backgroundColor: colors.field,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.lg,
+    padding: 4,
+    gap: 4,
+  },
+  segmentItem: {
+    flex: 1,
+    paddingVertical: 9,
+    borderRadius: radii.md,
+    alignItems: "center",
+  },
+  segmentItemActive: {
+    backgroundColor: colors.primary,
+  },
+  segmentLabel: {
+    fontFamily,
+    fontWeight: fontWeight.heavy,
+    fontSize: fontSize.body,
+  },
+  error: {
+    fontFamily,
+    marginTop: spacing.sm,
+    color: colors.dangerText,
+    fontWeight: fontWeight.bold,
+  },
+  card: {
+    padding: spacing.lg,
+    borderRadius: radii.xl,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: spacing.md,
+  },
+});

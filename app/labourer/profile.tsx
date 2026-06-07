@@ -7,13 +7,17 @@ import {
   TextInput,
   Alert,
   Image,
+  StyleSheet,
 } from "react-native";
 import { router } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { clearSession, deleteAccount } from "../../src/auth/storage";
 import { useCurrentUser } from "../../src/auth/useCurrentUser";
 import { updateLabourerProfile } from "../../src/auth/updateLabourerProfile";
 import { FormScreen } from "../../src/ui/FormScreen";
+import { colors, spacing, radii, fontFamily, fontSize, fontWeight, type } from "../../src/theme";
+import Button from "../../src/ui/Button";
 
 export default function LabourerProfile() {
   const { user, loading, reload } = useCurrentUser();
@@ -161,146 +165,79 @@ export default function LabourerProfile() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#fff" }}>
-        <ActivityIndicator />
+      <View style={styles.centered}>
+        <ActivityIndicator color={colors.text} />
       </View>
     );
   }
 
   if (!user || user.role !== "labourer") {
     return (
-      <View style={{ flex: 1, padding: 24, paddingTop: 12 }}>
-        <Text style={{ fontSize: 20, fontWeight: "900" }}>Not logged in</Text>
-        <Pressable onPress={() => router.replace("/")} style={{ marginTop: 12 }}>
-          <Text style={{ fontWeight: "800" }}>Go to Login</Text>
+      <View style={{ flex: 1, padding: spacing.xl, paddingTop: 60, backgroundColor: colors.background }}>
+        <Text style={type.h2}>Not logged in</Text>
+        <Pressable onPress={() => router.replace("/")} style={{ marginTop: spacing.md }}>
+          <Text style={{ ...type.body, fontWeight: fontWeight.heavy }}>Go to Login</Text>
         </Pressable>
       </View>
     );
   }
 
   return (
-    <FormScreen>
-      <View style={{ padding: 24, paddingTop: 12, gap: 12, paddingBottom: 30 }}>
-        <Text style={{ fontSize: 26, fontWeight: "900" }}>Profile</Text>
+    <FormScreen backgroundColor={colors.background}>
+      <View style={{ padding: spacing.xl, paddingTop: spacing.md, gap: spacing.md, paddingBottom: 30 }}>
+        <Text style={type.h1}>Profile</Text>
 
-        <View style={{ padding: 14, borderWidth: 1, borderColor: "#111111", borderRadius: 12, gap: 10 }}>
-          <Text style={{ fontWeight: "900" }}>Profile Photo</Text>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-            <View
-              style={{
-                width: 72,
-                height: 72,
-                borderRadius: 14,
-                backgroundColor: "#FDE047",
-                overflow: "hidden",
-                borderWidth: 1,
-                borderColor: "#111111",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
+        <View style={styles.card}>
+          <Text style={styles.fieldLabel}>Profile Photo</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
+            <View style={styles.avatar}>
               {photoUrl ? (
                 <Image source={{ uri: photoUrl }} style={{ width: "100%", height: "100%" }} />
               ) : (
-                <Text style={{ fontWeight: "900", fontSize: 20 }}>
+                <Text style={{ fontFamily, fontWeight: fontWeight.heavy, fontSize: fontSize.h2, color: colors.text }}>
                   {firstName[0] ?? "L"}
                   {lastName[0] ?? ""}
                 </Text>
               )}
             </View>
-            <View style={{ flex: 1, flexDirection: "row", gap: 8 }}>
-              <Pressable
-                onPress={pickPhoto}
-                style={{
-                  flex: 1,
-                  paddingVertical: 10,
-                  borderRadius: 10,
-                  backgroundColor: "#111",
-                  alignItems: "center",
-                }}
-              >
-                <Text style={{ color: "#FDE047", fontWeight: "900" }}>Choose Photo</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => setPhotoUrl("")}
-                style={{
-                  paddingHorizontal: 12,
-                  borderRadius: 10,
-                  borderWidth: 1,
-                  borderColor: "#111111",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Text style={{ fontWeight: "900" }}>Remove</Text>
-              </Pressable>
+            <View style={{ flex: 1, flexDirection: "row", gap: spacing.sm }}>
+              <View style={{ flex: 1 }}>
+                <Button label="Choose Photo" onPress={pickPhoto} />
+              </View>
+              <View style={{ width: 96 }}>
+                <Button label="Remove" variant="secondary" onPress={() => setPhotoUrl("")} />
+              </View>
             </View>
           </View>
         </View>
 
         <Field label="First Name" value={firstName} onChangeText={setFirstName} />
         <Field label="Last Name" value={lastName} onChangeText={setLastName} />
-        <Field
-          label="Rate ($/hr)"
-          value={pricePerHour}
-          onChangeText={setPricePerHour}
-          keyboardType="numeric"
-        />
-        <Field
-          label="Experience (years)"
-          value={experienceYears}
-          onChangeText={setExperienceYears}
-          keyboardType="numeric"
-        />
+        <Field label="Rate ($/hr)" value={pricePerHour} onChangeText={setPricePerHour} keyboardType="numeric" />
+        <Field label="Experience (years)" value={experienceYears} onChangeText={setExperienceYears} keyboardType="numeric" />
 
-        <View style={{ gap: 8 }}>
-          <Text style={{ fontWeight: "700" }}>Certifications</Text>
+        <View style={{ gap: spacing.sm }}>
+          <Text style={styles.fieldLabel}>Certifications</Text>
           {certifications.map((certification, index) => {
             const isLast = index === certifications.length - 1;
             const canRemove = certifications.length > 1;
             return (
-              <View key={`cert-${index}`} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <View key={`cert-${index}`} style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
                 <TextInput
                   value={certification}
                   onChangeText={(value) => updateCertification(index, value)}
                   placeholder="e.g. White Card"
-                  style={{
-                    flex: 1,
-                    borderWidth: 1,
-                    borderColor: "#111111",
-                    borderRadius: 10,
-                    padding: 14,
-                  }}
+                  placeholderTextColor={colors.textSecondary}
+                  style={[styles.input, { flex: 1 }]}
                 />
                 {isLast ? (
-                  <Pressable
-                    onPress={addCertificationRow}
-                    style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: 18,
-                      backgroundColor: "#111",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Text style={{ color: "#FDE047", fontWeight: "900", fontSize: 18 }}>+</Text>
+                  <Pressable onPress={addCertificationRow} style={[styles.iconBtn, { backgroundColor: colors.primary, borderColor: colors.borderStrong }]}>
+                    <Ionicons name="add" size={20} color={colors.onPrimary} />
                   </Pressable>
                 ) : null}
                 {canRemove ? (
-                  <Pressable
-                    onPress={() => removeCertificationRow(index)}
-                    style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: 18,
-                      borderWidth: 1,
-                      borderColor: "#111111",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Text style={{ fontWeight: "900" }}>-</Text>
+                  <Pressable onPress={() => removeCertificationRow(index)} style={[styles.iconBtn, { backgroundColor: colors.field, borderColor: colors.border }]}>
+                    <Ionicons name="remove" size={20} color={colors.text} />
                   </Pressable>
                 ) : null}
               </View>
@@ -309,70 +246,36 @@ export default function LabourerProfile() {
         </View>
 
         <Field label="BSB" value={bsb} onChangeText={setBsb} keyboardType="number-pad" />
-        <Field
-          label="Account Number"
-          value={accountNumber}
-          onChangeText={setAccountNumber}
-          keyboardType="number-pad"
-        />
+        <Field label="Account Number" value={accountNumber} onChangeText={setAccountNumber} keyboardType="number-pad" />
         <Field label="About" value={about} onChangeText={setAbout} multiline />
 
-        <View style={{ padding: 14, borderWidth: 1, borderColor: "#111111", borderRadius: 12, gap: 6 }}>
-          <Text style={{ fontWeight: "800" }}>Availability</Text>
-          <Text style={{ opacity: 0.8 }}>All days available by default.</Text>
+        <View style={[styles.card, { gap: 6 }]}>
+          <Text style={styles.fieldLabel}>Availability</Text>
+          <Text style={type.secondary}>All days available by default.</Text>
           <Pressable onPress={() => router.push("/labourer/schedule")}>
-            <Text style={{ marginTop: 2, fontWeight: "800", textDecorationLine: "underline" }}>
+            <Text style={{ marginTop: 2, fontFamily, fontWeight: fontWeight.heavy, color: colors.text, textDecorationLine: "underline" }}>
               Edit unavailabilities
             </Text>
           </Pressable>
         </View>
 
-        <Pressable
+        <Button
+          label={saving ? "Saving..." : "Save Changes"}
           onPress={onSave}
+          loading={saving}
           disabled={saving || deleting}
-          style={{
-            padding: 16,
-            backgroundColor: saving || deleting ? "#444444" : "#111",
-            borderRadius: 12,
-            alignItems: "center",
-            marginTop: 6,
-          }}
-        >
-          <Text style={{ color: "#FDE047", fontWeight: "900" }}>{saving ? "Saving..." : "Save Changes"}</Text>
-        </Pressable>
+          style={{ marginTop: spacing.xs }}
+        />
 
-        <Pressable
-          onPress={logout}
-          disabled={deleting}
-          style={{
-            padding: 16,
-            borderWidth: 1,
-            borderColor: "#111111",
-            borderRadius: 12,
-            alignItems: "center",
-            opacity: deleting ? 0.7 : 1,
-          }}
-        >
-          <Text style={{ fontWeight: "900" }}>Logout</Text>
-        </Pressable>
+        <Button label="Logout" variant="secondary" onPress={logout} disabled={deleting} />
 
-        <Pressable
+        <Button
+          label={deleting ? "Deleting Account..." : "Delete Account"}
+          variant="destructive"
           onPress={onDeleteAccountPress}
+          loading={deleting}
           disabled={deleting}
-          style={{
-            padding: 16,
-            borderWidth: 1,
-            borderColor: "#DC2626",
-            borderRadius: 12,
-            alignItems: "center",
-            backgroundColor: "#FEF2F2",
-            opacity: deleting ? 0.7 : 1,
-          }}
-        >
-          <Text style={{ fontWeight: "900", color: "#B91C1C" }}>
-            {deleting ? "Deleting Account..." : "Delete Account"}
-          </Text>
-        </Pressable>
+        />
       </View>
     </FormScreen>
   );
@@ -382,18 +285,65 @@ function Field(props: any) {
   const { label, ...rest } = props;
   return (
     <View style={{ gap: 6 }}>
-      <Text style={{ fontWeight: "700" }}>{label}</Text>
+      <Text style={styles.fieldLabel}>{label}</Text>
       <TextInput
         {...rest}
-        style={{
-          borderWidth: 1,
-          borderColor: "#111111",
-          borderRadius: 10,
-          padding: 14,
-          minHeight: rest.multiline ? 90 : undefined,
-          textAlignVertical: rest.multiline ? "top" : "auto",
-        }}
+        placeholderTextColor={colors.textSecondary}
+        style={[
+          styles.input,
+          rest.multiline ? { minHeight: 90, textAlignVertical: "top", paddingTop: 12 } : null,
+        ]}
       />
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  centered: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.background },
+  card: {
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.xl,
+    backgroundColor: colors.surface,
+    gap: spacing.sm,
+  },
+  avatar: {
+    width: 72,
+    height: 72,
+    borderRadius: radii.lg,
+    backgroundColor: colors.field,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  fieldLabel: {
+    fontFamily,
+    fontSize: fontSize.eyebrow,
+    fontWeight: fontWeight.bold,
+    color: colors.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: 1.4,
+  },
+  input: {
+    backgroundColor: colors.field,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    paddingHorizontal: 13,
+    paddingVertical: 12,
+    fontFamily,
+    fontSize: fontSize.body,
+    color: colors.text,
+  },
+  iconBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+});

@@ -1,8 +1,11 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import { View, Text, FlatList, Pressable, ActivityIndicator, Alert, TextInput, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, Pressable, FlatList, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, StyleSheet } from "react-native";
 import { useFocusEffect } from "expo-router";
 import * as Sharing from "expo-sharing";
 import { generateReceiptPdf, getBuilderPayments, markPaymentPaid, type PaymentRecord, updatePayment } from "../../src/payments/storage";
+import { colors, spacing, radii, fontFamily, fontSize, fontWeight, type } from "../../src/theme";
+import Button from "../../src/ui/Button";
+import TextField from "../../src/ui/TextField";
 
 function cleanPaymentDetails(details: string) {
   return String(details || "")
@@ -65,124 +68,113 @@ export default function BuilderPay() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator />
+      <View style={styles.centered}>
+        <ActivityIndicator color={colors.text} />
       </View>
     );
   }
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: "#fff" }}
+      style={{ flex: 1, backgroundColor: colors.background }}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
     <FlatList
-      style={{ flex: 1, backgroundColor: "#fff" }}
-      contentContainerStyle={{ paddingTop: 60, paddingHorizontal: 16, paddingBottom: 20, gap: 10 }}
+      style={{ flex: 1, backgroundColor: colors.background }}
+      contentContainerStyle={{ paddingTop: 60, paddingHorizontal: spacing.lg, paddingBottom: spacing.xl, gap: spacing.sm }}
       data={visible}
       keyExtractor={(p) => p.id}
       keyboardShouldPersistTaps="handled"
       ListHeaderComponent={
         <View>
-          <Text style={{ fontSize: 24, fontWeight: "900" }}>Pay</Text>
-          <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
+          <Text style={type.h1}>Pay</Text>
+          <View style={styles.segment}>
             <Pressable
               onPress={() => setSelectedTab("pending")}
-              style={{
-                flex: 1,
-                paddingVertical: 10,
-                borderRadius: 10,
-                borderWidth: 1,
-                borderColor: "#111111",
-                backgroundColor: selectedTab === "pending" ? "#111" : "#fff",
-                alignItems: "center",
-              }}
+              style={[styles.segmentItem, selectedTab === "pending" && styles.segmentItemActive]}
             >
-              <Text style={{ fontWeight: "900", color: selectedTab === "pending" ? "#FDE047" : "#111111" }}>
+              <Text style={[styles.segmentLabel, { color: selectedTab === "pending" ? colors.onPrimary : colors.textSecondary }]}>
                 Pending
               </Text>
             </Pressable>
             <Pressable
               onPress={() => setSelectedTab("paid")}
-              style={{
-                flex: 1,
-                paddingVertical: 10,
-                borderRadius: 10,
-                borderWidth: 1,
-                borderColor: "#111111",
-                backgroundColor: selectedTab === "paid" ? "#111" : "#fff",
-                alignItems: "center",
-              }}
+              style={[styles.segmentItem, selectedTab === "paid" && styles.segmentItemActive]}
             >
-              <Text style={{ fontWeight: "900", color: selectedTab === "paid" ? "#FDE047" : "#111111" }}>
+              <Text style={[styles.segmentLabel, { color: selectedTab === "paid" ? colors.onPrimary : colors.textSecondary }]}>
                 Paid
               </Text>
             </Pressable>
           </View>
-          <View style={{ height: 12 }} />
+          <View style={{ height: spacing.md }} />
         </View>
       }
-      ListEmptyComponent={<Text style={{ opacity: 0.7, fontWeight: "700" }}>No payment items yet.</Text>}
+      ListEmptyComponent={<Text style={{ ...type.secondary }}>No payment items yet.</Text>}
       renderItem={({ item }) => {
         const editing = editingId === item.id;
         return (
-          <View style={{ borderWidth: 1, borderColor: "#111111", borderRadius: 14, padding: 12, marginBottom: 10 }}>
-            <Text style={{ fontSize: 17, fontWeight: "900" }}>{item.labourerName}</Text>
-            <Text style={{ marginTop: 4, opacity: 0.8 }}>BSB: {item.labourerBsb || "Not set"}</Text>
-            <Text style={{ marginTop: 2, opacity: 0.8 }}>Account: {item.labourerAccountNumber || "Not set"}</Text>
+          <View style={styles.card}>
+            <Text style={{ fontFamily, fontSize: fontSize.h3, fontWeight: fontWeight.heavy, color: colors.text }}>
+              {item.labourerName}
+            </Text>
+            <Text style={{ ...type.secondary, marginTop: 4 }}>BSB: {item.labourerBsb || "Not set"}</Text>
+            <Text style={{ ...type.secondary, marginTop: 2 }}>Account: {item.labourerAccountNumber || "Not set"}</Text>
 
             {editing ? (
-              <View style={{ marginTop: 8, gap: 8 }}>
-                <TextInput
+              <View style={{ marginTop: spacing.sm }}>
+                <TextField
                   value={amountDraft}
                   onChangeText={setAmountDraft}
                   keyboardType="numeric"
                   placeholder="Amount owed"
-                  style={{ borderWidth: 1, borderColor: "#111111", borderRadius: 10, padding: 10 }}
                 />
-                <TextInput
+                <TextField
                   value={detailsDraft}
                   onChangeText={setDetailsDraft}
                   placeholder="Details"
-                  style={{ borderWidth: 1, borderColor: "#111111", borderRadius: 10, padding: 10 }}
                 />
-                <View style={{ flexDirection: "row", gap: 8 }}>
-                  <Pressable onPress={() => onSaveEdit(item)} style={btnPrimary}>
-                    <Text style={btnPrimaryText}>Save</Text>
-                  </Pressable>
-                  <Pressable onPress={() => setEditingId(null)} style={btnSecondary}>
-                    <Text style={btnSecondaryText}>Cancel</Text>
-                  </Pressable>
+                <View style={{ flexDirection: "row", gap: spacing.sm }}>
+                  <View style={{ flex: 1 }}>
+                    <Button label="Save" onPress={() => onSaveEdit(item)} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Button label="Cancel" variant="secondary" onPress={() => setEditingId(null)} />
+                  </View>
                 </View>
               </View>
             ) : (
               <>
-                <Text style={{ marginTop: 8, fontWeight: "900" }}>${item.amountOwed.toFixed(2)}</Text>
-                <Text style={{ marginTop: 4, opacity: 0.8 }}>{cleanPaymentDetails(item.details)}</Text>
-                <Text style={{ marginTop: 4, fontWeight: "800", color: item.status === "paid" ? "#166534" : "#B45309" }}>
-                  {item.status.toUpperCase()}
+                <Text style={{ fontFamily, fontSize: fontSize.h2, fontWeight: fontWeight.heavy, color: colors.text, marginTop: 8 }}>
+                  ${item.amountOwed.toFixed(2)}
                 </Text>
-                <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
+                <Text style={{ ...type.secondary, marginTop: 4 }}>{cleanPaymentDetails(item.details)}</Text>
+                <View style={[styles.pill, { backgroundColor: item.status === "paid" ? colors.successBg : colors.pendingBg, marginTop: 10 }]}>
+                  <Text style={{ fontFamily, fontWeight: fontWeight.heavy, fontSize: fontSize.caption, color: item.status === "paid" ? colors.successText : colors.pendingText }}>
+                    {item.status.toUpperCase()}
+                  </Text>
+                </View>
+                <View style={{ flexDirection: "row", gap: spacing.sm, marginTop: spacing.md }}>
                   {item.status === "pending" ? (
                     <>
-                      <Pressable
-                        onPress={() => {
-                          setEditingId(item.id);
-                          setAmountDraft(String(item.amountOwed));
-                          setDetailsDraft(item.details);
-                        }}
-                        style={btnSecondary}
-                      >
-                        <Text style={btnSecondaryText}>Edit</Text>
-                      </Pressable>
-                      <Pressable onPress={() => onMarkPaid(item)} style={btnPrimary}>
-                        <Text style={btnPrimaryText}>Mark Paid</Text>
-                      </Pressable>
+                      <View style={{ flex: 1 }}>
+                        <Button
+                          label="Edit"
+                          variant="secondary"
+                          onPress={() => {
+                            setEditingId(item.id);
+                            setAmountDraft(String(item.amountOwed));
+                            setDetailsDraft(item.details);
+                          }}
+                        />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Button label="Mark Paid" onPress={() => onMarkPaid(item)} />
+                      </View>
                     </>
                   ) : (
-                    <Pressable onPress={() => onViewReceipt(item)} style={btnPrimary}>
-                      <Text style={btnPrimaryText}>View Receipt</Text>
-                    </Pressable>
+                    <View style={{ flex: 1 }}>
+                      <Button label="View Receipt" onPress={() => onViewReceipt(item)} />
+                    </View>
                   )}
                 </View>
               </>
@@ -195,20 +187,33 @@ export default function BuilderPay() {
   );
 }
 
-const btnPrimary = {
-  flex: 1,
-  paddingVertical: 10,
-  borderRadius: 10,
-  backgroundColor: "#111",
-  alignItems: "center" as const,
-};
-const btnPrimaryText = { color: "#FDE047", fontWeight: "900" as const };
-const btnSecondary = {
-  flex: 1,
-  paddingVertical: 10,
-  borderRadius: 10,
-  borderWidth: 1,
-  borderColor: "#111111",
-  alignItems: "center" as const,
-};
-const btnSecondaryText = { fontWeight: "900" as const };
+const styles = StyleSheet.create({
+  centered: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.background },
+  segment: {
+    flexDirection: "row",
+    marginTop: spacing.md,
+    backgroundColor: colors.field,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.lg,
+    padding: 4,
+    gap: 4,
+  },
+  segmentItem: { flex: 1, paddingVertical: 9, borderRadius: radii.md, alignItems: "center" },
+  segmentItemActive: { backgroundColor: colors.primary },
+  segmentLabel: { fontFamily, fontWeight: fontWeight.heavy, fontSize: fontSize.body },
+  card: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.xl,
+    padding: spacing.lg,
+    marginBottom: spacing.sm,
+    backgroundColor: colors.surface,
+  },
+  pill: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radii.pill,
+  },
+});
