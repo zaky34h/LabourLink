@@ -6,7 +6,14 @@ export async function updateLabourerProfile(
   patch: Partial<
     Pick<
       LabourerUser,
-      "photoUrl" | "firstName" | "lastName" | "about" | "pricePerHour" | "experienceYears" | "certifications" | "bsb" | "accountNumber"
+      | "photoUrl"
+      | "firstName"
+      | "lastName"
+      | "pricePerHour"
+      | "certifications"
+      | "certificationDocs"
+      | "bsb"
+      | "accountNumber"
     >
   >
 ): Promise<{ ok: true } | { ok: false; error: string }> {

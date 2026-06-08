@@ -74,13 +74,7 @@ export default function OwnerLabourers() {
           <Text style={{ ...type.secondary, marginTop: spacing.xs }}>{item.email}</Text>
           <Text style={{ ...type.secondary, marginTop: spacing.xs }}>${item.pricePerHour}/hr</Text>
           <Text style={{ ...type.secondary, marginTop: spacing.xs }}>
-            Experience: {item.experienceYears} year(s)
-          </Text>
-          <Text style={{ ...type.secondary, marginTop: spacing.xs }}>
             Certifications: {item.certifications?.join(", ") || "None"}
-          </Text>
-          <Text style={{ ...type.secondary, marginTop: 6 }} numberOfLines={3}>
-            {item.about || "No about text"}
           </Text>
           <Text style={{ fontFamily, marginTop: spacing.sm, fontWeight: fontWeight.bold, color: colors.text }}>
             Tap to view full profile

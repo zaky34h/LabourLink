@@ -1,13 +1,14 @@
-import { View, Text, Image, Pressable, Alert, Keyboard, StyleSheet } from "react-native";
+import { View, Text, Image, Pressable, Alert, Keyboard, Platform, KeyboardAvoidingView, StyleSheet } from "react-native";
 import { useEffect, useState } from "react";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { getSessionEmail, getUserByEmail, loginUser } from "../src/auth/storage";
 import { routeForUser } from "../src/auth/routing";
 import { AuthSocialButtons } from "../src/auth/AuthSocialButtons";
 import { clearSessionStorage } from "../src/api/client";
-import { FormScreen } from "../src/ui/FormScreen";
 import { colors, spacing, radii, fontFamily, fontSize, fontWeight, type } from "../src/theme";
 import Button from "../src/ui/Button";
 import TextField from "../src/ui/TextField";
@@ -16,6 +17,7 @@ const REMEMBER_ME_KEY = "labourlink_remember_me";
 const REMEMBERED_EMAIL_KEY = "labourlink_remembered_email";
 
 export default function Login() {
+  const insets = useSafeAreaInsets();
   const [rememberMe, setRememberMe] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -89,13 +91,25 @@ export default function Login() {
   }
 
   return (
-    <FormScreen backgroundColor={colors.background}>
-      <View style={styles.screen}>
-        {/* soft cream background blobs */}
-        <View style={[styles.blob, { top: -40, left: -50 }]} />
-        <View style={[styles.blob, { bottom: 40, right: -60 }]} />
+    <View style={styles.screen}>
+      {/* soft cream background blobs — full-bleed to the screen edges */}
+      <View style={[styles.blob, { top: -70, left: -70 }]} />
+      <View style={[styles.blob, { bottom: -70, right: -70 }]} />
 
-        <View style={styles.content}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <KeyboardAwareScrollView
+          enableOnAndroid
+          keyboardShouldPersistTaps="always"
+          extraScrollHeight={20}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[
+            styles.content,
+            { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.lg },
+          ]}
+        >
           <View style={styles.header}>
             <Image
               source={require("../assets/labourlink-logo.png")}
@@ -158,22 +172,22 @@ export default function Login() {
               style={{ marginTop: spacing.sm }}
             />
           </View>
-        </View>
-      </View>
-    </FormScreen>
+        </KeyboardAwareScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, overflow: "hidden" },
+  screen: { flex: 1, overflow: "hidden", backgroundColor: colors.background },
   blob: {
     position: "absolute",
-    width: 220,
-    height: 220,
+    width: 260,
+    height: 260,
     borderRadius: radii.pill,
     backgroundColor: colors.surface,
   },
-  content: { flex: 1, justifyContent: "center", paddingHorizontal: spacing.lg },
+  content: { flexGrow: 1, justifyContent: "center", paddingHorizontal: spacing.lg },
   header: { alignItems: "center", marginBottom: spacing.xl },
   logo: { width: 240, height: 96 },
   tagline: { ...type.secondary, marginTop: spacing.sm },

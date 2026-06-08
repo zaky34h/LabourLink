@@ -45,7 +45,6 @@ export type OwnerReport = {
     lastName: string;
     email: string;
     companyName: string;
-    about: string;
     address: string;
     createdAt: number;
   }>;
@@ -54,9 +53,7 @@ export type OwnerReport = {
     lastName: string;
     email: string;
     occupation: string;
-    about: string;
     pricePerHour: number;
-    experienceYears: number;
     createdAt: number;
   }>;
   offers: Array<{

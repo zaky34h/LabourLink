@@ -76,10 +76,6 @@ export default function OwnerBuilderDetails() {
             <Row label="Reviews" value={String(builder.reviews?.length ?? 0)} />
           </Card>
 
-          <Card title="Bio">
-            <Text style={type.secondary}>{builder.about || "No about text."}</Text>
-          </Card>
-
           <Card title="Subscription">
             <Row label="Plan" value={builder.subscription?.planName || "-"} />
             <Row label="Status" value={builder.subscription?.status || "-"} />

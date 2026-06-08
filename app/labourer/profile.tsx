@@ -7,12 +7,14 @@ import {
   TextInput,
   Alert,
   Image,
+  Linking,
   StyleSheet,
 } from "react-native";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import { clearSession, deleteAccount } from "../../src/auth/storage";
+import * as DocumentPicker from "expo-document-picker";
+import { clearSession, deleteAccount, type CertificationDoc } from "../../src/auth/storage";
 import { useCurrentUser } from "../../src/auth/useCurrentUser";
 import { updateLabourerProfile } from "../../src/auth/updateLabourerProfile";
 import { FormScreen } from "../../src/ui/FormScreen";
@@ -27,10 +29,11 @@ export default function LabourerProfile() {
   const [photoUrl, setPhotoUrl] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [about, setAbout] = useState("");
   const [pricePerHour, setPricePerHour] = useState("");
-  const [experienceYears, setExperienceYears] = useState("");
   const [certifications, setCertifications] = useState<string[]>([""]);
+  const [certDocs, setCertDocs] = useState<CertificationDoc[]>([]);
+  const [newCertName, setNewCertName] = useState("");
+  const [newCertExpiry, setNewCertExpiry] = useState("");
   const [bsb, setBsb] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
 
@@ -39,10 +42,9 @@ export default function LabourerProfile() {
       setPhotoUrl(user.photoUrl ?? "");
       setFirstName(user.firstName ?? "");
       setLastName(user.lastName ?? "");
-      setAbout(user.about ?? "");
       setPricePerHour(String(user.pricePerHour ?? ""));
-      setExperienceYears(String(user.experienceYears ?? ""));
       setCertifications((user.certifications ?? []).length ? user.certifications : [""]);
+      setCertDocs(user.certificationDocs ?? []);
       setBsb(user.bsb ?? "");
       setAccountNumber(user.accountNumber ?? "");
     }
@@ -119,6 +121,45 @@ export default function LabourerProfile() {
     });
   }
 
+  async function addCertDoc() {
+    const expiry = newCertExpiry.trim();
+    if (expiry && !/^\d{4}-\d{2}-\d{2}$/.test(expiry)) {
+      return Alert.alert("Invalid expiry date", "Use the format YYYY-MM-DD, or leave it blank.");
+    }
+
+    const result = await DocumentPicker.getDocumentAsync({
+      type: ["image/*", "application/pdf"],
+      copyToCacheDirectory: true,
+      multiple: false,
+    });
+    if (result.canceled) return;
+
+    const asset = result.assets?.[0];
+    if (!asset?.uri) return;
+
+    const name = newCertName.trim() || asset.name || "Certification";
+    const doc: CertificationDoc = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      name,
+      fileUrl: asset.uri,
+      uploadedAt: Date.now(),
+      ...(expiry ? { expiryDate: expiry } : {}),
+    };
+    setCertDocs((prev) => [...prev, doc]);
+    setNewCertName("");
+    setNewCertExpiry("");
+  }
+
+  function removeCertDoc(id: string) {
+    setCertDocs((prev) => prev.filter((doc) => doc.id !== id));
+  }
+
+  function openCertDoc(doc: CertificationDoc) {
+    Linking.openURL(doc.fileUrl).catch(() => {
+      Alert.alert("Couldn’t open file", "This document can’t be previewed on your device.");
+    });
+  }
+
   const parsedCertifications = useMemo(
     () => certifications.map((x) => x.trim()).filter(Boolean),
     [certifications]
@@ -135,11 +176,6 @@ export default function LabourerProfile() {
       return Alert.alert("Invalid rate", "Hourly rate must be greater than 0.");
     }
 
-    const exp = Number(experienceYears);
-    if (!Number.isFinite(exp) || exp < 0) {
-      return Alert.alert("Invalid experience", "Experience must be 0 or higher.");
-    }
-
     if (parsedCertifications.length === 0) {
       return Alert.alert("Missing certifications", "Add at least one certification.");
     }
@@ -148,10 +184,9 @@ export default function LabourerProfile() {
     const res = await updateLabourerProfile(user.email, {
       firstName: firstName.trim(),
       lastName: lastName.trim(),
-      about: about.trim(),
       pricePerHour: rate,
-      experienceYears: exp,
       certifications: parsedCertifications,
+      certificationDocs: certDocs,
       photoUrl: photoUrl.trim() || undefined,
       bsb: bsb.trim() || undefined,
       accountNumber: accountNumber.trim() || undefined,
@@ -214,7 +249,6 @@ export default function LabourerProfile() {
         <Field label="First Name" value={firstName} onChangeText={setFirstName} />
         <Field label="Last Name" value={lastName} onChangeText={setLastName} />
         <Field label="Rate ($/hr)" value={pricePerHour} onChangeText={setPricePerHour} keyboardType="numeric" />
-        <Field label="Experience (years)" value={experienceYears} onChangeText={setExperienceYears} keyboardType="numeric" />
 
         <View style={{ gap: spacing.sm }}>
           <Text style={styles.fieldLabel}>Certifications</Text>
@@ -245,9 +279,67 @@ export default function LabourerProfile() {
           })}
         </View>
 
+        <View style={styles.card}>
+          <Text style={styles.fieldLabel}>Certification Documents</Text>
+          <Text style={type.secondary}>Upload an image or PDF of each certification.</Text>
+
+          {certDocs.length ? (
+            <View style={{ gap: spacing.sm, marginTop: spacing.xs }}>
+              {certDocs.map((doc) => {
+                const isPdf = isPdfDoc(doc);
+                return (
+                  <View key={doc.id} style={styles.docRow}>
+                    {isPdf ? (
+                      <View style={styles.docThumb}>
+                        <Ionicons name="document-text-outline" size={24} color={colors.text} />
+                      </View>
+                    ) : (
+                      <Image source={{ uri: doc.fileUrl }} style={styles.docThumb} />
+                    )}
+                    <Pressable style={{ flex: 1 }} onPress={() => openCertDoc(doc)}>
+                      <Text numberOfLines={1} style={styles.docName}>
+                        {doc.name}
+                      </Text>
+                      <Text style={type.secondary}>
+                        Added {formatDate(doc.uploadedAt)}
+                        {doc.expiryDate ? ` · Expires ${doc.expiryDate}` : ""}
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => removeCertDoc(doc.id)}
+                      style={[styles.iconBtn, { backgroundColor: colors.field, borderColor: colors.border }]}
+                    >
+                      <Ionicons name="trash-outline" size={18} color={colors.dangerText} />
+                    </Pressable>
+                  </View>
+                );
+              })}
+            </View>
+          ) : (
+            <Text style={{ ...type.secondary, marginTop: spacing.xs }}>No certification documents yet.</Text>
+          )}
+
+          <View style={{ gap: spacing.sm, marginTop: spacing.sm }}>
+            <TextInput
+              value={newCertName}
+              onChangeText={setNewCertName}
+              placeholder="Name (e.g. White Card)"
+              placeholderTextColor={colors.textSecondary}
+              style={styles.input}
+            />
+            <TextInput
+              value={newCertExpiry}
+              onChangeText={setNewCertExpiry}
+              placeholder="Expiry date YYYY-MM-DD (optional)"
+              placeholderTextColor={colors.textSecondary}
+              style={styles.input}
+            />
+            <Button label="Add Image or PDF" variant="secondary" onPress={addCertDoc} />
+          </View>
+        </View>
+
         <Field label="BSB" value={bsb} onChangeText={setBsb} keyboardType="number-pad" />
         <Field label="Account Number" value={accountNumber} onChangeText={setAccountNumber} keyboardType="number-pad" />
-        <Field label="About" value={about} onChangeText={setAbout} multiline />
 
         <View style={[styles.card, { gap: 6 }]}>
           <Text style={styles.fieldLabel}>Availability</Text>
@@ -279,6 +371,17 @@ export default function LabourerProfile() {
       </View>
     </FormScreen>
   );
+}
+
+function isPdfDoc(doc: CertificationDoc) {
+  const target = `${doc.fileUrl} ${doc.name}`.toLowerCase();
+  return target.includes(".pdf") || target.includes("application/pdf");
+}
+
+function formatDate(timestamp: number) {
+  const d = new Date(timestamp);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString();
 }
 
 function Field(props: any) {
@@ -345,5 +448,32 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
+  },
+  docRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    padding: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    backgroundColor: colors.field,
+  },
+  docThumb: {
+    width: 44,
+    height: 44,
+    borderRadius: radii.sm,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  docName: {
+    fontFamily,
+    fontSize: fontSize.body,
+    fontWeight: fontWeight.heavy,
+    color: colors.text,
   },
 });

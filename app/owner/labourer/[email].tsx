@@ -1,7 +1,7 @@
 import { useCallback, useState, type ReactNode } from "react";
-import { View, Text, ScrollView, Pressable, Alert, RefreshControl, StyleSheet } from "react-native";
+import { View, Text, ScrollView, Pressable, Alert, RefreshControl, Linking, StyleSheet } from "react-native";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
-import { type LabourerUser, getUserByEmail } from "../../../src/auth/storage";
+import { type CertificationDoc, type LabourerUser, getUserByEmail } from "../../../src/auth/storage";
 import { useCurrentUser } from "../../../src/auth/useCurrentUser";
 import { colors, spacing, radii, fontFamily, fontSize, fontWeight, type } from "../../../src/theme";
 
@@ -71,13 +71,16 @@ export default function OwnerLabourerDetails() {
 
           <Card title="Work Profile">
             <Row label="Rate" value={`$${labourer.pricePerHour}/hr`} />
-            <Row label="Experience" value={`${labourer.experienceYears} years`} />
             <Row label="Certifications" value={labourer.certifications?.join(", ") || "None"} />
             <Row label="Unavailable Days" value={String(labourer.unavailableDates?.length ?? 0)} />
           </Card>
 
-          <Card title="Bio">
-            <Text style={type.secondary}>{labourer.about || "No about text."}</Text>
+          <Card title="Certification Documents">
+            {labourer.certificationDocs?.length ? (
+              labourer.certificationDocs.map((doc) => <CertDocRow key={doc.id} doc={doc} />)
+            ) : (
+              <Text style={{ ...type.secondary }}>None uploaded.</Text>
+            )}
           </Card>
 
           <Card title="Payment Details">
@@ -103,6 +106,25 @@ function Card(props: { title: string; children: ReactNode }) {
       <Text style={styles.cardTitle}>{props.title}</Text>
       {props.children}
     </View>
+  );
+}
+
+function CertDocRow({ doc }: { doc: CertificationDoc }) {
+  function open() {
+    Linking.openURL(doc.fileUrl).catch(() => {
+      Alert.alert("Couldn’t open file", "This document can’t be previewed on your device.");
+    });
+  }
+  const isPdf = `${doc.fileUrl} ${doc.name}`.toLowerCase().includes(".pdf") ||
+    `${doc.fileUrl} ${doc.name}`.toLowerCase().includes("application/pdf");
+  return (
+    <Pressable onPress={open} style={{ gap: 3 }}>
+      <Text style={styles.rowLabel}>{isPdf ? "PDF" : "Image"}</Text>
+      <Text style={{ ...styles.rowValue, textDecorationLine: "underline" }}>
+        {doc.name}
+        {doc.expiryDate ? `  ·  Expires ${doc.expiryDate}` : ""}
+      </Text>
+    </Pressable>
   );
 }
 

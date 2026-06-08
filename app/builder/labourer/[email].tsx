@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { View, Text, Pressable, ActivityIndicator, Image, ScrollView, Alert, StyleSheet } from "react-native";
+import { View, Text, Pressable, ActivityIndicator, Image, ScrollView, Alert, Linking, StyleSheet } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { Calendar } from "react-native-calendars";
-import { getUserByEmail, type LabourerUser } from "../../../src/auth/storage";
+import { getUserByEmail, type CertificationDoc, type LabourerUser } from "../../../src/auth/storage";
 import { useCurrentUser } from "../../../src/auth/useCurrentUser";
 import { isLabourerSaved, saveLabourer, unsaveLabourer } from "../../../src/saved-labourers/storage";
 import { colors, spacing, radii, fontFamily, fontSize, fontWeight, type } from "../../../src/theme";
@@ -78,7 +79,7 @@ export default function LabourerProfileView() {
 
   const fullName = `${labourer.firstName} ${labourer.lastName}`;
   const certs = labourer.certifications ?? ["White Card (example)", "Working at Heights (example)"];
-  const exp = labourer.experienceYears ?? 3;
+  const certDocs = labourer.certificationDocs ?? [];
   const currentMonthUnavailableDates = (labourer.unavailableDates ?? [])
     .filter((d) => isCurrentMonthDate(d))
     .sort((a, b) => a.localeCompare(b));
@@ -150,18 +151,6 @@ export default function LabourerProfileView() {
           </View>
         </View>
 
-        {/* About */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>About</Text>
-          <Text style={{ ...type.body, marginTop: 6 }}>{labourer.about}</Text>
-        </View>
-
-        {/* Experience */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Experience</Text>
-          <Text style={{ ...type.body, marginTop: 6 }}>{exp} years</Text>
-        </View>
-
         {/* Certifications */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Certifications</Text>
@@ -172,6 +161,20 @@ export default function LabourerProfileView() {
               </View>
             ))}
           </View>
+        </View>
+
+        {/* Certification Documents */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Certification Documents</Text>
+          {certDocs.length ? (
+            <View style={{ marginTop: spacing.sm, gap: spacing.sm }}>
+              {certDocs.map((doc) => (
+                <CertDocRow key={doc.id} doc={doc} />
+              ))}
+            </View>
+          ) : (
+            <Text style={{ ...type.secondary, marginTop: 6 }}>No certification documents uploaded.</Text>
+          )}
         </View>
 
         {/* Availability */}
@@ -196,6 +199,36 @@ export default function LabourerProfileView() {
         </View>
       </View>
     </ScrollView>
+  );
+}
+
+function CertDocRow({ doc }: { doc: CertificationDoc }) {
+  const isPdf = `${doc.fileUrl} ${doc.name}`.toLowerCase().includes(".pdf") ||
+    `${doc.fileUrl} ${doc.name}`.toLowerCase().includes("application/pdf");
+  function open() {
+    Linking.openURL(doc.fileUrl).catch(() => {
+      Alert.alert("Couldn’t open file", "This document can’t be previewed on your device.");
+    });
+  }
+  return (
+    <Pressable onPress={open} style={styles.docRow}>
+      {isPdf ? (
+        <View style={styles.docThumb}>
+          <Ionicons name="document-text-outline" size={24} color={colors.text} />
+        </View>
+      ) : (
+        <Image source={{ uri: doc.fileUrl }} style={styles.docThumb} />
+      )}
+      <View style={{ flex: 1 }}>
+        <Text numberOfLines={1} style={{ fontFamily, fontWeight: fontWeight.heavy, color: colors.text }}>
+          {doc.name}
+        </Text>
+        {doc.expiryDate ? (
+          <Text style={{ ...type.secondary, marginTop: 2 }}>Expires {doc.expiryDate}</Text>
+        ) : null}
+      </View>
+      <Ionicons name="open-outline" size={18} color={colors.textSecondary} />
+    </Pressable>
   );
 }
 
@@ -268,5 +301,26 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: radii.md,
     padding: spacing.sm,
+  },
+  docRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    padding: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    backgroundColor: colors.field,
+  },
+  docThumb: {
+    width: 44,
+    height: 44,
+    borderRadius: radii.sm,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
   },
 });

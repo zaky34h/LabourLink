@@ -1,9 +1,29 @@
-import { useCallback, useRef, useState } from "react";
-import { View, Text, Pressable, FlatList, ActivityIndicator, StyleSheet } from "react-native";
+import { memo, useCallback, useRef, useState } from "react";
+import { View, Text, Pressable, FlatList, StyleSheet } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useCurrentUser } from "../../src/auth/useCurrentUser";
 import { getThreadsForUser, type ChatThread } from "../../src/chat/storage";
 import { colors, spacing, radii, fontFamily, fontSize, fontWeight, type } from "../../src/theme";
+import { Skeleton, SkeletonList } from "../../src/ui/Skeleton";
+
+const ThreadRow = memo(function ThreadRow({ item }: { item: ChatThread }) {
+  return (
+    <Pressable
+      onPress={() => router.push(`/chat/${encodeURIComponent(item.peerEmail)}`)}
+      style={styles.card}
+    >
+      <Text style={styles.rowName}>{item.peerName ?? item.peerEmail}</Text>
+      <Text style={styles.rowPreview} numberOfLines={1}>
+        {item.lastMessageText}
+      </Text>
+      <Text style={styles.rowTime}>{new Date(item.lastMessageAt).toLocaleString()}</Text>
+    </Pressable>
+  );
+});
+
+function renderThread({ item }: { item: ChatThread }) {
+  return <ThreadRow item={item} />;
+}
 
 export default function BuilderMessages() {
   const { user, loading: userLoading } = useCurrentUser();
@@ -53,8 +73,10 @@ export default function BuilderMessages() {
 
   if (loading) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator color={colors.text} />
+      <View style={styles.skeletonWrap}>
+        <Skeleton width={140} height={28} />
+        <Skeleton width="100%" height={44} radius={radii.lg} style={styles.skeletonSegment} />
+        <SkeletonList count={6} lines={2} />
       </View>
     );
   }
@@ -66,6 +88,10 @@ export default function BuilderMessages() {
       data={threads}
       keyExtractor={(t) => t.threadId}
       showsVerticalScrollIndicator={false}
+      removeClippedSubviews
+      initialNumToRender={8}
+      maxToRenderPerBatch={8}
+      windowSize={11}
       refreshing={refreshing}
       onRefresh={onRefresh}
       ListHeaderComponent={
@@ -110,28 +136,18 @@ export default function BuilderMessages() {
             : "No chat history yet."}
         </Text>
       }
-      renderItem={({ item }) => (
-        <Pressable
-          onPress={() => router.push(`/chat/${encodeURIComponent(item.peerEmail)}`)}
-          style={styles.card}
-        >
-          <Text style={{ fontFamily, fontWeight: fontWeight.heavy, fontSize: fontSize.h3, color: colors.text }}>
-            {item.peerName ?? item.peerEmail}
-          </Text>
-          <Text style={{ ...type.secondary, marginTop: 6 }} numberOfLines={1}>
-            {item.lastMessageText}
-          </Text>
-          <Text style={{ ...type.secondary, marginTop: 8, fontSize: fontSize.caption }}>
-            {new Date(item.lastMessageAt).toLocaleString()}
-          </Text>
-        </Pressable>
-      )}
+      renderItem={renderThread}
     />
   );
 }
 
 const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.background },
+  skeletonWrap: { flex: 1, backgroundColor: colors.background, paddingTop: 60, paddingHorizontal: spacing.lg },
+  skeletonSegment: { marginTop: spacing.md, marginBottom: spacing.lg },
+  rowName: { fontFamily, fontWeight: fontWeight.heavy, fontSize: fontSize.h3, color: colors.text },
+  rowPreview: { ...type.secondary, marginTop: 6 },
+  rowTime: { ...type.secondary, marginTop: 8, fontSize: fontSize.caption },
   segment: {
     flexDirection: "row",
     marginTop: spacing.md,

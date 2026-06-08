@@ -23,29 +23,22 @@ export default function ForgotPasswordScreen() {
       const res = await requestPasswordReset(trimmedEmail);
       if (!res.ok) return Alert.alert("Could not request reset", res.error);
 
-      const code = res.resetCode;
-      if (code) {
-        Alert.alert(
-          "Reset code generated",
-          `Use this code to reset your password: ${code}`,
-          [
-            {
-              text: "Continue",
-              onPress: () =>
-                router.replace({
-                  pathname: "/auth/reset-password",
-                  params: { email: trimmedEmail, code },
-                }),
-            },
-          ]
-        );
-        return;
-      }
-
-      router.replace({
-        pathname: "/auth/reset-password",
-        params: { email: trimmedEmail },
-      });
+      // The reset code is delivered out-of-band (email/SMS) — it is never returned
+      // by the API. Send the user to the reset screen to enter the code they receive.
+      Alert.alert(
+        "Check your email",
+        "If an account exists for that address, a password reset code has been sent. Enter it on the next screen.",
+        [
+          {
+            text: "Continue",
+            onPress: () =>
+              router.replace({
+                pathname: "/auth/reset-password",
+                params: { email: trimmedEmail },
+              }),
+          },
+        ]
+      );
     } finally {
       setSubmitting(false);
     }

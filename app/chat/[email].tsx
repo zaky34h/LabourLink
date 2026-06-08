@@ -8,8 +8,14 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  ActivityIndicator,
+  Animated,
+  Easing,
   StyleSheet,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
 } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { useCurrentUser } from "../../src/auth/useCurrentUser";
 import {
@@ -24,28 +30,69 @@ import {
 import { getUserByEmail } from "../../src/auth/storage";
 import { colors, spacing, radii, fontFamily, fontSize, fontWeight, type } from "../../src/theme";
 
+// How many messages to render at first; older ones load on demand.
+const PAGE_SIZE = 30;
+// Resend typing=true at least this often so the server's 10s freshness
+// window never expires mid-typing; stop after the same idle gap.
+const TYPING_HEARTBEAT_MS = 4000;
+
+/** Animated three-dot "typing" bubble, styled like an incoming message. */
+function TypingBubble() {
+  const dots = useRef([new Animated.Value(0.3), new Animated.Value(0.3), new Animated.Value(0.3)]).current;
+
+  useEffect(() => {
+    const animations = dots.map((dot, i) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(i * 150),
+          Animated.timing(dot, { toValue: 1, duration: 300, easing: Easing.ease, useNativeDriver: true }),
+          Animated.timing(dot, { toValue: 0.3, duration: 300, easing: Easing.ease, useNativeDriver: true }),
+        ])
+      )
+    );
+    animations.forEach((a) => a.start());
+    return () => animations.forEach((a) => a.stop());
+  }, [dots]);
+
+  return (
+    <View style={{ marginBottom: spacing.sm, alignItems: "flex-start" }}>
+      <View style={styles.typingBubble}>
+        {dots.map((dot, i) => (
+          <Animated.View key={i} style={[styles.typingDot, { opacity: dot }]} />
+        ))}
+      </View>
+    </View>
+  );
+}
+
 export default function ChatWithPeer() {
   const { email } = useLocalSearchParams<{ email: string }>();
   const peerEmail = decodeURIComponent(email ?? "");
   const { user } = useCurrentUser();
+  const insets = useSafeAreaInsets();
 
   const [peerName, setPeerName] = useState<string>(peerEmail);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [text, setText] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(true);
-  const [meTyping, setMeTyping] = useState(false);
   const [peerTyping, setPeerTyping] = useState(false);
   const [sending, setSending] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const listRef = useRef<FlatList<ChatMessage>>(null);
+  const hasLoadedRef = useRef(false);
+  const stickToBottomRef = useRef(true);
   const lastTypingSentRef = useRef(false);
-  const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const typingDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadErrorShownRef = useRef(false);
 
   async function load() {
     if (!user?.email) return;
-    if (!refreshing) setLoadingMessages(true);
+    // Only show the full-screen loader on the very first load — never on a poll.
+    if (!hasLoadedRef.current && !refreshing) setLoadingMessages(true);
     try {
       const [msgs, typing] = await Promise.all([
         getMessagesWithPeer(user.email, peerEmail),
@@ -65,7 +112,6 @@ export default function ChatWithPeer() {
         }
         return merged.sort((a, b) => a.createdAt - b.createdAt);
       });
-      setMeTyping(typing.meTyping);
       setPeerTyping(typing.peerTyping);
       loadErrorShownRef.current = false;
       await markThreadRead(peerEmail);
@@ -75,6 +121,7 @@ export default function ChatWithPeer() {
         loadErrorShownRef.current = true;
       }
     } finally {
+      hasLoadedRef.current = true;
       setLoadingMessages(false);
     }
   }
@@ -88,47 +135,85 @@ export default function ChatWithPeer() {
   }, [peerEmail]);
 
   useEffect(() => {
+    // New thread context: reset the loaded/scroll state so the loader shows.
+    hasLoadedRef.current = false;
+    stickToBottomRef.current = true;
+    setLoadingMessages(true);
     load();
     const interval = setInterval(load, 2500);
-    return () => {
-      clearInterval(interval);
-    };
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.email, peerEmail]);
 
-  useEffect(() => {
-    const nextTyping = text.trim().length > 0;
+  function sendTyping(value: boolean) {
+    if (!user?.email) return;
+    if (lastTypingSentRef.current === value) return;
+    lastTypingSentRef.current = value;
+    void setTypingStatus(peerEmail, value);
+  }
 
-    if (typingTimerRef.current) {
-      clearTimeout(typingTimerRef.current);
-      typingTimerRef.current = null;
+  function stopHeartbeat() {
+    if (heartbeatRef.current) {
+      clearInterval(heartbeatRef.current);
+      heartbeatRef.current = null;
     }
+    if (idleTimerRef.current) {
+      clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = null;
+    }
+  }
 
-    typingTimerRef.current = setTimeout(async () => {
-      if (!user?.email) return;
-      if (lastTypingSentRef.current === nextTyping) return;
-      lastTypingSentRef.current = nextTyping;
-      const res = await setTypingStatus(peerEmail, nextTyping);
-      if (res.ok) setMeTyping(nextTyping);
+  // Typing presence: debounce keystrokes, then keep the server row fresh with a
+  // heartbeat while typing and auto-stop after an idle gap.
+  useEffect(() => {
+    const typing = text.trim().length > 0;
+
+    if (typingDebounceRef.current) clearTimeout(typingDebounceRef.current);
+
+    typingDebounceRef.current = setTimeout(() => {
+      if (!typing) {
+        sendTyping(false);
+        stopHeartbeat();
+        return;
+      }
+
+      sendTyping(true);
+
+      if (!heartbeatRef.current) {
+        heartbeatRef.current = setInterval(() => {
+          if (user?.email) void setTypingStatus(peerEmail, true);
+        }, TYPING_HEARTBEAT_MS);
+      }
+
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = setTimeout(() => {
+        sendTyping(false);
+        stopHeartbeat();
+      }, TYPING_HEARTBEAT_MS);
     }, 250);
 
     return () => {
-      if (typingTimerRef.current) {
-        clearTimeout(typingTimerRef.current);
-        typingTimerRef.current = null;
-      }
+      if (typingDebounceRef.current) clearTimeout(typingDebounceRef.current);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text, peerEmail, user?.email]);
 
+  // On unmount, clear timers and clear our typing flag for the peer.
   useEffect(() => {
     return () => {
-      if (!lastTypingSentRef.current) return;
-      setTypingStatus(peerEmail, false);
+      stopHeartbeat();
+      if (lastTypingSentRef.current) setTypingStatus(peerEmail, false);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [peerEmail]);
 
   const myEmail = user?.email ?? "";
 
-  const grouped = useMemo(() => messages, [messages]);
+  const visibleMessages = useMemo(
+    () => (messages.length <= visibleCount ? messages : messages.slice(messages.length - visibleCount)),
+    [messages, visibleCount]
+  );
+  const hasOlderMessages = messages.length > visibleCount;
 
   async function onSend() {
     const trimmed = text.trim();
@@ -143,13 +228,12 @@ export default function ChatWithPeer() {
     };
 
     setSending(true);
+    stickToBottomRef.current = true;
     setMessages((current) => [...current, optimisticMessage].sort((a, b) => a.createdAt - b.createdAt));
     setText("");
-    setMeTyping(false);
+    stopHeartbeat();
     lastTypingSentRef.current = false;
-    setTimeout(() => {
-      listRef.current?.scrollToEnd({ animated: true });
-    }, 50);
+    setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 50);
 
     await setTypingStatus(peerEmail, false);
     const res = await sendMessage(user.email, peerEmail, trimmed);
@@ -171,6 +255,13 @@ export default function ChatWithPeer() {
     setRefreshing(true);
     await load();
     setRefreshing(false);
+  }
+
+  function onScroll(e: NativeSyntheticEvent<NativeScrollEvent>) {
+    const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+    const distanceFromBottom = contentSize.height - (contentOffset.y + layoutMeasurement.height);
+    // Only auto-stick to the bottom when the user is already near it.
+    stickToBottomRef.current = distanceFromBottom < 120;
   }
 
   function onCloseChat() {
@@ -195,127 +286,195 @@ export default function ChatWithPeer() {
     );
   }
 
-  return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: colors.background }}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
-    >
-      {/* Messages */}
-      <FlatList
-        ref={listRef}
-        data={grouped}
-        keyExtractor={(m) => m.id}
-        contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.md, paddingTop: 60, flexGrow: 1 }}
-        refreshing={refreshing}
-        onRefresh={onRefresh}
-        ListHeaderComponent={
-          <View style={{ paddingBottom: spacing.md, flexDirection: "row", alignItems: "center", gap: spacing.md }}>
-            <Pressable onPress={() => router.back()} style={styles.headerBtn}>
-              <Text style={styles.headerBtnText}>Back</Text>
-            </Pressable>
+  const canSend = !sending && text.trim().length > 0;
+  const showInitialLoader = loadingMessages && !hasLoadedRef.current;
 
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontFamily, fontSize: fontSize.h3, fontWeight: fontWeight.heavy, color: colors.text }} numberOfLines={1}>
-                {peerName}
-              </Text>
-              <Text style={type.secondary} numberOfLines={1}>
-                {peerEmail}
-              </Text>
-              {peerTyping ? (
-                <Text style={{ fontFamily, marginTop: 2, color: colors.pendingText, fontWeight: fontWeight.bold, fontSize: fontSize.caption }}>
-                  Typing...
-                </Text>
-              ) : null}
-            </View>
-            <Pressable onPress={onCloseChat} style={styles.headerBtn}>
-              <Text style={[styles.headerBtnText, { fontSize: fontSize.caption }]}>Close Chat</Text>
-            </Pressable>
-          </View>
-        }
-        onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
-        renderItem={({ item }) => {
-          const mine = item.from.toLowerCase() === myEmail.toLowerCase();
-          return (
-            <View style={{ marginBottom: spacing.sm, alignItems: mine ? "flex-end" : "flex-start" }}>
-              <View
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={["top"]}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={0}
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <Pressable onPress={() => router.back()} style={styles.headerBtn}>
+            <Text style={styles.headerBtnText}>Back</Text>
+          </Pressable>
+
+          <View style={{ flex: 1 }}>
+            <Text
+              style={{ fontFamily, fontSize: fontSize.h3, fontWeight: fontWeight.heavy, color: colors.text }}
+              numberOfLines={1}
+            >
+              {peerName}
+            </Text>
+            <Text style={type.secondary} numberOfLines={1}>
+              {peerEmail}
+            </Text>
+            {peerTyping ? (
+              <Text
                 style={{
-                  maxWidth: "80%",
-                  paddingVertical: 10,
-                  paddingHorizontal: 12,
-                  borderRadius: radii.xl,
-                  backgroundColor: mine ? colors.primary : colors.surface,
-                  borderWidth: mine ? 0 : 1,
-                  borderColor: colors.border,
+                  fontFamily,
+                  marginTop: 2,
+                  color: colors.pendingText,
+                  fontWeight: fontWeight.bold,
+                  fontSize: fontSize.caption,
                 }}
               >
-                <Text style={{ fontFamily, color: mine ? colors.onPrimary : colors.text, fontWeight: fontWeight.medium }}>
-                  {item.text}
-                </Text>
-                <Text style={{ fontFamily, color: mine ? colors.onPrimary : colors.textSecondary, marginTop: 6, fontSize: fontSize.caption, opacity: mine ? 0.8 : 1 }}>
-                  {new Date(item.createdAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
-                </Text>
-              </View>
-            </View>
-          );
-        }}
-        ListEmptyComponent={
-          <View style={{ paddingTop: 40 }}>
-            <Text style={{ ...type.secondary, textAlign: "center" }}>
-              {loadingMessages ? "Loading messages..." : "No messages yet. Say hello 👋"}
-            </Text>
+                Typing…
+              </Text>
+            ) : null}
           </View>
-        }
-      />
-
-      {/* Input */}
-      <View style={{ padding: spacing.md, paddingBottom: 20, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.background }}>
-        {meTyping ? (
-          <Text style={{ ...type.secondary, marginBottom: spacing.sm, fontSize: fontSize.caption }}>
-            You are typing...
-          </Text>
-        ) : null}
-        <View style={{ flexDirection: "row", gap: spacing.sm, alignItems: "center" }}>
-          <TextInput
-            value={text}
-            onChangeText={setText}
-            placeholder="Message..."
-            placeholderTextColor={colors.textSecondary}
-            style={{
-              flex: 1,
-              borderWidth: 1,
-              borderColor: colors.border,
-              borderRadius: radii.lg,
-              paddingHorizontal: 14,
-              paddingVertical: 12,
-              backgroundColor: colors.field,
-              fontFamily,
-              fontSize: fontSize.body,
-              color: colors.text,
-            }}
-          />
-          <Pressable
-            onPress={onSend}
-            disabled={sending || text.trim().length === 0}
-            style={{
-              paddingVertical: 12,
-              paddingHorizontal: 18,
-              borderRadius: radii.lg,
-              backgroundColor: colors.primary,
-              opacity: sending || text.trim().length === 0 ? 0.45 : 1,
-            }}
-          >
-            <Text style={{ fontFamily, color: colors.onPrimary, fontWeight: fontWeight.heavy }}>
-              {sending ? "Sending..." : "Send"}
-            </Text>
+          <Pressable onPress={onCloseChat} style={styles.headerBtn}>
+            <Text style={[styles.headerBtnText, { fontSize: fontSize.caption }]}>Close Chat</Text>
           </Pressable>
         </View>
-      </View>
-    </KeyboardAvoidingView>
+
+        {/* Messages */}
+        {showInitialLoader ? (
+          <View style={styles.centered}>
+            <ActivityIndicator color={colors.text} />
+            <Text style={{ ...type.secondary, marginTop: spacing.md }}>Loading messages…</Text>
+          </View>
+        ) : (
+          <FlatList
+            ref={listRef}
+            data={visibleMessages}
+            keyExtractor={(m) => m.id}
+            contentContainerStyle={{
+              paddingHorizontal: spacing.lg,
+              paddingTop: spacing.md,
+              paddingBottom: spacing.md,
+              flexGrow: 1,
+            }}
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            onScroll={onScroll}
+            scrollEventThrottle={100}
+            maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+            ListHeaderComponent={
+              hasOlderMessages ? (
+                <Pressable
+                  onPress={() => setVisibleCount((c) => c + PAGE_SIZE)}
+                  style={styles.loadEarlierBtn}
+                >
+                  <Text style={styles.loadEarlierText}>Load earlier messages</Text>
+                </Pressable>
+              ) : null
+            }
+            onContentSizeChange={() => {
+              if (stickToBottomRef.current) listRef.current?.scrollToEnd({ animated: false });
+            }}
+            renderItem={({ item }) => {
+              const mine = item.from.toLowerCase() === myEmail.toLowerCase();
+              return (
+                <View style={{ marginBottom: spacing.sm, alignItems: mine ? "flex-end" : "flex-start" }}>
+                  <View
+                    style={{
+                      maxWidth: "80%",
+                      paddingVertical: 10,
+                      paddingHorizontal: 12,
+                      borderRadius: radii.xl,
+                      backgroundColor: mine ? colors.primary : colors.surface,
+                      borderWidth: mine ? 0 : 1,
+                      borderColor: colors.border,
+                    }}
+                  >
+                    <Text
+                      style={{ fontFamily, color: mine ? colors.onPrimary : colors.text, fontWeight: fontWeight.medium }}
+                    >
+                      {item.text}
+                    </Text>
+                    <Text
+                      style={{
+                        fontFamily,
+                        color: mine ? colors.onPrimary : colors.textSecondary,
+                        marginTop: 6,
+                        fontSize: fontSize.caption,
+                        opacity: mine ? 0.8 : 1,
+                      }}
+                    >
+                      {new Date(item.createdAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                    </Text>
+                  </View>
+                </View>
+              );
+            }}
+            ListFooterComponent={peerTyping ? <TypingBubble /> : null}
+            ListEmptyComponent={
+              <View style={{ paddingTop: 40 }}>
+                <Text style={{ ...type.secondary, textAlign: "center" }}>No messages yet. Say hello 👋</Text>
+              </View>
+            }
+          />
+        )}
+
+        {/* Input */}
+        <View
+          style={{
+            padding: spacing.md,
+            paddingBottom: Math.max(insets.bottom, spacing.md),
+            borderTopWidth: 1,
+            borderTopColor: colors.border,
+            backgroundColor: colors.background,
+          }}
+        >
+          <View style={{ flexDirection: "row", gap: spacing.sm, alignItems: "flex-end" }}>
+            <TextInput
+              value={text}
+              onChangeText={setText}
+              placeholder="Message…"
+              placeholderTextColor={colors.textSecondary}
+              multiline
+              style={{
+                flex: 1,
+                maxHeight: 120,
+                borderWidth: 1,
+                borderColor: colors.border,
+                borderRadius: radii.lg,
+                paddingHorizontal: 14,
+                paddingTop: 12,
+                paddingBottom: 12,
+                backgroundColor: colors.field,
+                fontFamily,
+                fontSize: fontSize.body,
+                color: colors.text,
+              }}
+            />
+            <Pressable
+              onPress={onSend}
+              disabled={!canSend}
+              style={{
+                paddingVertical: 12,
+                paddingHorizontal: 18,
+                borderRadius: radii.lg,
+                backgroundColor: colors.primary,
+                opacity: canSend ? 1 : 0.45,
+              }}
+            >
+              <Text style={{ fontFamily, color: colors.onPrimary, fontWeight: fontWeight.heavy }}>
+                {sending ? "Sending…" : "Send"}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  header: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
   headerBtn: {
     paddingVertical: 8,
     paddingHorizontal: 12,
@@ -328,5 +487,39 @@ const styles = StyleSheet.create({
     fontFamily,
     fontWeight: fontWeight.heavy,
     color: colors.text,
+  },
+  centered: { flex: 1, justifyContent: "center", alignItems: "center" },
+  loadEarlierBtn: {
+    alignSelf: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    marginBottom: spacing.md,
+    borderRadius: radii.pill,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  loadEarlierText: {
+    fontFamily,
+    fontWeight: fontWeight.bold,
+    fontSize: fontSize.caption,
+    color: colors.textSecondary,
+  },
+  typingBubble: {
+    flexDirection: "row",
+    gap: 5,
+    alignItems: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: radii.xl,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  typingDot: {
+    width: 7,
+    height: 7,
+    borderRadius: radii.pill,
+    backgroundColor: colors.textSecondary,
   },
 });

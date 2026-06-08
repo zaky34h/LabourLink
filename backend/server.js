@@ -26,9 +26,9 @@ const SOCIAL_RATE_LIMIT_MAX_PER_IP = 12;
 const usesNeon = /neon\.tech/i.test(DATABASE_URL);
 const pool = new Pool({
   connectionString: DATABASE_URL,
-  // Neon requires TLS. If sslmode is in the URL, pg also honors it;
-  // this keeps local Postgres unchanged while making Neon plug-and-play.
-  ssl: usesNeon ? { rejectUnauthorized: false } : undefined,
+  // Neon requires TLS. Verify the server certificate against the system trust
+  // store (which covers Neon's public CA) to prevent MITM on the DB connection.
+  ssl: usesNeon ? { rejectUnauthorized: true } : undefined,
 });
 const GOOGLE_ALLOWED_CLIENT_IDS = [
   ...(process.env.GOOGLE_OAUTH_CLIENT_IDS || "").split(","),
@@ -502,6 +502,7 @@ async function initDb() {
       available_dates JSONB,
       unavailable_dates JSONB,
       certifications JSONB,
+      certification_docs JSONB,
       experience_years INTEGER,
       photo_url TEXT,
       bsb TEXT,
@@ -514,6 +515,7 @@ async function initDb() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS bsb TEXT;`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS account_number TEXT;`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS unavailable_dates JSONB;`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS certification_docs JSONB;`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_disabled BOOLEAN NOT NULL DEFAULT FALSE;`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS disabled_at BIGINT;`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_provider TEXT;`);
@@ -701,10 +703,68 @@ function rowToUser(row) {
     pricePerHour: Number(row.price_per_hour || 0),
     unavailableDates: row.unavailable_dates || [],
     certifications: row.certifications || [],
+    certificationDocs: row.certification_docs || [],
     experienceYears: Number(row.experience_years || 0),
     photoUrl: row.photo_url || undefined,
     bsb: row.bsb || undefined,
     accountNumber: row.account_number || undefined,
+    subscription: normalizeSubscription(row.subscription),
+  };
+}
+
+// Cross-user / public projection. Used for any read where the requester is NOT the
+// owner of the record (GET /users, GET /users/:email) — e.g. a builder browsing the
+// labourer directory or viewing a labourer's detail, and the owner-admin views.
+//
+// Explicit ALLOWLIST: the result is built field-by-field from named columns so that
+// any column not listed below — including columns added in the future — can never
+// leak through this path by default. Deliberately EXCLUDED: password_hash, bsb,
+// account_number (banking — owner-only via /auth/me and the scoped payment receipt
+// flow), the full street/home `address` (location is meant to be suburb-level, and
+// no suburb column exists yet to expose), phone (no column), and the auth columns
+// (auth_provider, provider_user_id). Only the fields the browse/detail screens need
+// are surfaced: identity, occupation/trade, rate, certs, availability, photo,
+// company + rating, and plan/disabled status for the owner views.
+function toPublicUser(row) {
+  const base = {
+    role: row.role,
+    firstName: row.first_name,
+    lastName: row.last_name,
+    email: row.email,
+    isDisabled: Boolean(row.is_disabled),
+  };
+
+  if (row.role === "builder") {
+    return {
+      ...base,
+      companyName: row.company_name || "",
+      companyLogoUrl: row.company_logo_url || undefined,
+      companyRating: row.company_rating ?? 0,
+      reviews: row.reviews || [],
+      subscription: normalizeSubscription(row.subscription),
+    };
+  }
+
+  if (row.role === "owner") {
+    return {
+      ...base,
+      about: row.about || "",
+    };
+  }
+
+  if (row.role === "pending") {
+    return base;
+  }
+
+  // labourer
+  return {
+    ...base,
+    occupation: row.occupation || "",
+    pricePerHour: Number(row.price_per_hour || 0),
+    unavailableDates: row.unavailable_dates || [],
+    certifications: row.certifications || [],
+    certificationDocs: row.certification_docs || [],
+    photoUrl: row.photo_url || undefined,
     subscription: normalizeSubscription(row.subscription),
   };
 }
@@ -1241,7 +1301,7 @@ const server = http.createServer(async (req, res) => {
         const about = String(body.about || "").trim();
         const address = String(body.address || "").trim();
 
-        if (!firstName || !lastName || !companyName || !about || !address) {
+        if (!firstName || !lastName || !companyName || !address) {
           return json(res, 400, { ok: false, error: "Complete all builder profile fields." });
         }
 
@@ -1274,7 +1334,8 @@ const server = http.createServer(async (req, res) => {
         const lastName = String(body.lastName || "").trim();
         const about = String(body.about || "").trim();
         const pricePerHour = Number(body.pricePerHour);
-        const experienceYears = Number(body.experienceYears);
+        // experience/about are no longer collected for labourers; default harmlessly.
+        const experienceYears = Number(body.experienceYears || 0);
         const certifications = Array.isArray(body.certifications)
           ? body.certifications.map((item) => String(item || "").trim()).filter(Boolean)
           : [];
@@ -1285,14 +1346,11 @@ const server = http.createServer(async (req, res) => {
         const accountNumber = String(body.accountNumber || "").trim();
         const photoUrl = body.photoUrl ? String(body.photoUrl) : null;
 
-        if (!firstName || !lastName || !about) {
+        if (!firstName || !lastName) {
           return json(res, 400, { ok: false, error: "Complete all labourer profile fields." });
         }
         if (!Number.isFinite(pricePerHour) || pricePerHour <= 0) {
           return json(res, 400, { ok: false, error: "Hourly rate must be greater than 0." });
-        }
-        if (!Number.isFinite(experienceYears) || experienceYears < 0) {
-          return json(res, 400, { ok: false, error: "Experience must be 0 or higher." });
         }
         if (!certifications.length) {
           return json(res, 400, { ok: false, error: "Add at least one certification." });
@@ -1383,7 +1441,14 @@ const server = http.createServer(async (req, res) => {
         [makeId("pr"), email, hashPasswordLegacy(resetCode), expiresAt, null, nowMs]
       );
 
-      return json(res, 200, { ok: true, resetCode });
+      // SECURITY: never return the reset code in the HTTP response — that lets anyone
+      // who can hit this endpoint take over any account by email enumeration.
+      // TODO(out-of-band delivery): send `resetCode` to the user via email/SMS here
+      // (e.g. transactional email provider). Until that is wired up, owner-initiated
+      // password reset (POST /owner/support/users/:email/reset-password) is the
+      // interim recovery path. The response stays identical whether or not the email
+      // exists, to prevent account enumeration.
+      return json(res, 200, { ok: true });
     }
 
     if (req.method === "POST" && pathname === "/auth/reset-password") {
@@ -1568,8 +1633,18 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && pathname === "/users") {
       const user = await requireAuth(req, res);
       if (!user) return;
-      const usersRes = await pool.query("SELECT * FROM users");
-      return json(res, 200, { ok: true, users: usersRes.rows.map(rowToUser) });
+      // Cross-user listing: owners may list everyone; builders need the labourer
+      // directory for discovery/offers. Either way return the public projection
+      // (no banking, no password). Labourers have no need to list other users.
+      let usersRes;
+      if (user.role === "owner") {
+        usersRes = await pool.query("SELECT * FROM users");
+      } else if (user.role === "builder") {
+        usersRes = await pool.query("SELECT * FROM users WHERE role = 'labourer'");
+      } else {
+        return json(res, 403, { ok: false, error: "Forbidden" });
+      }
+      return json(res, 200, { ok: true, users: usersRes.rows.map(toPublicUser) });
     }
 
     if (req.method === "GET" && pathname.startsWith("/users/")) {
@@ -1578,7 +1653,9 @@ const server = http.createServer(async (req, res) => {
       const email = normalizeEmail(decodeURIComponent(pathname.replace("/users/", "")));
       const userRes = await pool.query("SELECT * FROM users WHERE email = $1 LIMIT 1", [email]);
       if (!userRes.rows.length) return json(res, 404, { ok: false, error: "User not found" });
-      return json(res, 200, { ok: true, user: rowToUser(userRes.rows[0]) });
+      // Cross-user read → public projection only (banking/password never exposed).
+      // A user reading their own record gets full detail via GET /auth/me.
+      return json(res, 200, { ok: true, user: toPublicUser(userRes.rows[0]) });
     }
 
     if (req.method === "GET" && pathname === "/owner/overview") {
@@ -1969,11 +2046,12 @@ const server = http.createServer(async (req, res) => {
              price_per_hour = COALESCE($4, price_per_hour),
              experience_years = COALESCE($5, experience_years),
              certifications = COALESCE($6, certifications),
-             photo_url = COALESCE($7, photo_url),
-             bsb = COALESCE($8, bsb),
-             account_number = COALESCE($9, account_number),
-             updated_at = $10
-         WHERE email = $11`,
+             certification_docs = COALESCE($7, certification_docs),
+             photo_url = COALESCE($8, photo_url),
+             bsb = COALESCE($9, bsb),
+             account_number = COALESCE($10, account_number),
+             updated_at = $11
+         WHERE email = $12`,
         [
           patch.firstName ?? null,
           patch.lastName ?? null,
@@ -1981,6 +2059,7 @@ const server = http.createServer(async (req, res) => {
           Number.isFinite(Number(patch.pricePerHour)) ? Number(patch.pricePerHour) : null,
           Number.isFinite(Number(patch.experienceYears)) ? Number(patch.experienceYears) : null,
           Array.isArray(patch.certifications) ? JSON.stringify(patch.certifications) : null,
+          Array.isArray(patch.certificationDocs) ? JSON.stringify(patch.certificationDocs) : null,
           patch.photoUrl ?? null,
           patch.bsb ?? null,
           patch.accountNumber ?? null,
@@ -2790,7 +2869,16 @@ initDb()
   .then(() => {
     server.listen(PORT, () => {
       console.log(`LabourLink API running on http://localhost:${PORT}`);
-      console.log(`Using Postgres: ${DATABASE_URL}`);
+      // SECURITY: never log the full DATABASE_URL — it contains the DB password.
+      // Log only the host and database name.
+      let dbTarget = "unknown";
+      try {
+        const dbUrl = new URL(DATABASE_URL);
+        dbTarget = `${dbUrl.host}${dbUrl.pathname}`;
+      } catch {
+        dbTarget = "unparseable DATABASE_URL";
+      }
+      console.log(`Using Postgres: ${dbTarget}`);
     });
   })
   .catch((err) => {

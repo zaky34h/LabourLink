@@ -1,10 +1,11 @@
-import { useCallback, useState } from "react";
-import { View, Text, Pressable, ScrollView, RefreshControl } from "react-native";
+import { memo, useCallback, useState } from "react";
+import { View, Text, Pressable, ScrollView, RefreshControl, StyleSheet } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useCurrentUser } from "../../src/auth/useCurrentUser";
 import { getThreadsForUser } from "../../src/chat/storage";
 import { getOffersForLabourer, type WorkOffer } from "../../src/offers/storage";
 import { colors, spacing, radii, fontFamily, fontSize, fontWeight, type } from "../../src/theme";
+import { Skeleton } from "../../src/ui/Skeleton";
 
 export default function LabourerHome() {
   const { user } = useCurrentUser();
@@ -12,6 +13,7 @@ export default function LabourerHome() {
   const [pendingOffers, setPendingOffers] = useState(0);
   const [approvedOffers, setApprovedOffers] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
   const name = user ? `${user.firstName} ${user.lastName}` : "Welcome";
   const unavailableCount = user?.role === "labourer" ? user.unavailableDates?.length ?? 0 : 0;
 
@@ -20,6 +22,7 @@ export default function LabourerHome() {
       setActiveChats(0);
       setPendingOffers(0);
       setApprovedOffers(0);
+      setLoading(false);
       return;
     }
 
@@ -33,6 +36,7 @@ export default function LabourerHome() {
     const approved = offers.filter((o: WorkOffer) => o.status === "approved").length;
     setPendingOffers(pending);
     setApprovedOffers(approved);
+    setLoading(false);
   }
 
   async function onRefresh() {
@@ -56,6 +60,26 @@ export default function LabourerHome() {
       };
     }, [user?.email, user?.role])
   );
+
+  if (loading) {
+    return (
+      <View style={styles.skeletonWrap}>
+        <Skeleton width={140} height={14} />
+        <Skeleton width="70%" height={30} style={styles.skeletonName} />
+        <View style={styles.skeletonRow}>
+          <Skeleton height={84} radius={radii.xl} style={styles.skeletonStat} />
+          <Skeleton height={84} radius={radii.xl} style={styles.skeletonStat} />
+        </View>
+        <View style={styles.skeletonRow}>
+          <Skeleton height={84} radius={radii.xl} style={styles.skeletonStat} />
+          <Skeleton height={84} radius={radii.xl} style={styles.skeletonStat} />
+        </View>
+        <Skeleton height={80} radius={radii.xl} style={styles.skeletonAction} />
+        <Skeleton height={80} radius={radii.xl} style={styles.skeletonAction} />
+        <Skeleton height={80} radius={radii.xl} style={styles.skeletonAction} />
+      </View>
+    );
+  }
 
   return (
     <ScrollView
@@ -109,27 +133,16 @@ export default function LabourerHome() {
   );
 }
 
-function StatCard({ title, value }: { title: string; value: string }) {
+const StatCard = memo(function StatCard({ title, value }: { title: string; value: string }) {
   return (
-    <View
-      style={{
-        flex: 1,
-        backgroundColor: colors.surface,
-        padding: spacing.lg,
-        borderRadius: radii.xl,
-        borderWidth: 1,
-        borderColor: colors.border,
-      }}
-    >
-      <Text style={{ fontFamily, fontSize: fontSize.h1, fontWeight: fontWeight.heavy, color: colors.text }}>
-        {value}
-      </Text>
-      <Text style={{ ...type.secondary, marginTop: 6, fontWeight: fontWeight.bold }}>{title}</Text>
+    <View style={styles.statCard}>
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statTitle}>{title}</Text>
     </View>
   );
-}
+});
 
-function ActionButton({
+const ActionButton = memo(function ActionButton({
   label,
   subtitle,
   onPress,
@@ -144,36 +157,48 @@ function ActionButton({
   return (
     <Pressable
       onPress={onPress}
-      style={{
-        backgroundColor: highlighted ? colors.primary : colors.surface,
-        borderWidth: 1,
-        borderColor: highlighted ? colors.primary : colors.border,
-        padding: spacing.lg,
-        borderRadius: radii.xl,
-      }}
+      style={[styles.actionBtn, highlighted && styles.actionBtnHighlighted]}
     >
-      <Text
-        style={{
-          fontFamily,
-          fontSize: fontSize.h3,
-          fontWeight: fontWeight.heavy,
-          color: highlighted ? colors.onPrimary : colors.text,
-        }}
-      >
-        {label}
-      </Text>
-      <Text
-        style={{
-          fontFamily,
-          fontSize: fontSize.label,
-          fontWeight: fontWeight.medium,
-          marginTop: 4,
-          color: highlighted ? colors.onPrimary : colors.textSecondary,
-          opacity: highlighted ? 0.85 : 1,
-        }}
-      >
+      <Text style={[styles.actionLabel, highlighted && styles.actionLabelHighlighted]}>{label}</Text>
+      <Text style={[styles.actionSubtitle, highlighted && styles.actionSubtitleHighlighted]}>
         {subtitle}
       </Text>
     </Pressable>
   );
-}
+});
+
+const styles = StyleSheet.create({
+  skeletonWrap: { flex: 1, backgroundColor: colors.background, padding: spacing.xl, paddingTop: 60 },
+  skeletonName: { marginTop: spacing.sm },
+  skeletonRow: { flexDirection: "row", justifyContent: "space-between", marginTop: spacing.xl },
+  skeletonStat: { width: "48%" },
+  skeletonAction: { marginTop: spacing.md },
+  statCard: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    padding: spacing.lg,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  statValue: { fontFamily, fontSize: fontSize.h1, fontWeight: fontWeight.heavy, color: colors.text },
+  statTitle: { ...type.secondary, marginTop: 6, fontWeight: fontWeight.bold },
+  actionBtn: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.lg,
+    borderRadius: radii.xl,
+  },
+  actionBtnHighlighted: { backgroundColor: colors.primary, borderColor: colors.primary },
+  actionLabel: { fontFamily, fontSize: fontSize.h3, fontWeight: fontWeight.heavy, color: colors.text },
+  actionLabelHighlighted: { color: colors.onPrimary },
+  actionSubtitle: {
+    fontFamily,
+    fontSize: fontSize.label,
+    fontWeight: fontWeight.medium,
+    marginTop: 4,
+    color: colors.textSecondary,
+  },
+  actionSubtitleHighlighted: { color: colors.onPrimary, opacity: 0.85 },
+});

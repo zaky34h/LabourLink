@@ -82,7 +82,7 @@ function makeReportHtml(report: OwnerReport, logoUri?: string | null) {
       (l) =>
         `<tr><td>${escapeHtml(`${l.firstName} ${l.lastName}`)}</td><td>${escapeHtml(l.email)}</td><td>${escapeHtml(
           l.occupation || "-"
-        )}</td><td>${money(l.pricePerHour)}</td><td>${escapeHtml(String(l.experienceYears || 0))} yrs</td></tr>`
+        )}</td><td>${money(l.pricePerHour)}</td></tr>`
     )
     .join("");
 
@@ -218,7 +218,7 @@ function makeReportHtml(report: OwnerReport, logoUri?: string | null) {
       <h2 class="section-title">Labourers (${report.labourers.length})</h2>
       <div class="section-body">
         <table>
-          <thead><tr><th>Name</th><th>Email</th><th>Occupation</th><th>Rate</th><th>Experience</th></tr></thead>
+          <thead><tr><th>Name</th><th>Email</th><th>Occupation</th><th>Rate</th></tr></thead>
           <tbody>${labourersRows || `<tr><td colspan="5">No data in selected range.</td></tr>`}</tbody>
         </table>
       </div>

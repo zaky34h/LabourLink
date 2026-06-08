@@ -73,9 +73,6 @@ export default function OwnerBuilders() {
           </Text>
           <Text style={{ ...type.secondary, marginTop: spacing.xs }}>{item.email}</Text>
           <Text style={{ ...type.secondary, marginTop: spacing.xs }}>{item.address || "No address"}</Text>
-          <Text style={{ ...type.secondary, marginTop: 6 }} numberOfLines={3}>
-            {item.about || "No about text"}
-          </Text>
           <Text style={{ fontFamily, marginTop: spacing.sm, fontWeight: fontWeight.bold, color: colors.text }}>
             Tap to view full profile
           </Text>

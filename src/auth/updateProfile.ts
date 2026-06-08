@@ -6,7 +6,7 @@ export async function updateBuilderProfile(
   patch: Partial<
     Pick<
       BuilderUser,
-      "firstName" | "lastName" | "companyName" | "about" | "address" | "companyLogoUrl"
+      "firstName" | "lastName" | "companyName" | "address" | "companyLogoUrl"
     >
   >
 ): Promise<{ ok: true } | { ok: false; error: string }> {

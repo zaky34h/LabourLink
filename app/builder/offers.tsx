@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useRef, useState } from "react";
-import { View, Text, Pressable, FlatList, ActivityIndicator, Modal, ScrollView, Alert, Linking, StyleSheet } from "react-native";
+import { memo, useCallback, useMemo, useRef, useState } from "react";
+import { View, Text, Pressable, FlatList, Modal, ScrollView, Alert, Linking, StyleSheet } from "react-native";
 import { useFocusEffect } from "expo-router";
 import * as Sharing from "expo-sharing";
 import { useCurrentUser } from "../../src/auth/useCurrentUser";
@@ -11,6 +11,33 @@ import {
 } from "../../src/offers/storage";
 import { colors, spacing, radii, fontFamily, fontSize, fontWeight, type } from "../../src/theme";
 import Button from "../../src/ui/Button";
+import { Skeleton, SkeletonList } from "../../src/ui/Skeleton";
+
+const OfferRow = memo(function OfferRow({
+  item,
+  onSelect,
+}: {
+  item: WorkOffer;
+  onSelect: (offer: WorkOffer) => void;
+}) {
+  return (
+    <Pressable onPress={() => onSelect(item)} style={styles.card}>
+      <View style={styles.cardHeader}>
+        <Text style={styles.cardTitle}>{item.labourerName}</Text>
+        <StatusPill status={item.status} />
+      </View>
+      <Text style={styles.cardMeta}>
+        {item.startDate} to {item.endDate}
+      </Text>
+      <Text style={styles.cardMeta}>
+        ${item.rate}/hr • Est {item.estimatedHours}h
+      </Text>
+      <Text style={styles.cardCaption}>
+        Created {new Date(item.createdAt).toLocaleDateString()}
+      </Text>
+    </Pressable>
+  );
+});
 
 function extractShiftRange(notes: string) {
   const match = String(notes || "").match(/Shift:\s*([0-9]{1,2}:\d{2}(?:\s*[AaPp][Mm])?)\s*-\s*([0-9]{1,2}:\d{2}(?:\s*[AaPp][Mm])?)/);
@@ -148,10 +175,21 @@ export default function BuilderOffers() {
     }
   }
 
+  const handleSelect = useCallback((offer: WorkOffer) => {
+    setSelectedOffer(offer);
+  }, []);
+
+  const renderOffer = useCallback(
+    ({ item }: { item: WorkOffer }) => <OfferRow item={item} onSelect={handleSelect} />,
+    [handleSelect]
+  );
+
   if (loading) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator color={colors.text} />
+      <View style={styles.skeletonWrap}>
+        <Skeleton width={120} height={28} />
+        <Skeleton width="100%" height={44} radius={radii.lg} style={styles.skeletonSegment} />
+        <SkeletonList count={5} lines={3} />
       </View>
     );
   }
@@ -164,6 +202,10 @@ export default function BuilderOffers() {
         data={filtered}
         keyExtractor={(item) => item.id}
         showsVerticalScrollIndicator={false}
+        removeClippedSubviews
+        initialNumToRender={8}
+        maxToRenderPerBatch={8}
+        windowSize={11}
         refreshing={refreshing}
         onRefresh={onRefresh}
         ListHeaderComponent={
@@ -194,28 +236,7 @@ export default function BuilderOffers() {
             No {selectedStatus} offers yet.
           </Text>
         }
-        renderItem={({ item }) => (
-          <Pressable
-            onPress={() => setSelectedOffer(item)}
-            style={styles.card}
-          >
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-              <Text style={{ fontFamily, fontWeight: fontWeight.heavy, fontSize: fontSize.h3, color: colors.text, flex: 1 }}>
-                {item.labourerName}
-              </Text>
-              <StatusPill status={item.status} />
-            </View>
-            <Text style={{ ...type.secondary, marginTop: 4 }}>
-              {item.startDate} to {item.endDate}
-            </Text>
-            <Text style={{ ...type.secondary, marginTop: 4 }}>
-              ${item.rate}/hr • Est {item.estimatedHours}h
-            </Text>
-            <Text style={{ ...type.secondary, marginTop: 6, fontSize: fontSize.caption }}>
-              Created {new Date(item.createdAt).toLocaleDateString()}
-            </Text>
-          </Pressable>
-        )}
+        renderItem={renderOffer}
       />
 
       <Modal visible={!!selectedOffer} animationType="slide" transparent>
@@ -319,6 +340,12 @@ function Detail({ label, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.background },
+  skeletonWrap: { flex: 1, backgroundColor: colors.background, paddingTop: 60, paddingHorizontal: spacing.lg },
+  skeletonSegment: { marginTop: spacing.md, marginBottom: spacing.lg },
+  cardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  cardTitle: { fontFamily, fontWeight: fontWeight.heavy, fontSize: fontSize.h3, color: colors.text, flex: 1 },
+  cardMeta: { ...type.secondary, marginTop: 4 },
+  cardCaption: { ...type.secondary, marginTop: 6, fontSize: fontSize.caption },
   segment: {
     flexDirection: "row",
     marginTop: spacing.md,

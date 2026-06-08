@@ -25,11 +25,9 @@ export default function OnboardingScreen() {
   const [discarding, setDiscarding] = useState(false);
 
   const [fullName, setFullName] = useState("");
-  const [about, setAbout] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [address, setAddress] = useState("");
   const [pricePerHour, setPricePerHour] = useState("");
-  const [experienceYears, setExperienceYears] = useState("");
   const [certifications, setCertifications] = useState<string[]>([""]);
   const [bsb, setBsb] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
@@ -69,8 +67,8 @@ export default function OnboardingScreen() {
       return Alert.alert("Pick a role", "Tap to choose whether you’re a builder or labourer.");
     }
 
-    if (!fullName.trim() || !about.trim()) {
-      return Alert.alert("Missing info", "Please complete your name and short bio.");
+    if (!fullName.trim()) {
+      return Alert.alert("Missing info", "Please enter your name.");
     }
 
     // Split the single "Full Name" field into first/last for the backend
@@ -88,7 +86,6 @@ export default function OnboardingScreen() {
               role: "builder",
               firstName: firstName.trim(),
               lastName: lastName.trim(),
-              about: about.trim(),
               companyName: companyName.trim(),
               address: address.trim(),
             })
@@ -96,9 +93,7 @@ export default function OnboardingScreen() {
               role: "labourer",
               firstName: firstName.trim(),
               lastName: lastName.trim(),
-              about: about.trim(),
               pricePerHour: Number(pricePerHour),
-              experienceYears: Number(experienceYears),
               certifications: certifications.map((item) => item.trim()).filter(Boolean),
               bsb: bsb.trim(),
               accountNumber: accountNumber.trim(),
@@ -195,7 +190,6 @@ export default function OnboardingScreen() {
             {selectedRole ? (
               <>
                 <Field label="Full Name" value={fullName} onChangeText={setFullName} />
-                <Field label="About Yourself" value={about} onChangeText={setAbout} multiline />
 
                 {selectedRole === "labourer" ? (
                   <>
@@ -203,12 +197,6 @@ export default function OnboardingScreen() {
                       label="Rate ($/hr)"
                       value={pricePerHour}
                       onChangeText={setPricePerHour}
-                      keyboardType="numeric"
-                    />
-                    <Field
-                      label="Experience (years)"
-                      value={experienceYears}
-                      onChangeText={setExperienceYears}
                       keyboardType="numeric"
                     />
 

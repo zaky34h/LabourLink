@@ -37,7 +37,6 @@ export type BuilderUser = {
   firstName: string;
   lastName: string;
   companyName: string;
-  about: string;
   address: string;
   companyLogoUrl?: string;
   companyRating?: number;
@@ -48,15 +47,22 @@ export type BuilderUser = {
   isDisabled?: boolean;
 };
 
+export type CertificationDoc = {
+  id: string;
+  name: string;
+  fileUrl: string;
+  uploadedAt: number;
+  expiryDate?: string;
+};
+
 export type LabourerUser = {
   role: "labourer";
   firstName: string;
   lastName: string;
-  about: string;
   pricePerHour: number;
   unavailableDates: string[];
   certifications: string[];
-  experienceYears: number;
+  certificationDocs?: CertificationDoc[];
   photoUrl?: string;
   bsb?: string;
   accountNumber?: string;
@@ -105,16 +111,14 @@ export async function completeOnboarding(
   payload:
     | ({
         role: "builder";
-      } & Pick<BuilderUser, "firstName" | "lastName" | "companyName" | "about" | "address">)
+      } & Pick<BuilderUser, "firstName" | "lastName" | "companyName" | "address">)
     | ({
         role: "labourer";
       } & Pick<
         LabourerUser,
         | "firstName"
         | "lastName"
-        | "about"
         | "pricePerHour"
-        | "experienceYears"
         | "certifications"
         | "bsb"
         | "accountNumber"
@@ -212,13 +216,16 @@ export async function loginUser(
 
 export async function requestPasswordReset(
   email: string
-): Promise<{ ok: true; resetCode?: string } | { ok: false; error: string }> {
+): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    const res = await apiRequest<{ ok: true; resetCode?: string }>("/auth/forgot-password", {
+    // The server intentionally returns only { ok: true } (no reset code) and the
+    // same response whether or not the email exists. The reset code is delivered
+    // out-of-band (email/SMS) — see the TODO in backend POST /auth/forgot-password.
+    await apiRequest<{ ok: true }>("/auth/forgot-password", {
       method: "POST",
       body: { email },
     });
-    return { ok: true, resetCode: res.resetCode };
+    return { ok: true };
   } catch (error: any) {
     return { ok: false, error: error?.message || "Could not request password reset." };
   }

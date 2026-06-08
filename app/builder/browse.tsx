@@ -1,11 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
   FlatList,
   Pressable,
   Modal,
-  ActivityIndicator,
   Image,
   StyleSheet,
 } from "react-native";
@@ -13,8 +12,60 @@ import { Calendar } from "react-native-calendars";
 import { router, useFocusEffect } from "expo-router";
 import { getUsers, type LabourerUser } from "../../src/auth/storage";
 import { colors, spacing, radii, fontFamily, fontSize, fontWeight, type } from "../../src/theme";
+import { Skeleton, SkeletonList } from "../../src/ui/Skeleton";
 
 const PAGE_SIZE = 10;
+
+const LabourerRow = memo(function LabourerRow({ item }: { item: LabourerUser }) {
+  return (
+    <View style={styles.card}>
+      <View style={styles.cardTopRow}>
+        <View style={styles.cardIdentity}>
+          <View style={styles.avatar}>
+            {item.photoUrl ? (
+              <Image source={{ uri: item.photoUrl, cache: "force-cache" }} style={styles.avatarImg} />
+            ) : (
+              <Text style={styles.avatarInitials}>
+                {(item.firstName?.[0] ?? "L").toUpperCase()}
+                {(item.lastName?.[0] ?? "").toUpperCase()}
+              </Text>
+            )}
+          </View>
+          <Text style={[styles.cardTitle, styles.flexShrink]} numberOfLines={1}>
+            {item.firstName} {item.lastName}
+          </Text>
+        </View>
+        <View style={styles.ratePill}>
+          <Text style={styles.rateText}>${item.pricePerHour}/hr</Text>
+        </View>
+      </View>
+
+      <Text style={styles.unavailText}>
+        Unavailable dates set: {(item.unavailableDates ?? []).length}
+      </Text>
+
+      <View style={styles.cardActions}>
+        <Pressable
+          onPress={() => router.push(`/builder/labourer/${encodeURIComponent(item.email)}`)}
+          style={styles.primaryBtn}
+        >
+          <Text style={styles.primaryBtnLabel}>View</Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => router.push(`/chat/${encodeURIComponent(item.email)}`)}
+          style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]}
+        >
+          <Text style={styles.secondaryBtnLabel}>Message</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+});
+
+function renderLabourer({ item }: { item: LabourerUser }) {
+  return <LabourerRow item={item} />;
+}
 
 export default function BuilderBrowse() {
   const loadedRef = useRef(false);
@@ -80,8 +131,10 @@ export default function BuilderBrowse() {
 
   if (loading) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator color={colors.text} />
+      <View style={styles.skeletonWrap}>
+        <Skeleton width={120} height={30} />
+        <Skeleton width="100%" height={150} radius={radii.xl} style={styles.skeletonSearch} />
+        <SkeletonList count={5} showAvatar lines={2} />
       </View>
     );
   }
@@ -94,6 +147,10 @@ export default function BuilderBrowse() {
         data={pagedResults}
         keyExtractor={(x) => x.email}
         showsVerticalScrollIndicator={false}
+        removeClippedSubviews
+        initialNumToRender={8}
+        maxToRenderPerBatch={8}
+        windowSize={11}
         refreshing={refreshing}
         onRefresh={onRefresh}
         onEndReached={loadMore}
@@ -128,56 +185,7 @@ export default function BuilderBrowse() {
             No labourers available for that date.
           </Text>
         }
-        renderItem={({ item }) => (
-          <View style={styles.card}>
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, flex: 1, minWidth: 0, paddingRight: spacing.sm }}>
-                <View style={styles.avatar}>
-                  {item.photoUrl ? (
-                    <Image source={{ uri: item.photoUrl }} style={{ width: "100%", height: "100%" }} />
-                  ) : (
-                    <Text style={{ fontFamily, fontWeight: fontWeight.heavy, color: colors.text }}>
-                      {(item.firstName?.[0] ?? "L").toUpperCase()}
-                      {(item.lastName?.[0] ?? "").toUpperCase()}
-                    </Text>
-                  )}
-                </View>
-                <Text style={[styles.cardTitle, { flexShrink: 1 }]} numberOfLines={1}>
-                  {item.firstName} {item.lastName}
-                </Text>
-              </View>
-              <View style={styles.ratePill}>
-                <Text style={{ fontFamily, fontWeight: fontWeight.heavy, fontSize: fontSize.label, color: colors.primary }}>
-                  ${item.pricePerHour}/hr
-                </Text>
-              </View>
-            </View>
-
-            <Text style={{ ...type.secondary, marginTop: spacing.sm }} numberOfLines={2}>
-              {item.about}
-            </Text>
-
-            <Text style={{ ...type.secondary, marginTop: spacing.sm, fontWeight: fontWeight.bold }}>
-              Unavailable dates set: {(item.unavailableDates ?? []).length}
-            </Text>
-
-            <View style={{ marginTop: spacing.md, flexDirection: "row", gap: spacing.sm }}>
-              <Pressable
-                onPress={() => router.push(`/builder/labourer/${encodeURIComponent(item.email)}`)}
-                style={styles.primaryBtn}
-              >
-                <Text style={styles.primaryBtnLabel}>View</Text>
-              </Pressable>
-
-              <Pressable
-                onPress={() => router.push(`/chat/${encodeURIComponent(item.email)}`)}
-                style={({ pressed }) => [styles.secondaryBtn, pressed && { opacity: 0.85 }]}
-              >
-                <Text style={styles.secondaryBtnLabel}>Message</Text>
-              </Pressable>
-            </View>
-          </View>
-        )}
+        renderItem={renderLabourer}
       />
 
       {/* Calendar modal */}
@@ -204,6 +212,24 @@ export default function BuilderBrowse() {
 
 const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.background },
+  skeletonWrap: { flex: 1, backgroundColor: colors.background, paddingTop: 60, paddingHorizontal: spacing.lg },
+  skeletonSearch: { marginTop: spacing.md, marginBottom: spacing.md },
+  cardTopRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  cardIdentity: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    flex: 1,
+    minWidth: 0,
+    paddingRight: spacing.sm,
+  },
+  avatarImg: { width: "100%", height: "100%" },
+  avatarInitials: { fontFamily, fontWeight: fontWeight.heavy, color: colors.text },
+  flexShrink: { flexShrink: 1 },
+  rateText: { fontFamily, fontWeight: fontWeight.heavy, fontSize: fontSize.label, color: colors.primary },
+  unavailText: { ...type.secondary, marginTop: spacing.sm, fontWeight: fontWeight.bold },
+  cardActions: { marginTop: spacing.md, flexDirection: "row", gap: spacing.sm },
+  pressed: { opacity: 0.85 },
   searchCard: {
     marginTop: spacing.md,
     padding: spacing.lg,

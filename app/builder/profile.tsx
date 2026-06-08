@@ -26,7 +26,6 @@ export default function BuilderProfile() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [companyName, setCompanyName] = useState("");
-  const [about, setAbout] = useState("");
   const [address, setAddress] = useState("");
   const [companyLogoUrl, setCompanyLogoUrl] = useState("");
   const [reviewsOpen, setReviewsOpen] = useState(false);
@@ -37,7 +36,6 @@ export default function BuilderProfile() {
       setFirstName(user.firstName);
       setLastName(user.lastName);
       setCompanyName(user.companyName);
-      setAbout(user.about);
       setAddress(user.address);
       setCompanyLogoUrl(user.companyLogoUrl ?? "");
     }
@@ -50,7 +48,6 @@ export default function BuilderProfile() {
       firstName,
       lastName,
       companyName,
-      about,
       address,
       companyLogoUrl: companyLogoUrl.trim() || undefined,
     });
@@ -190,7 +187,6 @@ export default function BuilderProfile() {
         <Field label="First Name" value={firstName} onChangeText={setFirstName} />
         <Field label="Last Name" value={lastName} onChangeText={setLastName} />
         <Field label="Company Name" value={companyName} onChangeText={setCompanyName} />
-        <Field label="About Yourself" value={about} onChangeText={setAbout} multiline />
         <Field label="Address" value={address} onChangeText={setAddress} />
 
         <Button label={`Reviews (${reviews.length})`} variant="secondary" onPress={() => setReviewsOpen(true)} />
