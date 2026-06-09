@@ -192,7 +192,7 @@ function makeReportHtml(report: OwnerReport, logoUri?: string | null) {
       <h2 class="section-title">Summary</h2>
       <div class="section-body">
         <div class="cards">
-          <div class="card"><div class="card-label">Builders Signed Up</div><div class="card-value">${summary.buildersSignedUp}</div></div>
+          <div class="card"><div class="card-label">Companies Signed Up</div><div class="card-value">${summary.buildersSignedUp}</div></div>
           <div class="card"><div class="card-label">Labourers Signed Up</div><div class="card-value">${summary.labourersSignedUp}</div></div>
           <div class="card"><div class="card-label">Offers Sent</div><div class="card-value">${summary.offersSent}</div></div>
           <div class="card"><div class="card-label">Payments Created</div><div class="card-value">${summary.paymentsCreated}</div></div>
@@ -205,7 +205,7 @@ function makeReportHtml(report: OwnerReport, logoUri?: string | null) {
     </div>
 
     <div class="section">
-      <h2 class="section-title">Builders (${report.builders.length})</h2>
+      <h2 class="section-title">Companies (${report.builders.length})</h2>
       <div class="section-body">
         <table>
           <thead><tr><th>Name</th><th>Email</th><th>Company</th><th>Address</th><th>Created</th></tr></thead>
@@ -228,7 +228,7 @@ function makeReportHtml(report: OwnerReport, logoUri?: string | null) {
       <h2 class="section-title">Offers (${report.offers.length})</h2>
       <div class="section-body">
         <table>
-          <thead><tr><th>Builder Company</th><th>Builder Email</th><th>Labourer Email</th><th>Date Range</th><th>Status</th></tr></thead>
+          <thead><tr><th>Company</th><th>Company Email</th><th>Labourer Email</th><th>Date Range</th><th>Status</th></tr></thead>
           <tbody>${offersRows || `<tr><td colspan="5">No data in selected range.</td></tr>`}</tbody>
         </table>
       </div>
@@ -238,7 +238,7 @@ function makeReportHtml(report: OwnerReport, logoUri?: string | null) {
       <h2 class="section-title">Payments (${report.payments.length})</h2>
       <div class="section-body">
         <table>
-          <thead><tr><th>Builder Company</th><th>Builder Email</th><th>Labourer Email</th><th>Amount</th><th>Status</th><th>Created</th></tr></thead>
+          <thead><tr><th>Company</th><th>Company Email</th><th>Labourer Email</th><th>Amount</th><th>Status</th><th>Created</th></tr></thead>
           <tbody>${paymentsRows || `<tr><td colspan="6">No data in selected range.</td></tr>`}</tbody>
         </table>
       </div>
@@ -303,7 +303,7 @@ export default function OwnerReports() {
       {report ? (
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Summary</Text>
-          <Text style={type.body}>Builders signed up: {report.summary.buildersSignedUp}</Text>
+          <Text style={type.body}>Companies signed up: {report.summary.buildersSignedUp}</Text>
           <Text style={type.body}>Labourers signed up: {report.summary.labourersSignedUp}</Text>
           <Text style={type.body}>Offers sent: {report.summary.offersSent}</Text>
           <Text style={type.body}>Payments created: {report.summary.paymentsCreated}</Text>

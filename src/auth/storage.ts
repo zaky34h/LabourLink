@@ -5,6 +5,8 @@ import {
   setSession,
 } from "../api/client";
 
+// NOTE: the "builder" role is displayed to users as "Company" (see
+// src/roles.ts → ROLE_LABELS). The role string stays "builder" internally.
 export type Role = "builder" | "labourer";
 
 export type PendingUser = {

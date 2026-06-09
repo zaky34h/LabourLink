@@ -186,9 +186,9 @@ function makePdfHtml(offer: WorkOffer, logoUri?: string | null) {
     <div class="box">
       <div class="label">Date Created</div>
       <div>${escapeHtml(new Date(offer.createdAt).toLocaleDateString())}</div>
-      <div class="label">Builder Company</div>
+      <div class="label">Company</div>
       <div>${escapeHtml(offer.builderCompanyName)}</div>
-      <div class="label">Builder Email</div>
+      <div class="label">Company Email</div>
       <div>${escapeHtml(offer.builderEmail)}</div>
     </div>
 
@@ -271,7 +271,7 @@ function makePdfHtml(offer: WorkOffer, logoUri?: string | null) {
       <p>We use your information to:</p>
       <ul>
         <li>Create and manage your account</li>
-        <li>Match builders with labourers</li>
+        <li>Match companies with labourers</li>
         <li>Enable messaging and job scheduling</li>
         <li>Improve app performance and user experience</li>
         <li>Provide customer support</li>
@@ -291,7 +291,7 @@ function makePdfHtml(offer: WorkOffer, logoUri?: string | null) {
       <p>We do not sell your personal information.</p>
       <p>We may share information:</p>
       <ul>
-        <li>Between builders and labourers to enable job matching</li>
+        <li>Between companies and labourers to enable job matching</li>
         <li>With service providers who help operate the app</li>
         <li>If required by law</li>
       </ul>

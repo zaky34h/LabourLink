@@ -112,7 +112,7 @@ export default function LabourerHome() {
 
         <ActionButton
           label="Messages"
-          subtitle="Open your builder conversations"
+          subtitle="Open your company conversations"
           onPress={() => router.push("/labourer/messages")}
         />
 

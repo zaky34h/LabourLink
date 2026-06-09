@@ -60,7 +60,7 @@ export default function OwnerHome() {
       <Text style={type.display}>Owner Portal</Text>
 
       <View style={{ flexDirection: "row", gap: spacing.md }}>
-        <StatCard label="Builders Signed Up" value={overview.buildersSignedUp} />
+        <StatCard label="Companies Signed Up" value={overview.buildersSignedUp} />
         <StatCard label="Labourers Signed Up" value={overview.labourersSignedUp} />
       </View>
       <View style={{ flexDirection: "row", gap: spacing.md }}>
@@ -71,8 +71,8 @@ export default function OwnerHome() {
       <View style={{ gap: spacing.md }}>
         <Text style={{ ...type.h3, fontWeight: fontWeight.heavy }}>Quick Actions</Text>
         <QuickButton
-          label="View Builders"
-          subtitle="Review builder accounts"
+          label="View Companies"
+          subtitle="Review company accounts"
           tone="default"
           onPress={() => router.push("/owner/builders")}
         />

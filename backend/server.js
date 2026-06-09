@@ -50,7 +50,7 @@ const APPLE_ALLOWED_AUDIENCES = [
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
-  "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, PATCH, PUT, DELETE, OPTIONS",
   "Cache-Control": "no-store",
   "Content-Type": "application/json",
   "Referrer-Policy": "no-referrer",
@@ -677,6 +677,62 @@ async function initDb() {
       PRIMARY KEY (builder_email, labourer_email)
     );
   `);
+
+  // -------------------------------------------------------------------------
+  // Agency feature (additive, idempotent migrations).
+  //
+  // Phase 0 decision: managed labourers are stored in `users` (role='labourer')
+  // with a `managed_by_agency_id` pointer, so the email-keyed offers/browse/
+  // projection machinery is reused unchanged. Agencies are also `users`
+  // (role='agency'). All columns below are nullable/defaulted so existing rows
+  // are unaffected.
+  // -------------------------------------------------------------------------
+
+  // Agency-owned managed-labourer profile fields.
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS managed_by_agency_id TEXT;`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS suburb TEXT;`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT;`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS contact_email TEXT;`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS skills JSONB;`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tickets JSONB;`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS availability JSONB;`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS labourer_status TEXT;`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS notes TEXT;`);
+
+  // Agency account fields (company identity + subscription).
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS public_handle TEXT;`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS abn TEXT;`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS website TEXT;`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_tier TEXT;`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS seat_limit INTEGER;`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_renews_at BIGINT;`);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS users_managed_by_agency_idx
+    ON users (managed_by_agency_id)
+    WHERE managed_by_agency_id IS NOT NULL;
+  `);
+
+  // Active/completed placements created when an agency accepts an offer.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS agency_placements (
+      id TEXT PRIMARY KEY,
+      agency_email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+      labourer_email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+      offer_id TEXT REFERENCES offers(id) ON DELETE SET NULL,
+      builder_company TEXT NOT NULL,
+      site TEXT NOT NULL,
+      trade TEXT NOT NULL,
+      start_date TEXT NOT NULL,
+      end_date TEXT,
+      hourly_rate DOUBLE PRECISION NOT NULL,
+      status TEXT NOT NULL,
+      created_at BIGINT NOT NULL,
+      updated_at BIGINT NOT NULL
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS agency_placements_agency_idx ON agency_placements (agency_email);`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS agency_placements_labourer_idx ON agency_placements (labourer_email);`);
 }
 
 function rowToUser(row) {
@@ -771,7 +827,10 @@ function toPublicUser(row) {
     return base;
   }
 
-  // labourer
+  // labourer. For agency-managed records we add a non-sensitive badge
+  // (agencyManaged + agencyName) so builder browse can show "via [Agency]".
+  // `managing_agency_name` is supplied by queries that LEFT JOIN the managing
+  // agency; banking/address remain excluded exactly as before.
   return {
     ...base,
     occupation: row.occupation || "",
@@ -781,6 +840,9 @@ function toPublicUser(row) {
     certificationDocs: row.certification_docs || [],
     photoUrl: row.photo_url || undefined,
     subscription: normalizeSubscription(row.subscription),
+    ...(row.managed_by_agency_id
+      ? { agencyManaged: true, agencyName: row.managing_agency_name || undefined }
+      : {}),
   };
 }
 
@@ -838,6 +900,169 @@ function toOwnerUser(row) {
     experienceYears: Number(row.experience_years || 0),
     photoUrl: row.photo_url || undefined,
     subscription: normalizeSubscription(row.subscription),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Agency feature: tiers, projections, and input sanitisers.
+// Managed labourers are agency-owned `users` rows (role='labourer',
+// managed_by_agency_id set) with no usable password — they cannot log in and
+// are rejected at /auth/login. None of the agency projections expose banking.
+// ---------------------------------------------------------------------------
+
+const AGENCY_TIERS = {
+  Starter: { seatLimit: 5, pricePerMonth: 0 },
+  Crew: { seatLimit: 20, pricePerMonth: 299 },
+  Fleet: { seatLimit: 50, pricePerMonth: 599 },
+  Enterprise: { seatLimit: 100000, pricePerMonth: null }, // custom / contact sales
+};
+const AGENCY_TRIAL_MS = 14 * 24 * 60 * 60 * 1000;
+const LABOURER_STATUSES = new Set(["on_job", "bench", "unavailable"]);
+const WEEKDAYS = new Set(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]);
+
+function defaultAgencySubscription() {
+  return { planName: "Agency Starter", status: "trial", monthlyPrice: 0, renewalDate: null };
+}
+
+// Synthetic, non-routable identity for a managed labourer. Used as users.email
+// (PK) and as the dashboard's opaque labourer `id`. The .local TLD guarantees it
+// never collides with a real, deliverable email address.
+function makeManagedLabourerEmail() {
+  return `managed-${now()}-${crypto.randomBytes(8).toString("hex")}@managed.labourlink.local`;
+}
+
+function splitName(name) {
+  const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+  const first = parts.shift() || "";
+  const last = parts.join(" ");
+  return { first, last };
+}
+
+function sanitizeSkills(input) {
+  return Array.isArray(input) ? input.map((s) => String(s || "").trim()).filter(Boolean) : [];
+}
+
+function sanitizeTickets(input) {
+  if (!Array.isArray(input)) return [];
+  return input
+    .map((t) => ({
+      id: String(t?.id || makeId("tk")),
+      name: String(t?.name || "").trim(),
+      issuer: t?.issuer ? String(t.issuer).trim() : undefined,
+      expires: t?.expires ? String(t.expires) : undefined,
+    }))
+    .filter((t) => t.name);
+}
+
+function sanitizeAvailability(input) {
+  const pattern = Array.isArray(input?.pattern)
+    ? input.pattern.map((d) => String(d || "").toLowerCase()).filter((d) => WEEKDAYS.has(d))
+    : [];
+  const exceptions = Array.isArray(input?.exceptions)
+    ? input.exceptions
+        .map((e) => ({
+          date: String(e?.date || ""),
+          available: Boolean(e?.available),
+          note: e?.note ? String(e.note) : undefined,
+        }))
+        .filter((e) => /^\d{4}-\d{2}-\d{2}$/.test(e.date))
+    : [];
+  return { pattern: Array.from(new Set(pattern)), exceptions };
+}
+
+// Agency-facing labourer projection → the dashboard `Labourer` shape.
+function toAgencyLabourer(row, currentPlacementId) {
+  const availability =
+    row.availability && typeof row.availability === "object"
+      ? sanitizeAvailability(row.availability)
+      : { pattern: [], exceptions: [] };
+  const status = LABOURER_STATUSES.has(row.labourer_status) ? row.labourer_status : "bench";
+  return {
+    id: row.email,
+    name: `${String(row.first_name || "").trim()} ${String(row.last_name || "").trim()}`.trim(),
+    trade: row.occupation || "",
+    skills: Array.isArray(row.skills) ? row.skills : [],
+    hourlyRate: Number(row.price_per_hour || 0),
+    suburb: row.suburb || "",
+    phone: row.phone || undefined,
+    email: row.contact_email || undefined,
+    photoUrl: row.photo_url || undefined,
+    status,
+    tickets: Array.isArray(row.tickets) ? row.tickets : [],
+    availability,
+    currentPlacementId: currentPlacementId || undefined,
+    notes: row.notes || undefined,
+  };
+}
+
+// Agency profile projection → the dashboard `AgencyProfile` shape. No banking.
+function toAgencyProfile(row) {
+  return {
+    id: row.email,
+    companyName: row.company_name || "",
+    publicHandle: row.public_handle || row.company_name || "",
+    abn: row.abn || undefined,
+    email: row.email,
+    phone: row.phone || undefined,
+    suburb: row.suburb || undefined,
+    website: row.website || undefined,
+    logoUrl: row.company_logo_url || undefined,
+    about: row.about || undefined,
+  };
+}
+
+// Backend offer statuses (pending/approved/declined/completed) collapse to the
+// dashboard's (pending/accepted/declined).
+function mapAgencyOfferStatus(status) {
+  if (status === "approved" || status === "completed") return "accepted";
+  if (status === "declined") return "declined";
+  return "pending";
+}
+
+// Map an offers row (joined with builder + labourer) → the dashboard `Offer`.
+// Offers target a SPECIFIC labourer (offers.labourer_email), so we always expose
+// the targeted labourer's id + name (it's one of the agency's own roster). The
+// synthetic email IS the dashboard id; the name is shown, never the email.
+function mapAgencyOffer(row) {
+  const status = mapAgencyOfferStatus(String(row.status || ""));
+  const builderName =
+    `${String(row.builder_first || "").trim()} ${String(row.builder_last || "").trim()}`.trim() ||
+    row.builder_company_name ||
+    "";
+  const targetLabourerName =
+    `${String(row.labourer_first || "").trim()} ${String(row.labourer_last || "").trim()}`.trim() ||
+    row.labourer_name ||
+    undefined;
+  return {
+    id: row.id,
+    builderName,
+    builderCompany: row.builder_company_name || "",
+    trade: row.labourer_trade || "",
+    site: row.site_address || "",
+    startDate: row.start_date,
+    endDate: row.end_date || undefined,
+    hourlyRate: Number(row.rate || 0),
+    message: row.notes || undefined,
+    status,
+    receivedAt: new Date(Number(row.created_at || 0)).toISOString(),
+    targetLabourerId: row.labourer_email || undefined,
+    targetLabourerName,
+    assignedLabourerId: status === "accepted" ? row.labourer_email : undefined,
+  };
+}
+
+// Placement row → the dashboard `Placement` shape.
+function rowToPlacement(row) {
+  return {
+    id: row.id,
+    labourerId: row.labourer_email,
+    builderCompany: row.builder_company || "",
+    site: row.site || "",
+    trade: row.trade || "",
+    startDate: row.start_date,
+    endDate: row.end_date || undefined,
+    hourlyRate: Number(row.hourly_rate || 0),
+    status: row.status,
   };
 }
 
@@ -993,6 +1218,16 @@ async function requireOwner(req, res) {
   if (!user) return null;
   if (user.role !== "owner") {
     json(res, 403, { ok: false, error: "Owner access required." });
+    return null;
+  }
+  return user;
+}
+
+async function requireAgency(req, res) {
+  const user = await requireAuth(req, res);
+  if (!user) return null;
+  if (user.role !== "agency") {
+    json(res, 403, { ok: false, error: "Agency access required." });
     return null;
   }
   return user;
@@ -1276,6 +1511,12 @@ const server = http.createServer(async (req, res) => {
       const userRes = await pool.query("SELECT * FROM users WHERE email = $1 LIMIT 1", [email]);
       if (!userRes.rows.length) return json(res, 401, { ok: false, error: "Invalid email or password." });
       const row = userRes.rows[0];
+      // Managed-labourer records are agency-owned and have no login. Reject with
+      // the generic message (no account enumeration). Agencies sign in via
+      // POST /agency/auth/login, not here.
+      if (row.managed_by_agency_id) {
+        return json(res, 401, { ok: false, error: "Invalid email or password." });
+      }
       if (row.is_disabled) return json(res, 403, { ok: false, error: "Account is disabled." });
       const validPassword = await verifyPassword(password, row.password_hash);
       if (!validPassword) {
@@ -1729,7 +1970,14 @@ const server = http.createServer(async (req, res) => {
       if (user.role === "owner") {
         usersRes = await pool.query("SELECT * FROM users");
       } else if (user.role === "builder") {
-        usersRes = await pool.query("SELECT * FROM users WHERE role = 'labourer'");
+        // Include both self-managed and agency-managed labourers; LEFT JOIN the
+        // managing agency so toPublicUser can badge the agency-owned ones.
+        usersRes = await pool.query(
+          `SELECT u.*, a.company_name AS managing_agency_name
+           FROM users u
+           LEFT JOIN users a ON a.email = u.managed_by_agency_id
+           WHERE u.role = 'labourer'`
+        );
       } else {
         return json(res, 403, { ok: false, error: "Forbidden" });
       }
@@ -1740,7 +1988,13 @@ const server = http.createServer(async (req, res) => {
       const authUser = await requireAuth(req, res);
       if (!authUser) return;
       const email = normalizeEmail(decodeURIComponent(pathname.replace("/users/", "")));
-      const userRes = await pool.query("SELECT * FROM users WHERE email = $1 LIMIT 1", [email]);
+      const userRes = await pool.query(
+        `SELECT u.*, a.company_name AS managing_agency_name
+         FROM users u
+         LEFT JOIN users a ON a.email = u.managed_by_agency_id
+         WHERE u.email = $1 LIMIT 1`,
+        [email]
+      );
       if (!userRes.rows.length) return json(res, 404, { ok: false, error: "User not found" });
       // Cross-user read → public projection only (banking/password never exposed).
       // A user reading their own record gets full detail via GET /auth/me.
@@ -2956,6 +3210,547 @@ const server = http.createServer(async (req, res) => {
          WHERE id = $1 AND lower(recipient_email) = $2`,
         [notificationId, normalizeEmail(authUser.email)]
       );
+      return json(res, 200, { ok: true });
+    }
+
+    // =====================================================================
+    // AGENCY FEATURE
+    // Managed labourers live in `users` (role='labourer', managed_by_agency_id
+    // set). Every endpoint below is scoped to the authenticated agency's own
+    // data — object-level ownership is enforced on each read/write, so no agency
+    // can ever see or touch another agency's roster, offers, or jobs.
+    // =====================================================================
+
+    // ---- Agency auth -----------------------------------------------------
+
+    if (req.method === "POST" && pathname === "/agency/auth/register") {
+      if (
+        !enforceRateLimit(
+          req,
+          res,
+          `agency-register:${getClientIp(req)}`,
+          REGISTER_RATE_LIMIT_WINDOW_MS,
+          REGISTER_RATE_LIMIT_MAX_PER_IP
+        )
+      ) {
+        return;
+      }
+      const body = await parseBody(req);
+      const email = normalizeEmail(body.email);
+      if (!email) return json(res, 400, { ok: false, error: "Email is required." });
+      if (!isValidEmail(email)) return json(res, 400, { ok: false, error: "Enter a valid email address." });
+      const passwordError = validatePasswordStrength(body.password);
+      if (passwordError) return json(res, 400, { ok: false, error: passwordError });
+      const companyName = String(body.companyName || "").trim();
+      if (!companyName) return json(res, 400, { ok: false, error: "Company name is required." });
+
+      const existsRes = await pool.query("SELECT 1 FROM users WHERE email = $1", [email]);
+      if (existsRes.rows.length) return json(res, 409, { ok: false, error: "Email already exists" });
+
+      const ts = now();
+      const passwordHash = await hashPassword(body.password);
+      await pool.query(
+        `INSERT INTO users (
+          email, role, first_name, last_name, company_name, public_handle, about,
+          phone, suburb, website, abn, company_logo_url, subscription,
+          subscription_tier, seat_limit, plan_renews_at, password_hash, created_at, updated_at
+        ) VALUES ($1,'agency',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
+        [
+          email,
+          "",
+          "",
+          companyName,
+          String(body.publicHandle || companyName),
+          String(body.about || ""),
+          body.phone ? String(body.phone) : null,
+          body.suburb ? String(body.suburb) : null,
+          body.website ? String(body.website) : null,
+          body.abn ? String(body.abn) : null,
+          body.logoUrl ? String(body.logoUrl) : null,
+          JSON.stringify(defaultAgencySubscription()),
+          "Starter",
+          AGENCY_TIERS.Starter.seatLimit,
+          ts + AGENCY_TRIAL_MS,
+          passwordHash,
+          ts,
+          ts,
+        ]
+      );
+      const token = makeSessionToken();
+      await pool.query("INSERT INTO sessions (token, email, created_at) VALUES ($1,$2,$3)", [token, email, ts]);
+      const rowRes = await pool.query("SELECT * FROM users WHERE email = $1 LIMIT 1", [email]);
+      return json(res, 200, { ok: true, token, agency: toAgencyProfile(rowRes.rows[0]) });
+    }
+
+    if (req.method === "POST" && pathname === "/agency/auth/login") {
+      const body = await parseBody(req);
+      const email = normalizeEmail(body.email);
+      const password = String(body.password || "");
+      if (!email || !password) return json(res, 400, { ok: false, error: "Email and password are required." });
+      if (!isValidEmail(email)) return json(res, 400, { ok: false, error: "Enter a valid email address." });
+      if (
+        !enforceRateLimit(
+          req,
+          res,
+          `agency-login-ip:${getClientIp(req)}`,
+          LOGIN_RATE_LIMIT_WINDOW_MS,
+          LOGIN_RATE_LIMIT_MAX_PER_IP
+        ) ||
+        !enforceRateLimit(
+          req,
+          res,
+          `agency-login-email:${email}`,
+          LOGIN_RATE_LIMIT_WINDOW_MS,
+          LOGIN_RATE_LIMIT_MAX_PER_EMAIL
+        )
+      ) {
+        return;
+      }
+
+      const userRes = await pool.query("SELECT * FROM users WHERE email = $1 LIMIT 1", [email]);
+      // Generic message for both "no such account" and "not an agency" — no enumeration.
+      if (!userRes.rows.length || userRes.rows[0].role !== "agency") {
+        return json(res, 401, { ok: false, error: "Invalid email or password." });
+      }
+      const row = userRes.rows[0];
+      if (row.is_disabled) return json(res, 403, { ok: false, error: "Account is disabled." });
+      const validPassword = await verifyPassword(password, row.password_hash);
+      if (!validPassword) return json(res, 401, { ok: false, error: "Invalid email or password." });
+
+      const token = makeSessionToken();
+      await pool.query("INSERT INTO sessions (token, email, created_at) VALUES ($1,$2,$3)", [token, email, now()]);
+      return json(res, 200, { ok: true, token, agency: toAgencyProfile(row) });
+    }
+
+    // ---- Agency profile --------------------------------------------------
+
+    if (req.method === "GET" && pathname === "/agency/profile") {
+      const agencyUser = await requireAgency(req, res);
+      if (!agencyUser) return;
+      const rowRes = await pool.query("SELECT * FROM users WHERE email = $1 LIMIT 1", [normalizeEmail(agencyUser.email)]);
+      if (!rowRes.rows.length) return json(res, 404, { ok: false, error: "Agency not found." });
+      return json(res, 200, { ok: true, agency: toAgencyProfile(rowRes.rows[0]) });
+    }
+
+    if (req.method === "PUT" && pathname === "/agency/profile") {
+      const agencyUser = await requireAgency(req, res);
+      if (!agencyUser) return;
+      const patch = await parseBody(req);
+      // email/id are identity and not editable here.
+      await pool.query(
+        `UPDATE users SET
+           company_name = COALESCE($1, company_name),
+           public_handle = COALESCE($2, public_handle),
+           abn = COALESCE($3, abn),
+           phone = COALESCE($4, phone),
+           suburb = COALESCE($5, suburb),
+           website = COALESCE($6, website),
+           company_logo_url = COALESCE($7, company_logo_url),
+           about = COALESCE($8, about),
+           updated_at = $9
+         WHERE email = $10`,
+        [
+          patch.companyName ?? null,
+          patch.publicHandle ?? null,
+          patch.abn ?? null,
+          patch.phone ?? null,
+          patch.suburb ?? null,
+          patch.website ?? null,
+          patch.logoUrl ?? null,
+          patch.about ?? null,
+          now(),
+          normalizeEmail(agencyUser.email),
+        ]
+      );
+      const rowRes = await pool.query("SELECT * FROM users WHERE email = $1 LIMIT 1", [normalizeEmail(agencyUser.email)]);
+      return json(res, 200, { ok: true, agency: toAgencyProfile(rowRes.rows[0]) });
+    }
+
+    // ---- Agency billing (read) ------------------------------------------
+
+    if (req.method === "GET" && pathname === "/agency/billing") {
+      const agencyUser = await requireAgency(req, res);
+      if (!agencyUser) return;
+      const agencyEmail = normalizeEmail(agencyUser.email);
+      const rowRes = await pool.query(
+        "SELECT subscription_tier, seat_limit, plan_renews_at FROM users WHERE email = $1 LIMIT 1",
+        [agencyEmail]
+      );
+      const a = rowRes.rows[0] || {};
+      const tier = a.subscription_tier || "Starter";
+      const info = AGENCY_TIERS[tier] || AGENCY_TIERS.Starter;
+      const seatLimit = Number(a.seat_limit ?? info.seatLimit);
+      const countRes = await pool.query("SELECT COUNT(*)::int AS c FROM users WHERE managed_by_agency_id = $1", [agencyEmail]);
+      const seatsUsed = Number(countRes.rows[0]?.c || 0);
+      const renewsOn = a.plan_renews_at ? new Date(Number(a.plan_renews_at)).toISOString().slice(0, 10) : null;
+      // TODO(stripe): wire real subscription + invoice history once checkout exists.
+      // For now we return live tier/seat data and an empty invoice list.
+      return json(res, 200, {
+        ok: true,
+        billing: {
+          plan: { tier, seatsUsed, seatLimit, pricePerMonth: info.pricePerMonth, renewsOn },
+          invoices: [],
+        },
+      });
+    }
+
+    // ---- Agency jobs / placements (read) --------------------------------
+
+    if (req.method === "GET" && pathname === "/agency/placements") {
+      const agencyUser = await requireAgency(req, res);
+      if (!agencyUser) return;
+      const placementsRes = await pool.query(
+        "SELECT * FROM agency_placements WHERE agency_email = $1 ORDER BY created_at DESC",
+        [normalizeEmail(agencyUser.email)]
+      );
+      return json(res, 200, { ok: true, placements: placementsRes.rows.map(rowToPlacement) });
+    }
+
+    // ---- Agency offers ---------------------------------------------------
+
+    if (req.method === "GET" && pathname === "/agency/offers") {
+      const agencyUser = await requireAgency(req, res);
+      if (!agencyUser) return;
+      // Offers targeting ANY of this agency's managed labourers.
+      const offersRes = await pool.query(
+        `SELECT o.*, b.first_name AS builder_first, b.last_name AS builder_last, l.occupation AS labourer_trade, l.first_name AS labourer_first, l.last_name AS labourer_last
+         FROM offers o
+         JOIN users l ON l.email = o.labourer_email
+         LEFT JOIN users b ON b.email = o.builder_email
+         WHERE l.managed_by_agency_id = $1
+         ORDER BY o.created_at DESC`,
+        [normalizeEmail(agencyUser.email)]
+      );
+      return json(res, 200, { ok: true, offers: offersRes.rows.map(mapAgencyOffer) });
+    }
+
+    if (req.method === "POST" && pathname.startsWith("/agency/offers/") && pathname.endsWith("/assign")) {
+      const agencyUser = await requireAgency(req, res);
+      if (!agencyUser) return;
+      const agencyEmail = normalizeEmail(agencyUser.email);
+      const offerId = decodeURIComponent(pathname.replace("/agency/offers/", "").replace("/assign", ""));
+      const body = await parseBody(req);
+      const labourerId = normalizeEmail(body.labourerId);
+      if (!labourerId) return json(res, 400, { ok: false, error: "labourerId is required." });
+
+      const offerRes = await pool.query("SELECT * FROM offers WHERE id = $1 LIMIT 1", [offerId]);
+      if (!offerRes.rows.length) return json(res, 404, { ok: false, error: "Offer not found." });
+      const offer = offerRes.rows[0];
+
+      // Object-level ownership: the offer must currently target one of THIS
+      // agency's managed labourers (so no agency can act on another's offer).
+      const targetOwnerRes = await pool.query(
+        "SELECT managed_by_agency_id FROM users WHERE email = $1 LIMIT 1",
+        [normalizeEmail(offer.labourer_email)]
+      );
+      if (
+        !targetOwnerRes.rows.length ||
+        normalizeEmail(targetOwnerRes.rows[0].managed_by_agency_id || "") !== agencyEmail
+      ) {
+        return json(res, 403, { ok: false, error: "Forbidden" });
+      }
+      // The labourer being assigned must also belong to this agency (supports
+      // reassigning the offer to a different one of the agency's labourers).
+      const labourerRes = await pool.query(
+        "SELECT * FROM users WHERE email = $1 AND managed_by_agency_id = $2 LIMIT 1",
+        [labourerId, agencyEmail]
+      );
+      if (!labourerRes.rows.length) return json(res, 404, { ok: false, error: "Labourer not found on your roster." });
+      const labourer = labourerRes.rows[0];
+      if (offer.status !== "pending") return json(res, 400, { ok: false, error: "This offer has already been responded to." });
+
+      const agencyRowRes = await pool.query("SELECT company_name FROM users WHERE email = $1 LIMIT 1", [agencyEmail]);
+      const agencyName = agencyRowRes.rows[0]?.company_name || "Agency";
+      const labourerName = `${String(labourer.first_name || "").trim()} ${String(labourer.last_name || "").trim()}`.trim();
+      const ts = now();
+      const placementId = makeId("place");
+
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        // Accept on the labourer's behalf (they can't log in to sign).
+        const upd = await client.query(
+          `UPDATE offers
+           SET status = 'approved',
+               labourer_email = $1,
+               labourer_name = $2,
+               labourer_signature = $3,
+               labourer_responded_at = $4,
+               updated_at = $5
+           WHERE id = $6 AND status = 'pending'`,
+          [labourerId, labourerName, `Accepted by ${agencyName} on behalf of ${labourerName}`, ts, ts, offerId]
+        );
+        if (!upd.rowCount) {
+          await client.query("ROLLBACK");
+          return json(res, 400, { ok: false, error: "This offer has already been responded to." });
+        }
+        await client.query(
+          `INSERT INTO agency_placements (
+            id, agency_email, labourer_email, offer_id, builder_company, site, trade,
+            start_date, end_date, hourly_rate, status, created_at, updated_at
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+          [
+            placementId,
+            agencyEmail,
+            labourerId,
+            offerId,
+            offer.builder_company_name,
+            offer.site_address,
+            labourer.occupation || "",
+            offer.start_date,
+            offer.end_date || null,
+            Number(offer.rate),
+            "active",
+            ts,
+            ts,
+          ]
+        );
+        // Flip the assigned labourer to "on a job".
+        await client.query(
+          "UPDATE users SET labourer_status = 'on_job', updated_at = $1 WHERE email = $2 AND managed_by_agency_id = $3",
+          [ts, labourerId, agencyEmail]
+        );
+        await client.query("COMMIT");
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
+
+      // Mirror the labourer-respond flow so the builder sees the acceptance.
+      await createNotification(
+        offer.builder_email,
+        "offer_signed",
+        "Offer accepted",
+        `${agencyName} accepted your work offer on behalf of ${labourerName}.`,
+        { offerId, labourerEmail: labourerId }
+      );
+
+      const refreshedRes = await pool.query(
+        `SELECT o.*, b.first_name AS builder_first, b.last_name AS builder_last, l.occupation AS labourer_trade, l.first_name AS labourer_first, l.last_name AS labourer_last
+         FROM offers o
+         LEFT JOIN users b ON b.email = o.builder_email
+         LEFT JOIN users l ON l.email = o.labourer_email
+         WHERE o.id = $1`,
+        [offerId]
+      );
+      const placementRes = await pool.query("SELECT * FROM agency_placements WHERE id = $1", [placementId]);
+      return json(res, 200, {
+        ok: true,
+        offer: mapAgencyOffer(refreshedRes.rows[0]),
+        placement: rowToPlacement(placementRes.rows[0]),
+      });
+    }
+
+    if (req.method === "POST" && pathname.startsWith("/agency/offers/") && pathname.endsWith("/decline")) {
+      const agencyUser = await requireAgency(req, res);
+      if (!agencyUser) return;
+      const agencyEmail = normalizeEmail(agencyUser.email);
+      const offerId = decodeURIComponent(pathname.replace("/agency/offers/", "").replace("/decline", ""));
+
+      const offerRes = await pool.query("SELECT * FROM offers WHERE id = $1 LIMIT 1", [offerId]);
+      if (!offerRes.rows.length) return json(res, 404, { ok: false, error: "Offer not found." });
+      const offer = offerRes.rows[0];
+      const targetOwnerRes = await pool.query(
+        "SELECT managed_by_agency_id FROM users WHERE email = $1 LIMIT 1",
+        [normalizeEmail(offer.labourer_email)]
+      );
+      if (
+        !targetOwnerRes.rows.length ||
+        normalizeEmail(targetOwnerRes.rows[0].managed_by_agency_id || "") !== agencyEmail
+      ) {
+        return json(res, 403, { ok: false, error: "Forbidden" });
+      }
+      if (offer.status !== "pending") return json(res, 400, { ok: false, error: "This offer has already been responded to." });
+
+      const ts = now();
+      await pool.query(
+        "UPDATE offers SET status = 'declined', labourer_responded_at = $1, updated_at = $2 WHERE id = $3 AND status = 'pending'",
+        [ts, ts, offerId]
+      );
+      const refreshedRes = await pool.query(
+        `SELECT o.*, b.first_name AS builder_first, b.last_name AS builder_last, l.occupation AS labourer_trade, l.first_name AS labourer_first, l.last_name AS labourer_last
+         FROM offers o
+         LEFT JOIN users b ON b.email = o.builder_email
+         LEFT JOIN users l ON l.email = o.labourer_email
+         WHERE o.id = $1`,
+        [offerId]
+      );
+      return json(res, 200, { ok: true, offer: mapAgencyOffer(refreshedRes.rows[0]) });
+    }
+
+    // ---- Agency roster (CRUD) -------------------------------------------
+    // NOTE: exact `/agency/labourers` is matched before the `/agency/labourers/`
+    // prefix routes below.
+
+    if (req.method === "GET" && pathname === "/agency/labourers") {
+      const agencyUser = await requireAgency(req, res);
+      if (!agencyUser) return;
+      const agencyEmail = normalizeEmail(agencyUser.email);
+      const rosterRes = await pool.query(
+        "SELECT * FROM users WHERE managed_by_agency_id = $1 ORDER BY created_at ASC",
+        [agencyEmail]
+      );
+      const placeRes = await pool.query(
+        "SELECT id, labourer_email FROM agency_placements WHERE agency_email = $1 AND status = 'active'",
+        [agencyEmail]
+      );
+      const placementByLabourer = new Map();
+      for (const p of placeRes.rows) placementByLabourer.set(normalizeEmail(p.labourer_email), p.id);
+      const labourers = rosterRes.rows.map((r) =>
+        toAgencyLabourer(r, placementByLabourer.get(normalizeEmail(r.email)))
+      );
+      return json(res, 200, { ok: true, labourers });
+    }
+
+    if (req.method === "POST" && pathname === "/agency/labourers") {
+      const agencyUser = await requireAgency(req, res);
+      if (!agencyUser) return;
+      const agencyEmail = normalizeEmail(agencyUser.email);
+      const body = await parseBody(req);
+      const name = String(body.name || "").trim();
+      if (!name) return json(res, 400, { ok: false, error: "Name is required." });
+      const hourlyRate = Number(body.hourlyRate);
+      if (!Number.isFinite(hourlyRate) || hourlyRate <= 0) {
+        return json(res, 400, { ok: false, error: "Hourly rate must be greater than 0." });
+      }
+
+      // Enforce the tier seat limit — clear "upgrade required" error, not a silent fail.
+      const seatRes = await pool.query(
+        "SELECT seat_limit, subscription_tier FROM users WHERE email = $1 LIMIT 1",
+        [agencyEmail]
+      );
+      const seatLimit = Number(seatRes.rows[0]?.seat_limit ?? AGENCY_TIERS.Starter.seatLimit);
+      const tier = seatRes.rows[0]?.subscription_tier || "Starter";
+      const countRes = await pool.query("SELECT COUNT(*)::int AS c FROM users WHERE managed_by_agency_id = $1", [agencyEmail]);
+      if (Number(countRes.rows[0]?.c || 0) >= seatLimit) {
+        return json(res, 403, {
+          ok: false,
+          error: `Seat limit reached on your ${tier} plan (${seatLimit} seats). Upgrade your plan to add more labourers.`,
+        });
+      }
+
+      const { first, last } = splitName(name);
+      const status = LABOURER_STATUSES.has(body.status) ? body.status : "bench";
+      const id = makeManagedLabourerEmail();
+      const ts = now();
+      // Unusable random password — managed labourers can never log in.
+      const passwordHash = await hashPassword(makeTemporaryPassword(32));
+      await pool.query(
+        `INSERT INTO users (
+          email, role, first_name, last_name, occupation, price_per_hour, suburb, phone,
+          contact_email, photo_url, labourer_status, skills, tickets, availability, notes,
+          managed_by_agency_id, subscription, password_hash, created_at, updated_at
+        ) VALUES ($1,'labourer',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
+        [
+          id,
+          first,
+          last,
+          String(body.trade || ""),
+          hourlyRate,
+          body.suburb ? String(body.suburb) : null,
+          body.phone ? String(body.phone) : null,
+          body.email ? String(body.email) : null,
+          body.photoUrl ? String(body.photoUrl) : null,
+          status,
+          JSON.stringify(sanitizeSkills(body.skills)),
+          JSON.stringify(sanitizeTickets(body.tickets)),
+          JSON.stringify(sanitizeAvailability(body.availability)),
+          body.notes ? String(body.notes) : null,
+          agencyEmail,
+          JSON.stringify(defaultSubscription()),
+          passwordHash,
+          ts,
+          ts,
+        ]
+      );
+      const rowRes = await pool.query("SELECT * FROM users WHERE email = $1 LIMIT 1", [id]);
+      return json(res, 200, { ok: true, labourer: toAgencyLabourer(rowRes.rows[0]) });
+    }
+
+    if (req.method === "GET" && pathname.startsWith("/agency/labourers/")) {
+      const agencyUser = await requireAgency(req, res);
+      if (!agencyUser) return;
+      const agencyEmail = normalizeEmail(agencyUser.email);
+      const id = normalizeEmail(decodeURIComponent(pathname.replace("/agency/labourers/", "")));
+      const rowRes = await pool.query(
+        "SELECT * FROM users WHERE email = $1 AND managed_by_agency_id = $2 LIMIT 1",
+        [id, agencyEmail]
+      );
+      if (!rowRes.rows.length) return json(res, 404, { ok: false, error: "Labourer not found." });
+      const placeRes = await pool.query(
+        "SELECT id FROM agency_placements WHERE labourer_email = $1 AND agency_email = $2 AND status = 'active' ORDER BY created_at DESC LIMIT 1",
+        [id, agencyEmail]
+      );
+      return json(res, 200, { ok: true, labourer: toAgencyLabourer(rowRes.rows[0], placeRes.rows[0]?.id) });
+    }
+
+    if (req.method === "PUT" && pathname.startsWith("/agency/labourers/")) {
+      const agencyUser = await requireAgency(req, res);
+      if (!agencyUser) return;
+      const agencyEmail = normalizeEmail(agencyUser.email);
+      const id = normalizeEmail(decodeURIComponent(pathname.replace("/agency/labourers/", "")));
+      const existingRes = await pool.query(
+        "SELECT email FROM users WHERE email = $1 AND managed_by_agency_id = $2 LIMIT 1",
+        [id, agencyEmail]
+      );
+      if (!existingRes.rows.length) return json(res, 404, { ok: false, error: "Labourer not found." });
+      const body = await parseBody(req);
+      const name = String(body.name || "").trim();
+      if (!name) return json(res, 400, { ok: false, error: "Name is required." });
+      const hourlyRate = Number(body.hourlyRate);
+      if (!Number.isFinite(hourlyRate) || hourlyRate <= 0) {
+        return json(res, 400, { ok: false, error: "Hourly rate must be greater than 0." });
+      }
+      const { first, last } = splitName(name);
+      const status = LABOURER_STATUSES.has(body.status) ? body.status : "bench";
+      await pool.query(
+        `UPDATE users SET
+           first_name = $1, last_name = $2, occupation = $3, price_per_hour = $4,
+           suburb = $5, phone = $6, contact_email = $7, photo_url = $8,
+           labourer_status = $9, skills = $10, tickets = $11, availability = $12, notes = $13,
+           updated_at = $14
+         WHERE email = $15 AND managed_by_agency_id = $16`,
+        [
+          first,
+          last,
+          String(body.trade || ""),
+          hourlyRate,
+          body.suburb ? String(body.suburb) : null,
+          body.phone ? String(body.phone) : null,
+          body.email ? String(body.email) : null,
+          body.photoUrl ? String(body.photoUrl) : null,
+          status,
+          JSON.stringify(sanitizeSkills(body.skills)),
+          JSON.stringify(sanitizeTickets(body.tickets)),
+          JSON.stringify(sanitizeAvailability(body.availability)),
+          body.notes ? String(body.notes) : null,
+          now(),
+          id,
+          agencyEmail,
+        ]
+      );
+      const placeRes = await pool.query(
+        "SELECT id FROM agency_placements WHERE labourer_email = $1 AND agency_email = $2 AND status = 'active' ORDER BY created_at DESC LIMIT 1",
+        [id, agencyEmail]
+      );
+      const rowRes = await pool.query("SELECT * FROM users WHERE email = $1 LIMIT 1", [id]);
+      return json(res, 200, { ok: true, labourer: toAgencyLabourer(rowRes.rows[0], placeRes.rows[0]?.id) });
+    }
+
+    if (req.method === "DELETE" && pathname.startsWith("/agency/labourers/")) {
+      const agencyUser = await requireAgency(req, res);
+      if (!agencyUser) return;
+      const agencyEmail = normalizeEmail(agencyUser.email);
+      const id = normalizeEmail(decodeURIComponent(pathname.replace("/agency/labourers/", "")));
+      // Scoped delete: only the owning agency can remove its own labourer. The
+      // FK cascades remove the labourer's offers / placements / saved entries.
+      const delRes = await pool.query(
+        "DELETE FROM users WHERE email = $1 AND managed_by_agency_id = $2",
+        [id, agencyEmail]
+      );
+      if (!delRes.rowCount) return json(res, 404, { ok: false, error: "Labourer not found." });
       return json(res, 200, { ok: true });
     }
 

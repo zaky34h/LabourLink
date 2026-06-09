@@ -34,7 +34,7 @@ export default function OwnerTabsLayout() {
       <Tabs.Screen
         name="builders"
         options={{
-          title: "Builders",
+          title: "Companies",
           tabBarIcon: ({ focused }) => <TabBarIcon name="business" focused={focused} />,
         }}
       />

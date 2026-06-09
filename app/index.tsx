@@ -116,7 +116,7 @@ export default function Login() {
               style={styles.logo}
               resizeMode="contain"
             />
-            <Text style={styles.tagline}>Builders and labourers connected fast</Text>
+            <Text style={styles.tagline}>Companies and labourers connected fast</Text>
           </View>
 
           <View style={styles.card}>

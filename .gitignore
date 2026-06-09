@@ -40,3 +40,9 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# agency dashboard (self-contained Next.js app — has its own .gitignore too)
+/agencydashboard/node_modules
+/agencydashboard/.next
+/agencydashboard/out
+/agencydashboard/.vercel

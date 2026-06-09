@@ -16,6 +16,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { completeOnboarding, deleteAccount } from "../../src/auth/storage";
+import { ROLE_LABELS } from "../../src/roles";
 import { routeForUser } from "../../src/auth/routing";
 import { useCurrentUser } from "../../src/auth/useCurrentUser";
 import { colors, spacing, radii, fontFamily, fontSize, fontWeight, type } from "../../src/theme";
@@ -68,7 +69,7 @@ export default function OnboardingScreen() {
 
   async function onSubmit() {
     if (!selectedRole || submitting || discarding) {
-      return Alert.alert("Pick a role", "Tap to choose whether you’re a builder or labourer.");
+      return Alert.alert("Pick a role", "Tap to choose whether you’re a company or labourer.");
     }
 
     if (!fullName.trim()) {
@@ -187,7 +188,7 @@ export default function OnboardingScreen() {
               onPress={() => selectRole("labourer")}
             />
             <RoleCard
-              title="Builder"
+              title={ROLE_LABELS.builder}
               subtitle="Hiring crews and posting work"
               active={selectedRole === "builder"}
               onPress={() => selectRole("builder")}
@@ -199,7 +200,7 @@ export default function OnboardingScreen() {
               {selectedRole === "labourer"
                 ? "Labourer details"
                 : selectedRole === "builder"
-                  ? "Builder details"
+                  ? "Company details"
                   : "Pick your side to continue"}
             </Text>
 
@@ -267,7 +268,7 @@ export default function OnboardingScreen() {
               </>
             ) : (
               <Text style={{ ...type.secondary, lineHeight: 21 }}>
-                Tap Labourer or Builder above to choose your side. The matching setup form will appear here.
+                Tap Labourer or Company above to choose your side. The matching setup form will appear here.
               </Text>
             )}
 

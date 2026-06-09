@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+/*
+ * Labourlink Agency Dashboard — design tokens.
+ * Mirrors the mobile app's Twoflo visual system (src/theme/index.ts).
+ * Flat, hairline-bordered, light-mode only. Editorial / premium.
+ */
+@theme {
+  /* Surfaces */
+  --color-bg: #f2ede3; /* page background (cream) */
+  --color-surface: #ece5d4; /* cards / callout panels */
+  --color-field: #faf6ec; /* input fills (warm near-white) */
+  --color-line: #d0c8b6; /* 1px hairline rules / dividers / borders */
+
+  /* Text + primary action */
+  --color-ink: #1f1f1f; /* headings, body, primary button bg */
+  --color-muted: #6b6b6b; /* labels, eyebrows, captions */
+
+  /* Status — FUNCTIONAL, do not repurpose */
+  --color-sage: #c8d6bd; /* On a job / approved (bg) */
+  --color-sage-ink: #2d4a1f;
+  --color-amber: #e8c8a0; /* Bench / applied (bg) */
+  --color-amber-ink: #6a4310;
+  --color-beige: #ddd5c2; /* Off / draft / unavailable (bg) */
+  --color-beige-ink: #5a4a30;
+
+  /* Danger — extension, tuned to sit on cream */
+  --color-danger: #ead7cf;
+  --color-danger-ink: #8a2d1f;
+
+  /* Brand highlight ONLY — never as text on cream, never as a status colour */
+  --color-brand-yellow: #fde047;
+
+  /* Typography */
+  --font-sans: "Helvetica Neue", Helvetica, Arial, sans-serif;
+
+  /* Radii — flat, restrained */
+  --radius-card: 14px;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+/* Small UPPERCASE eyebrow label, ~0.14em tracking, muted. */
+.eyebrow {
+  font-size: 0.625rem; /* 10px */
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--color-muted);
+}
+
+/* Bold editorial heading, tight tracking. */
+.heading {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--color-ink);
+}
+
+/* Visible focus ring for keyboard users (AA accessibility). */
+:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 2px;
+}

@@ -9,6 +9,7 @@ import {
   searchSupportUsers,
   type SupportUser,
 } from "../../src/owner/storage";
+import { ROLE_LABELS } from "../../src/roles";
 import { colors, spacing, radii, fontFamily, fontSize, fontWeight, type } from "../../src/theme";
 import Button from "../../src/ui/Button";
 
@@ -152,7 +153,7 @@ export default function OwnerSupport() {
             </Text>
             <Text style={{ ...type.secondary, marginTop: 3 }}>{item.email}</Text>
             <Text style={{ ...type.secondary, marginTop: 3 }}>
-              Role: {item.role}
+              Role: {ROLE_LABELS[item.role] ?? item.role}
               {item.role === "builder" && item.companyName ? ` | ${item.companyName}` : ""}
               {item.role === "labourer" && item.occupation ? ` | ${item.occupation}` : ""}
             </Text>

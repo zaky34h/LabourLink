@@ -132,7 +132,7 @@ export default function LabourerMessages() {
       ListEmptyComponent={
         <Text style={{ ...type.secondary, marginTop: 26, lineHeight: 20 }}>
           {selectedTab === "active"
-            ? "No active chats yet. A builder will message you once they’re interested."
+            ? "No active chats yet. A company will message you once they’re interested."
             : "No chat history yet."}
         </Text>
       }

@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet } from "react-native";
 import { router } from "expo-router";
 import { colors, spacing, type } from "../../src/theme";
+import { ROLE_LABELS } from "../../src/roles";
 import Button from "../../src/ui/Button";
 
 export default function RoleSelect() {
@@ -12,7 +13,7 @@ export default function RoleSelect() {
       </Text>
 
       <Button
-        label="I’m a Builder"
+        label={`I’m a ${ROLE_LABELS.builder}`}
         onPress={() => router.push("/builder/home")}
         style={{ marginTop: spacing.sm }}
       />

@@ -18,6 +18,6 @@ export async function updateBuilderProfile(
     });
     return { ok: true };
   } catch (error: any) {
-    return { ok: false, error: error?.message || "Could not update builder profile." };
+    return { ok: false, error: error?.message || "Could not update company profile." };
   }
 }

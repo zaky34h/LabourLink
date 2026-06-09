@@ -49,7 +49,7 @@ export default function OwnerBuilders() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.text} />}
       ListHeaderComponent={
         <View style={{ marginBottom: spacing.md }}>
-          <Text style={type.h1}>All Builders</Text>
+          <Text style={type.h1}>All Companies</Text>
           <Text style={{ ...type.secondary, marginTop: spacing.xs }}>Total: {builders.length}</Text>
         </View>
       }
