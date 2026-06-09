@@ -27,7 +27,7 @@ import {
   setTypingStatus,
   type ChatMessage,
 } from "../../src/chat/storage";
-import { getUserByEmail } from "../../src/auth/storage";
+import { getUserByEmail, isManagedLabourerEmail, type LabourerUser } from "../../src/auth/storage";
 import { colors, spacing, radii, fontFamily, fontSize, fontWeight, type } from "../../src/theme";
 
 // How many messages to render at first; older ones load on demand.
@@ -71,7 +71,14 @@ export default function ChatWithPeer() {
   const { user } = useCurrentUser();
   const insets = useSafeAreaInsets();
 
-  const [peerName, setPeerName] = useState<string>(peerEmail);
+  // Managed labourers can't be messaged directly. Seed from the synthetic-email
+  // suffix so we NEVER flash the thread (or the synthetic email) before the peer
+  // record loads; the agency name is filled in once the peer is fetched.
+  const initialManaged = isManagedLabourerEmail(peerEmail);
+  const [peerName, setPeerName] = useState<string>(initialManaged ? "Labourer" : peerEmail);
+  const [peerManaged, setPeerManaged] = useState(initialManaged);
+  const [peerAgencyName, setPeerAgencyName] = useState<string | undefined>(undefined);
+  const peerManagedRef = useRef(initialManaged);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [text, setText] = useState("");
   const [refreshing, setRefreshing] = useState(false);
@@ -91,6 +98,8 @@ export default function ChatWithPeer() {
 
   async function load() {
     if (!user?.email) return;
+    // Never fetch a message thread for an agency-managed labourer.
+    if (peerManagedRef.current) return;
     // Only show the full-screen loader on the very first load — never on a poll.
     if (!hasLoadedRef.current && !refreshing) setLoadingMessages(true);
     try {
@@ -129,7 +138,14 @@ export default function ChatWithPeer() {
   useEffect(() => {
     async function loadPeerName() {
       const peer = await getUserByEmail(peerEmail);
-      if (peer) setPeerName(`${peer.firstName} ${peer.lastName}`);
+      if (!peer) return;
+      setPeerName(`${peer.firstName} ${peer.lastName}`);
+      const managed = peer.role === "labourer" && !!(peer as LabourerUser).agencyManaged;
+      if (managed || isManagedLabourerEmail(peerEmail)) {
+        peerManagedRef.current = true;
+        setPeerManaged(true);
+        if (peer.role === "labourer") setPeerAgencyName((peer as LabourerUser).agencyName);
+      }
     }
     void loadPeerName();
   }, [peerEmail]);
@@ -288,6 +304,37 @@ export default function ChatWithPeer() {
 
   const canSend = !sending && text.trim().length > 0;
   const showInitialLoader = loadingMessages && !hasLoadedRef.current;
+
+  // Backstop: a managed-labourer chat is never rendered as a thread. We show an
+  // agency note instead of messages — and never the synthetic email.
+  if (peerManaged) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={["top"]}>
+        <View style={styles.header}>
+          <Pressable onPress={() => router.back()} style={styles.headerBtn}>
+            <Text style={styles.headerBtnText}>Back</Text>
+          </Pressable>
+          <View style={{ flex: 1 }}>
+            <Text
+              style={{ fontFamily, fontSize: fontSize.h3, fontWeight: fontWeight.heavy, color: colors.text }}
+              numberOfLines={1}
+            >
+              {peerName}
+            </Text>
+          </View>
+        </View>
+        <View style={[styles.centered, { padding: spacing.xl, gap: spacing.sm }]}>
+          <Text style={{ ...type.h3, textAlign: "center" }}>
+            Coordinated by {peerAgencyName || "their agency"}
+          </Text>
+          <Text style={{ ...type.secondary, textAlign: "center" }}>
+            This labourer is managed by an agency. Send a work offer to book them — there&rsquo;s no
+            direct messaging.
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={["top"]}>

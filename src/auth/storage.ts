@@ -72,7 +72,19 @@ export type LabourerUser = {
   email: string;
   password?: string;
   isDisabled?: boolean;
+  // Present (truthy) ONLY for agency-managed labourers — the browse endpoints
+  // (/users, /users/:email) set these. Solo labourers never have them.
+  agencyManaged?: boolean;
+  agencyName?: string;
 };
+
+// Managed labourers' login email is a synthetic, non-routable id minted by the
+// backend (see makeManagedLabourerEmail). It must never be shown in the UI.
+export const MANAGED_LABOURER_EMAIL_SUFFIX = "@managed.labourlink.local";
+
+export function isManagedLabourerEmail(email?: string | null): boolean {
+  return !!email && email.toLowerCase().endsWith(MANAGED_LABOURER_EMAIL_SUFFIX);
+}
 
 export type OwnerUser = {
   role: "owner";

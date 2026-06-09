@@ -12,6 +12,7 @@ import {
 import { colors, spacing, radii, fontFamily, fontSize, fontWeight, type } from "../../src/theme";
 import Button from "../../src/ui/Button";
 import { Skeleton, SkeletonList } from "../../src/ui/Skeleton";
+import { AgencyBadge } from "../../src/ui/AgencyBadge";
 
 const OfferRow = memo(function OfferRow({
   item,
@@ -26,6 +27,11 @@ const OfferRow = memo(function OfferRow({
         <Text style={styles.cardTitle}>{item.labourerName}</Text>
         <StatusPill status={item.status} />
       </View>
+      {item.agencyManaged ? (
+        <View style={{ marginTop: 6 }}>
+          <AgencyBadge agencyName={item.agencyName} />
+        </View>
+      ) : null}
       <Text style={styles.cardMeta}>
         {item.startDate} to {item.endDate}
       </Text>
@@ -252,6 +258,11 @@ export default function BuilderOffers() {
             {selectedOffer && (
               <ScrollView showsVerticalScrollIndicator={false}>
                 <Detail label="Labourer" value={selectedOffer.labourerName} />
+                {selectedOffer.agencyManaged ? (
+                  <View style={{ marginTop: spacing.sm }}>
+                    <AgencyBadge agencyName={selectedOffer.agencyName} />
+                  </View>
+                ) : null}
                 <Detail label="Status" value={selectedOffer.status.toUpperCase()} />
                 <Detail label="Date Range" value={`${selectedOffer.startDate} to ${selectedOffer.endDate}`} />
                 <Detail label="Hours" value={extractShiftRange(selectedOffer.notes)} />

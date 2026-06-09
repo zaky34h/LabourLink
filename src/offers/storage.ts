@@ -1,6 +1,7 @@
 import { Asset } from "expo-asset";
 import * as Print from "expo-print";
 import { apiRequest } from "../api/client";
+import { isManagedLabourerEmail } from "../auth/storage";
 
 let cachedLabourLinkLogoUri: string | null | undefined;
 
@@ -29,6 +30,9 @@ export type WorkOffer = {
   labourerCompanyRating?: number;
   pdfContent: string;
   pdfUri?: string;
+  // Set by /offers/builder when the offer targets an agency-managed labourer.
+  agencyManaged?: boolean;
+  agencyName?: string;
 };
 
 export type CreateWorkOfferInput = {
@@ -195,8 +199,13 @@ function makePdfHtml(offer: WorkOffer, logoUri?: string | null) {
     <div class="box section">
       <div class="label">Labourer</div>
       <div>${escapeHtml(offer.labourerName)}</div>
-      <div class="label">Labourer Email</div>
-      <div>${escapeHtml(offer.labourerEmail)}</div>
+      ${
+        isManagedLabourerEmail(offer.labourerEmail)
+          ? `<div class="label">Coordinated By</div>
+             <div>${escapeHtml(offer.agencyName || "Managing agency")}</div>`
+          : `<div class="label">Labourer Email</div>
+             <div>${escapeHtml(offer.labourerEmail)}</div>`
+      }
     </div>
 
     <div class="box section">

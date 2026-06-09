@@ -13,6 +13,7 @@ import { router, useFocusEffect } from "expo-router";
 import { getUsers, type LabourerUser } from "../../src/auth/storage";
 import { colors, spacing, radii, fontFamily, fontSize, fontWeight, type } from "../../src/theme";
 import { Skeleton, SkeletonList } from "../../src/ui/Skeleton";
+import { AgencyBadge } from "../../src/ui/AgencyBadge";
 
 const PAGE_SIZE = 10;
 
@@ -31,9 +32,12 @@ const LabourerRow = memo(function LabourerRow({ item }: { item: LabourerUser }) 
               </Text>
             )}
           </View>
-          <Text style={[styles.cardTitle, styles.flexShrink]} numberOfLines={1}>
-            {item.firstName} {item.lastName}
-          </Text>
+          <View style={[styles.flexShrink, { gap: 4 }]}>
+            <Text style={styles.cardTitle} numberOfLines={1}>
+              {item.firstName} {item.lastName}
+            </Text>
+            {item.agencyManaged ? <AgencyBadge agencyName={item.agencyName} /> : null}
+          </View>
         </View>
         <View style={styles.ratePill}>
           <Text style={styles.rateText}>${item.pricePerHour}/hr</Text>

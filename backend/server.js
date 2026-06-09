@@ -1089,6 +1089,12 @@ function rowToOffer(row) {
     completedAt: row.completed_at ? Number(row.completed_at) : undefined,
     labourerCompanyRating: row.labourer_company_rating ? Number(row.labourer_company_rating) : undefined,
     pdfContent: row.pdf_content,
+    // Agency badge — only present when a query LEFT JOINs the managed labourer's
+    // agency (e.g. /offers/builder). Plain `SELECT * FROM offers` rows lack these
+    // columns, so solo-labourer offers are unaffected.
+    ...(row.managed_by_agency_id
+      ? { agencyManaged: true, agencyName: row.managing_agency_name || undefined }
+      : {}),
   };
 }
 
@@ -2810,8 +2816,16 @@ const server = http.createServer(async (req, res) => {
       const authUser = await requireAuth(req, res);
       if (!authUser) return;
       if (authUser.role !== "builder") return json(res, 403, { ok: false, error: "Not a builder account." });
+      // LEFT JOIN the targeted labourer's managing agency so the builder's offer
+      // list can badge "via [Agency]". Non-managed (solo) labourers join to NULL.
       const offersRes = await pool.query(
-        "SELECT * FROM offers WHERE lower(builder_email) = $1 ORDER BY created_at DESC",
+        `SELECT o.*, l.managed_by_agency_id AS managed_by_agency_id,
+                a.company_name AS managing_agency_name
+         FROM offers o
+         LEFT JOIN users l ON l.email = o.labourer_email
+         LEFT JOIN users a ON a.email = l.managed_by_agency_id
+         WHERE lower(o.builder_email) = $1
+         ORDER BY o.created_at DESC`,
         [normalizeEmail(authUser.email)]
       );
       return json(res, 200, { ok: true, offers: offersRes.rows.map(rowToOffer) });

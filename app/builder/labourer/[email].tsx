@@ -8,6 +8,7 @@ import { useCurrentUser } from "../../../src/auth/useCurrentUser";
 import { isLabourerSaved, saveLabourer, unsaveLabourer } from "../../../src/saved-labourers/storage";
 import { colors, spacing, radii, fontFamily, fontSize, fontWeight, type } from "../../../src/theme";
 import Button from "../../../src/ui/Button";
+import { AgencyBadge } from "../../../src/ui/AgencyBadge";
 
 export default function LabourerProfileView() {
   const { email } = useLocalSearchParams<{ email: string }>();
@@ -78,6 +79,7 @@ export default function LabourerProfileView() {
   }
 
   const fullName = `${labourer.firstName} ${labourer.lastName}`;
+  const managed = !!labourer.agencyManaged;
   const certs = labourer.certifications ?? ["White Card (example)", "Working at Heights (example)"];
   const certDocs = labourer.certificationDocs ?? [];
   const currentMonthUnavailableDates = (labourer.unavailableDates ?? [])
@@ -104,9 +106,13 @@ export default function LabourerProfileView() {
           <Button label="Back" variant="secondary" onPress={() => router.back()} />
         </View>
 
-        <View style={{ marginLeft: "auto", width: 110 }}>
-          <Button label="Message" onPress={() => router.push(`/chat/${encodeURIComponent(labourer.email)}`)} />
-        </View>
+        {/* Offer-first: managed labourers are booked via their agency, so the
+            direct Message action is hidden (see the note in the profile card). */}
+        {!managed ? (
+          <View style={{ marginLeft: "auto", width: 110 }}>
+            <Button label="Message" onPress={() => router.push(`/chat/${encodeURIComponent(labourer.email)}`)} />
+          </View>
+        ) : null}
 
         {user?.role === "builder" ? (
           <Pressable
@@ -114,6 +120,8 @@ export default function LabourerProfileView() {
             onPress={onToggleSaved}
             style={[
               styles.saveBtn,
+              // When Message is hidden (managed), Save takes over pushing right.
+              managed ? { marginLeft: "auto" } : null,
               {
                 backgroundColor: saved ? colors.primary : colors.field,
                 borderColor: saved ? colors.borderStrong : colors.border,
@@ -148,8 +156,18 @@ export default function LabourerProfileView() {
           <View style={{ flex: 1, gap: 4 }}>
             <Text style={{ fontFamily, fontSize: fontSize.h3, fontWeight: fontWeight.heavy, color: colors.text }}>{fullName}</Text>
             <Text style={type.secondary}>${labourer.pricePerHour}/hr</Text>
+            {managed ? <AgencyBadge agencyName={labourer.agencyName} style={{ marginTop: 2 }} /> : null}
           </View>
         </View>
+
+        {managed ? (
+          <View style={styles.coordinateNote}>
+            <Ionicons name="business-outline" size={16} color={colors.text} />
+            <Text style={styles.coordinateNoteText}>
+              Coordinated by {labourer.agencyName || "their agency"} — send an offer to book.
+            </Text>
+          </View>
+        ) : null}
 
         {/* Certifications */}
         <View style={styles.section}>
@@ -275,6 +293,23 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  coordinateNote: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.field,
+  },
+  coordinateNoteText: {
+    flex: 1,
+    fontFamily,
+    fontSize: fontSize.label,
+    fontWeight: fontWeight.bold,
+    color: colors.text,
   },
   section: {
     paddingTop: spacing.sm,
