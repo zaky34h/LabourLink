@@ -1,5 +1,5 @@
 import { apiRequest } from "../api/client";
-import type { BuilderUser, LabourerUser } from "../auth/storage";
+import type { BuilderUser, LabourerUser, User } from "../auth/storage";
 
 export type OwnerOverview = {
   buildersSignedUp: number;
@@ -27,6 +27,21 @@ export async function getOwnerLabourers(): Promise<LabourerUser[]> {
     auth: true,
   });
   return res.labourers;
+}
+
+// Owner-admin detail read. Uses the fuller owner projection (full address + about)
+// rather than the minimal `toPublicUser` used by getUserByEmail. Banking is still
+// excluded server-side, so bsb/accountNumber are absent here by design.
+export async function getOwnerUserByEmail(email: string): Promise<User | null> {
+  try {
+    const res = await apiRequest<{ ok: true; user: User }>(
+      `/owner/users/${encodeURIComponent(email)}`,
+      { auth: true }
+    );
+    return res.user;
+  } catch {
+    return null;
+  }
 }
 
 export type OwnerReport = {

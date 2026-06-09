@@ -1,7 +1,8 @@
 import { useCallback, useState, type ReactNode } from "react";
 import { View, Text, ScrollView, Pressable, Alert, RefreshControl, StyleSheet } from "react-native";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
-import { type BuilderUser, getUserByEmail } from "../../../src/auth/storage";
+import { type BuilderUser } from "../../../src/auth/storage";
+import { getOwnerUserByEmail } from "../../../src/owner/storage";
 import { useCurrentUser } from "../../../src/auth/useCurrentUser";
 import { colors, spacing, radii, fontFamily, fontSize, fontWeight, type } from "../../../src/theme";
 
@@ -16,7 +17,7 @@ export default function OwnerBuilderDetails() {
   async function loadBuilder() {
     if (!builderEmail) return;
     try {
-      const next = await getUserByEmail(builderEmail);
+      const next = await getOwnerUserByEmail(builderEmail);
       if (!next || next.role !== "builder") {
         setBuilder(null);
         return;

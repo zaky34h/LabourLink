@@ -1,15 +1,17 @@
 import { useState } from "react";
-import { View, Text, Image, Alert, Keyboard, StyleSheet } from "react-native";
+import { View, Text, Image, Alert, Keyboard, Platform, KeyboardAvoidingView, StyleSheet } from "react-native";
 import { router } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { loginUser, registerUser } from "../../src/auth/storage";
 import { routeForUser } from "../../src/auth/routing";
 import { AuthSocialButtons } from "../../src/auth/AuthSocialButtons";
-import { FormScreen } from "../../src/ui/FormScreen";
 import { colors, spacing, radii, type } from "../../src/theme";
 import Button from "../../src/ui/Button";
 import TextField from "../../src/ui/TextField";
 
 export default function Register() {
+  const insets = useSafeAreaInsets();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -21,7 +23,7 @@ export default function Register() {
   // Mirrors backend validatePasswordStrength (backend/server.js) so users get the
   // error before submitting. Keep these rules and messages in sync with the server.
   function passwordError(value: string) {
-    if (value.length < 6) return "Password must be at least 6 characters.";
+    if (value.length < 8) return "Password must be at least 8 characters.";
     if (!/[a-z]/.test(value)) return "Password must include a lowercase letter.";
     if (!/[A-Z]/.test(value)) return "Password must include an uppercase letter.";
     if (!/\d/.test(value)) return "Password must include a number.";
@@ -65,13 +67,25 @@ export default function Register() {
   }
 
   return (
-    <FormScreen backgroundColor={colors.background}>
-      <View style={styles.screen}>
-        {/* soft cream background blobs */}
-        <View style={[styles.blob, { top: -40, left: -50 }]} />
-        <View style={[styles.blob, { bottom: 40, right: -60 }]} />
+    <View style={styles.screen}>
+      {/* soft cream background blobs — full-bleed to the screen edges */}
+      <View style={[styles.blob, { top: -70, left: -70 }]} />
+      <View style={[styles.blob, { bottom: -70, right: -70 }]} />
 
-        <View style={styles.content}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <KeyboardAwareScrollView
+          enableOnAndroid
+          keyboardShouldPersistTaps="always"
+          extraScrollHeight={20}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[
+            styles.content,
+            { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.lg },
+          ]}
+        >
           <View style={styles.header}>
             <Image
               source={require("../../assets/labourlink-logo.png")}
@@ -96,7 +110,7 @@ export default function Register() {
 
             <TextField
               label="Password"
-              placeholder="Minimum 6 characters"
+              placeholder="Minimum 8 characters"
               secureToggle
               value={password}
               onChangeText={setPassword}
@@ -116,22 +130,22 @@ export default function Register() {
               style={{ marginTop: spacing.sm }}
             />
           </View>
-        </View>
-      </View>
-    </FormScreen>
+        </KeyboardAwareScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, overflow: "hidden" },
+  screen: { flex: 1, overflow: "hidden", backgroundColor: colors.background },
   blob: {
     position: "absolute",
-    width: 220,
-    height: 220,
+    width: 260,
+    height: 260,
     borderRadius: radii.pill,
     backgroundColor: colors.surface,
   },
-  content: { flex: 1, justifyContent: "center", paddingHorizontal: spacing.lg },
+  content: { flexGrow: 1, justifyContent: "center", paddingHorizontal: spacing.lg },
   header: { alignItems: "center", marginBottom: spacing.xl },
   logo: { width: 240, height: 96 },
   title: { ...type.h3, marginTop: spacing.sm },

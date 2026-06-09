@@ -1,7 +1,44 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
+import { Platform } from "react-native";
 
 const SESSION_EMAIL_KEY = "labourlink_session_email";
 const SESSION_TOKEN_KEY = "labourlink_session_token";
+
+// Session token + email are sensitive, so they live in the device secure enclave
+// (iOS Keychain / Android Keystore) via expo-secure-store. SecureStore is not
+// available on web, so fall back to AsyncStorage there. The remember-me flag and
+// remembered email (non-sensitive) intentionally stay in AsyncStorage (app/index.tsx).
+const useSecureStore = Platform.OS !== "web";
+
+async function secureGet(key: string): Promise<string | null> {
+  if (!useSecureStore) return AsyncStorage.getItem(key);
+  const value = await SecureStore.getItemAsync(key);
+  if (value !== null) return value;
+  // One-time migration: move any value previously persisted in AsyncStorage
+  // (pre-SecureStore builds) into the secure store, then drop the plaintext copy.
+  const legacy = await AsyncStorage.getItem(key);
+  if (legacy !== null) {
+    await SecureStore.setItemAsync(key, legacy);
+    await AsyncStorage.removeItem(key);
+    return legacy;
+  }
+  return null;
+}
+
+async function secureSet(key: string, value: string): Promise<void> {
+  if (useSecureStore) {
+    await SecureStore.setItemAsync(key, value);
+  } else {
+    await AsyncStorage.setItem(key, value);
+  }
+}
+
+async function secureDelete(key: string): Promise<void> {
+  if (useSecureStore) await SecureStore.deleteItemAsync(key);
+  // Always clear any legacy AsyncStorage copy as well.
+  await AsyncStorage.removeItem(key);
+}
 const REQUEST_TIMEOUT_MS = Number(process.env.EXPO_PUBLIC_API_TIMEOUT_MS || 12000);
 const LOCAL_API_FALLBACK = "http://localhost:4000";
 
@@ -33,22 +70,25 @@ export function getApiBaseUrl() {
 }
 
 export async function getSessionToken(): Promise<string | null> {
-  return AsyncStorage.getItem(SESSION_TOKEN_KEY);
+  return secureGet(SESSION_TOKEN_KEY);
 }
 
 export async function setSession(token: string, email: string): Promise<void> {
-  await AsyncStorage.multiSet([
-    [SESSION_TOKEN_KEY, token],
-    [SESSION_EMAIL_KEY, email],
+  await Promise.all([
+    secureSet(SESSION_TOKEN_KEY, token),
+    secureSet(SESSION_EMAIL_KEY, email),
   ]);
 }
 
 export async function clearSessionStorage(): Promise<void> {
-  await AsyncStorage.multiRemove([SESSION_TOKEN_KEY, SESSION_EMAIL_KEY]);
+  await Promise.all([
+    secureDelete(SESSION_TOKEN_KEY),
+    secureDelete(SESSION_EMAIL_KEY),
+  ]);
 }
 
 export async function getSessionEmailStorage(): Promise<string | null> {
-  return AsyncStorage.getItem(SESSION_EMAIL_KEY);
+  return secureGet(SESSION_EMAIL_KEY);
 }
 
 type RequestOptions = {

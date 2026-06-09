@@ -2,7 +2,6 @@ import { Platform } from "react-native";
 import Constants from "expo-constants";
 import type { BuilderSubscription } from "../auth/storage";
 
-const DEFAULT_IOS_API_KEY = "test_TrMdLOfNQKBZCijjWzKpajqqEeE";
 const DEFAULT_ENTITLEMENT = "LabourLink Pro";
 const DEFAULT_MONTHLY_PACKAGE_IDS = ["$rc_monthly", "monthly"];
 const DEFAULT_YEARLY_PACKAGE_IDS = ["$rc_annual", "$rc_yearly", "yearly"];
@@ -112,8 +111,13 @@ export async function configureRevenueCat(email: string): Promise<any> {
     throw new Error("RevenueCat SDK not found. Install react-native-purchases and rebuild iOS.");
   }
 
-  const apiKey = (process.env.EXPO_PUBLIC_RC_API_KEY_IOS || DEFAULT_IOS_API_KEY).trim();
-  if (!apiKey) throw new Error("Missing RevenueCat iOS API key.");
+  // Source the key only from the build environment — never hardcode it in the repo.
+  const apiKey = (process.env.EXPO_PUBLIC_RC_API_KEY_IOS || "").trim();
+  if (!apiKey) {
+    throw new Error(
+      "Missing RevenueCat iOS API key. Set EXPO_PUBLIC_RC_API_KEY_IOS in your build environment."
+    );
+  }
 
   if (configuredForUser === email) return Purchases;
 

@@ -7,18 +7,22 @@ import {
   Text,
   TextInput,
   View,
+  Platform,
+  KeyboardAvoidingView,
   StyleSheet,
 } from "react-native";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { completeOnboarding, deleteAccount } from "../../src/auth/storage";
 import { routeForUser } from "../../src/auth/routing";
 import { useCurrentUser } from "../../src/auth/useCurrentUser";
-import { FormScreen } from "../../src/ui/FormScreen";
 import { colors, spacing, radii, fontFamily, fontSize, fontWeight, type } from "../../src/theme";
 import Button from "../../src/ui/Button";
 
 export default function OnboardingScreen() {
+  const insets = useSafeAreaInsets();
   const { user, loading, reload } = useCurrentUser();
   const [selectedRole, setSelectedRole] = useState<"builder" | "labourer" | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -147,13 +151,25 @@ export default function OnboardingScreen() {
   }
 
   return (
-    <FormScreen backgroundColor={colors.background}>
-      <View style={styles.screen}>
-        {/* soft cream background blobs */}
-        <View style={[styles.blob, { top: -40, right: -60 }]} />
-        <View style={[styles.blob, { bottom: -20, left: -60 }]} />
+    <View style={styles.screen}>
+      {/* soft cream background blobs — full-bleed to the screen edges */}
+      <View style={[styles.blob, { top: -70, right: -70 }]} />
+      <View style={[styles.blob, { bottom: -70, left: -70 }]} />
 
-        <View style={styles.content}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <KeyboardAwareScrollView
+          enableOnAndroid
+          keyboardShouldPersistTaps="always"
+          extraScrollHeight={20}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[
+            styles.content,
+            { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.lg },
+          ]}
+        >
           <View style={{ alignItems: "center" }}>
             <Image
               source={require("../../assets/labourlink-logo.png")}
@@ -271,9 +287,9 @@ export default function OnboardingScreen() {
               style={{ marginTop: spacing.sm }}
             />
           </View>
-        </View>
-      </View>
-    </FormScreen>
+        </KeyboardAwareScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
@@ -346,18 +362,17 @@ function Field(props: any) {
 
 const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.background },
-  screen: { flex: 1, overflow: "hidden" },
+  screen: { flex: 1, overflow: "hidden", backgroundColor: colors.background },
   blob: {
     position: "absolute",
-    width: 240,
-    height: 240,
+    width: 260,
+    height: 260,
     borderRadius: radii.pill,
     backgroundColor: colors.surface,
   },
   content: {
+    flexGrow: 1,
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.lg,
     gap: spacing.lg,
   },
   card: {

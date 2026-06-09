@@ -1,7 +1,8 @@
 import { useCallback, useState, type ReactNode } from "react";
 import { View, Text, ScrollView, Pressable, Alert, RefreshControl, Linking, StyleSheet } from "react-native";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
-import { type CertificationDoc, type LabourerUser, getUserByEmail } from "../../../src/auth/storage";
+import { type CertificationDoc, type LabourerUser } from "../../../src/auth/storage";
+import { getOwnerUserByEmail } from "../../../src/owner/storage";
 import { useCurrentUser } from "../../../src/auth/useCurrentUser";
 import { colors, spacing, radii, fontFamily, fontSize, fontWeight, type } from "../../../src/theme";
 
@@ -16,7 +17,7 @@ export default function OwnerLabourerDetails() {
   async function loadLabourer() {
     if (!labourerEmail) return;
     try {
-      const next = await getUserByEmail(labourerEmail);
+      const next = await getOwnerUserByEmail(labourerEmail);
       if (!next || next.role !== "labourer") {
         setLabourer(null);
         return;
@@ -83,10 +84,8 @@ export default function OwnerLabourerDetails() {
             )}
           </Card>
 
-          <Card title="Payment Details">
-            <Row label="BSB" value={labourer.bsb || "-"} />
-            <Row label="Account Number" value={labourer.accountNumber || "-"} />
-          </Card>
+          {/* Banking (bsb/account number) is deliberately excluded from owner admin
+              views — it is only surfaced through the scoped payment-receipt flow. */}
 
           <Card title="Subscription">
             <Row label="Plan" value={labourer.subscription?.planName || "-"} />

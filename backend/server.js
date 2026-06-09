@@ -86,7 +86,7 @@ function isValidEmail(email) {
 
 function validatePasswordStrength(password) {
   const value = String(password || "");
-  if (value.length < 6) return "Password must be at least 6 characters.";
+  if (value.length < 8) return "Password must be at least 8 characters.";
   if (!/[a-z]/.test(value)) return "Password must include a lowercase letter.";
   if (!/[A-Z]/.test(value)) return "Password must include an uppercase letter.";
   if (!/\d/.test(value)) return "Password must include a number.";
@@ -163,6 +163,15 @@ function hashPasswordLegacy(password) {
   return crypto.createHash("sha256").update(String(password)).digest("hex");
 }
 
+// Constant-time string comparison to avoid leaking secret values via timing.
+// Returns false (without short-circuit timing) on length mismatch.
+function timingSafeEqualStr(a, b) {
+  const bufA = Buffer.from(String(a), "utf8");
+  const bufB = Buffer.from(String(b), "utf8");
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
 function scryptKey(password, salt) {
   return new Promise((resolve, reject) => {
     crypto.scrypt(String(password), salt, 64, { N: 16384, r: 8, p: 1 }, (err, derivedKey) => {
@@ -199,6 +208,12 @@ async function verifyPassword(password, storedHash) {
   }
 
   return false;
+}
+
+// Session tokens are bearer credentials, so they must be unguessable and contain
+// no predictable structure (no timestamp). 32 random bytes = 256 bits of entropy.
+function makeSessionToken() {
+  return crypto.randomBytes(32).toString("hex");
 }
 
 function makeId(prefix = "id") {
@@ -769,6 +784,63 @@ function toPublicUser(row) {
   };
 }
 
+// Owner-admin projection. The owner is the data controller and legitimately needs
+// fuller detail than the cross-user `toPublicUser` projection for support/ops —
+// notably the full street `address` (builders) and the builder `about`/reviews.
+//
+// Same ALLOWLIST discipline as `toPublicUser`: built field-by-field so no future
+// column leaks by default. Deliberately EXCLUDED even from the owner: `bsb` /
+// `account_number` (banking) and `password_hash`. Banking stays owner-out by
+// default — surface it only via the scoped payment-receipt flow, not admin views.
+function toOwnerUser(row) {
+  const base = {
+    role: row.role,
+    firstName: row.first_name,
+    lastName: row.last_name,
+    email: row.email,
+    isDisabled: Boolean(row.is_disabled),
+  };
+
+  if (row.role === "builder") {
+    return {
+      ...base,
+      companyName: row.company_name || "",
+      about: row.about || "",
+      address: row.address || "",
+      companyLogoUrl: row.company_logo_url || undefined,
+      companyRating: row.company_rating ?? 0,
+      reviews: row.reviews || [],
+      subscription: normalizeSubscription(row.subscription),
+    };
+  }
+
+  if (row.role === "owner") {
+    return {
+      ...base,
+      about: row.about || "",
+    };
+  }
+
+  if (row.role === "pending") {
+    return base;
+  }
+
+  // labourer — fuller than the public view (about, experience, availability) but
+  // still no banking (bsb / account_number).
+  return {
+    ...base,
+    about: row.about || "",
+    occupation: row.occupation || "",
+    pricePerHour: Number(row.price_per_hour || 0),
+    unavailableDates: row.unavailable_dates || [],
+    certifications: row.certifications || [],
+    certificationDocs: row.certification_docs || [],
+    experienceYears: Number(row.experience_years || 0),
+    photoUrl: row.photo_url || undefined,
+    subscription: normalizeSubscription(row.subscription),
+  };
+}
+
 function rowToOffer(row) {
   return {
     id: row.id,
@@ -927,7 +999,7 @@ async function requireOwner(req, res) {
 }
 
 async function issueSessionForEmail(email) {
-  const token = makeId("sess");
+  const token = makeSessionToken();
   await pool.query("INSERT INTO sessions (token, email, created_at) VALUES ($1,$2,$3)", [
     token,
     normalizeEmail(email),
@@ -1169,7 +1241,7 @@ const server = http.createServer(async (req, res) => {
         OWNER_BOOTSTRAP_EMAIL &&
         OWNER_BOOTSTRAP_PASSWORD &&
         email === OWNER_BOOTSTRAP_EMAIL &&
-        password === OWNER_BOOTSTRAP_PASSWORD
+        timingSafeEqualStr(password, OWNER_BOOTSTRAP_PASSWORD)
       ) {
         const ts = now();
         const ownerRes = await pool.query("SELECT * FROM users WHERE email = $1 LIMIT 1", [email]);
@@ -1192,7 +1264,7 @@ const server = http.createServer(async (req, res) => {
         }
 
         const finalOwnerRes = await pool.query("SELECT * FROM users WHERE email = $1 LIMIT 1", [email]);
-        const token = makeId("sess");
+        const token = makeSessionToken();
         await pool.query("INSERT INTO sessions (token, email, created_at) VALUES ($1,$2,$3)", [
           token,
           email,
@@ -1209,7 +1281,24 @@ const server = http.createServer(async (req, res) => {
       if (!validPassword) {
         return json(res, 401, { ok: false, error: "Invalid email or password." });
       }
-      const token = makeId("sess");
+
+      // Transparent upgrade: if the stored hash is a legacy SHA-256 digest, rehash
+      // the (now-verified) password with scrypt and persist it. Best-effort — a
+      // failure here must not block the login.
+      if (/^[a-f0-9]{64}$/i.test(String(row.password_hash || ""))) {
+        try {
+          const upgradedHash = await hashPassword(password);
+          await pool.query("UPDATE users SET password_hash = $1, updated_at = $2 WHERE email = $3", [
+            upgradedHash,
+            now(),
+            email,
+          ]);
+        } catch (rehashErr) {
+          console.error("Legacy password rehash failed:", rehashErr);
+        }
+      }
+
+      const token = makeSessionToken();
       await pool.query("INSERT INTO sessions (token, email, created_at) VALUES ($1,$2,$3)", [
         token,
         email,
@@ -1495,7 +1584,7 @@ const server = http.createServer(async (req, res) => {
       if (Number(resetRow.expires_at || 0) < now()) {
         return json(res, 400, { ok: false, error: "Reset code expired." });
       }
-      if (hashPasswordLegacy(code) !== String(resetRow.code_hash || "")) {
+      if (!timingSafeEqualStr(hashPasswordLegacy(code), String(resetRow.code_hash || ""))) {
         return json(res, 400, { ok: false, error: "Invalid reset code." });
       }
 
@@ -1686,7 +1775,7 @@ const server = http.createServer(async (req, res) => {
       const rowsRes = await pool.query(
         `SELECT * FROM users WHERE role = 'builder' ORDER BY created_at DESC`
       );
-      return json(res, 200, { ok: true, builders: rowsRes.rows.map(rowToUser) });
+      return json(res, 200, { ok: true, builders: rowsRes.rows.map(toOwnerUser) });
     }
 
     if (req.method === "GET" && pathname === "/owner/labourers") {
@@ -1695,7 +1784,18 @@ const server = http.createServer(async (req, res) => {
       const rowsRes = await pool.query(
         `SELECT * FROM users WHERE role = 'labourer' ORDER BY created_at DESC`
       );
-      return json(res, 200, { ok: true, labourers: rowsRes.rows.map(rowToUser) });
+      return json(res, 200, { ok: true, labourers: rowsRes.rows.map(toOwnerUser) });
+    }
+
+    if (req.method === "GET" && pathname.startsWith("/owner/users/")) {
+      const authUser = await requireOwner(req, res);
+      if (!authUser) return;
+      const email = normalizeEmail(decodeURIComponent(pathname.replace("/owner/users/", "")));
+      const userRes = await pool.query("SELECT * FROM users WHERE email = $1 LIMIT 1", [email]);
+      if (!userRes.rows.length) return json(res, 404, { ok: false, error: "User not found" });
+      // Owner-admin detail read → fuller projection (full address, about) but still
+      // banking-excluded. Banking is never exposed through admin views by default.
+      return json(res, 200, { ok: true, user: toOwnerUser(userRes.rows[0]) });
     }
 
     if (req.method === "GET" && pathname === "/owner/reports") {
@@ -2861,7 +2961,10 @@ const server = http.createServer(async (req, res) => {
 
     return json(res, 404, { ok: false, error: "Not found" });
   } catch (err) {
-    return json(res, 500, { ok: false, error: err.message || "Server error" });
+    // SECURITY: don't leak internal error details (stack traces, SQL errors,
+    // file paths) to clients. Log full details server-side; return a generic message.
+    console.error("Unhandled request error:", err);
+    return json(res, 500, { ok: false, error: "Server error" });
   }
 });
 
