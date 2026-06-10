@@ -42,13 +42,11 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <div>
-        <Eyebrow>Settings</Eyebrow>
-        <h1 className="heading mt-1 text-3xl">Agency profile</h1>
-        <p className="mt-1.5 text-sm text-muted">
-          Your company details and the public identity companies see.
-        </p>
+    <div className="mx-auto max-w-5xl space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="heading text-3xl">Agency profile</h1>
+        </div>
       </div>
 
       <form onSubmit={onSave} className="space-y-6">

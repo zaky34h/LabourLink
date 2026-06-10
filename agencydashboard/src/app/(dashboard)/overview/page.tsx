@@ -81,7 +81,6 @@ export default function OverviewPage() {
           loading={roster.loading}
           hero
           tag="needs work"
-          caption="Idle labourers are lost money"
         />
         <Kpi
           label="Unavailable"
@@ -114,7 +113,7 @@ export default function OverviewPage() {
               <IconArrowRight />
             </Link>
           </div>
-          <div className="px-5">
+          <div className="px-5 pt-4">
             {roster.loading ? (
               <Loading />
             ) : (

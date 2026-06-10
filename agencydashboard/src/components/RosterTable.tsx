@@ -29,7 +29,7 @@ export function RosterTable({
             <Th>Trade</Th>
             <Th>Status</Th>
             <Th>Availability</Th>
-            <Th>Current placement</Th>
+            <Th className="w-full">Current placement</Th>
             <Th className="text-right">Actions</Th>
           </tr>
         </thead>
@@ -44,7 +44,7 @@ export function RosterTable({
                 onClick={() => router.push(`/roster/${l.id}`)}
                 className="group cursor-pointer border-b border-line/70 last:border-0 hover:bg-field/60"
               >
-                <td className="py-3.5 pr-4">
+                <td className="py-3.5 pr-8">
                   <div className="flex items-center gap-3">
                     <Avatar name={l.name} src={l.photoUrl} size={36} />
                     <div className="min-w-0">
@@ -55,14 +55,14 @@ export function RosterTable({
                     </div>
                   </div>
                 </td>
-                <td className="py-3.5 pr-4 text-ink">{l.trade}</td>
-                <td className="py-3.5 pr-4">
+                <td className="py-3.5 pr-8 text-ink">{l.trade}</td>
+                <td className="py-3.5 pr-8">
                   <StatusBadge status={l.status} />
                 </td>
-                <td className="py-3.5 pr-4">
+                <td className="py-3.5 pr-8">
                   <AvailabilityDots pattern={l.availability.pattern} />
                 </td>
-                <td className="py-3.5 pr-4">
+                <td className="py-3.5 pr-8">
                   {placement ? (
                     <div className="min-w-0">
                       <p className="truncate font-medium text-ink">{placement.builderCompany}</p>
@@ -94,7 +94,7 @@ export function RosterTable({
 function Th({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
     <th
-      className={`eyebrow pb-2.5 pr-4 font-bold ${className}`}
+      className={`eyebrow whitespace-nowrap pb-2.5 pr-8 font-bold ${className}`}
       style={{ fontSize: "10px" }}
     >
       {children}

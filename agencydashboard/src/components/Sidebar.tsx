@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { getBilling } from "@/lib/api";
+import { usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
+import { getAgency, logout } from "@/lib/api";
 import { useAsync } from "@/lib/useAsync";
 import { cn } from "@/lib/utils";
+import { Avatar } from "./ui";
 import {
   IconBilling,
   IconJobs,
@@ -25,11 +27,16 @@ const NAV = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { data: billing } = useAsync(getBilling, []);
-  const plan = billing?.plan;
-  // Enterprise has effectively unlimited seats — don't render a misleading bar.
-  const unlimited = !!plan && plan.seatLimit >= 100_000;
-  const pct = plan && !unlimited ? Math.round((plan.seatsUsed / plan.seatLimit) * 100) : 0;
+  const router = useRouter();
+  const { data: agency } = useAsync(getAgency, []);
+  const [signingOut, setSigningOut] = useState(false);
+
+  async function onLogout() {
+    setSigningOut(true);
+    await logout();
+    router.push("/login");
+    router.refresh();
+  }
 
   return (
     <aside className="flex w-64 shrink-0 flex-col border-r border-line bg-bg">
@@ -72,41 +79,24 @@ export function Sidebar() {
         </ul>
       </nav>
 
-      {/* Plan card pinned to bottom */}
-      <div className="p-3">
-        <div className="rounded-[var(--radius-card)] border border-line bg-surface p-4">
-          <div className="flex items-center justify-between">
-            <p className="eyebrow">Plan</p>
-            <span className="rounded-full bg-ink px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-bg">
-              {plan?.tier ?? "—"}
-            </span>
+      {/* Account — pinned to bottom */}
+      <div className="border-t border-line p-3">
+        <div className="flex items-center gap-3 px-1.5 py-1">
+          <Avatar name={agency?.companyName ?? "Agency"} src={agency?.logoUrl} size={38} />
+          <div className="min-w-0 flex-1 leading-tight">
+            <p className="truncate text-sm font-semibold text-ink">
+              {agency?.companyName ?? "—"}
+            </p>
+            <p className="truncate text-xs text-muted">{agency?.email ?? ""}</p>
           </div>
-          <p className="mt-2.5 text-sm font-semibold text-ink">
-            {!plan
-              ? "Loading…"
-              : unlimited
-                ? `${plan.seatsUsed} seats used`
-                : `${plan.seatsUsed} of ${plan.seatLimit} seats used`}
-          </p>
-          {plan && !unlimited && (
-            <div
-              className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-field"
-              role="progressbar"
-              aria-valuenow={plan.seatsUsed}
-              aria-valuemin={0}
-              aria-valuemax={plan.seatLimit}
-              aria-label="Seats used"
-            >
-              <div className="h-full rounded-full bg-ink" style={{ width: `${pct}%` }} />
-            </div>
-          )}
-          <Link
-            href="/billing"
-            className="mt-3 inline-block text-xs font-bold text-ink underline underline-offset-4 hover:opacity-70"
-          >
-            Upgrade plan
-          </Link>
         </div>
+        <button
+          onClick={onLogout}
+          disabled={signingOut}
+          className="mt-2 w-full rounded-full border border-line px-3 py-2 text-xs font-bold text-muted transition-colors hover:border-ink hover:text-ink disabled:opacity-50"
+        >
+          {signingOut ? "Signing out…" : "Log out"}
+        </button>
       </div>
     </aside>
   );

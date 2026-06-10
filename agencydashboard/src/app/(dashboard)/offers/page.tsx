@@ -26,16 +26,16 @@ import { IconCheck } from "@/components/icons";
 const TODAY = new Date("2026-06-09T09:00:00+10:00");
 
 const TABS: { key: OfferStatus | "all"; label: string }[] = [
-  { key: "pending", label: "Pending" },
+  { key: "all", label: "All" },
   { key: "accepted", label: "Accepted" },
   { key: "declined", label: "Declined" },
-  { key: "all", label: "All" },
+  { key: "pending", label: "Pending" },
 ];
 
 export default function OffersPage() {
   const offers = useAsync(getOffers, []);
   const roster = useAsync(getRoster, []);
-  const [tab, setTab] = useState<OfferStatus | "all">("pending");
+  const [tab, setTab] = useState<OfferStatus | "all">("all");
   const [assigning, setAssigning] = useState<Offer | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -65,17 +65,15 @@ export default function OffersPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
-      <div>
-        <Eyebrow>Offers</Eyebrow>
-        <h1 className="heading mt-1 text-3xl">Incoming offers</h1>
-        <p className="mt-1.5 text-sm text-muted">
-          Offers route to your agency. Accept and assign a labourer — labourers don&rsquo;t log in.
-        </p>
+    <div className="mx-auto max-w-7xl space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="heading text-3xl">Incoming offers</h1>
+        </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex rounded-full border border-line bg-surface p-1">
+      <div className="inline-flex rounded-full border border-line bg-surface p-1">
         {TABS.map((t) => (
           <button
             key={t.key}

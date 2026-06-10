@@ -10,7 +10,6 @@ import {
   ButtonLink,
   Card,
   EmptyState,
-  Eyebrow,
   Input,
   Loading,
   Select,
@@ -52,13 +51,7 @@ export default function RosterPage() {
       {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <Eyebrow>Roster</Eyebrow>
-          <h1 className="heading mt-1 text-3xl">Managed labourers</h1>
-          <p className="mt-1.5 text-sm text-muted">
-            {roster.loading
-              ? "Loading…"
-              : `${labourers.length} labourers on your books`}
-          </p>
+          <h1 className="heading text-3xl">Managed labourers</h1>
         </div>
         <ButtonLink href="/roster/new">
           <IconPlus />

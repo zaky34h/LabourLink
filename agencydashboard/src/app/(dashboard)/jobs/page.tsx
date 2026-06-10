@@ -32,13 +32,11 @@ export default function JobsPage() {
     .slice(0, 3);
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
-      <div>
-        <Eyebrow>Jobs</Eyebrow>
-        <h1 className="heading mt-1 text-3xl">Active placements</h1>
-        <p className="mt-1.5 text-sm text-muted">
-          Who&rsquo;s where, when each job ends, and who comes free next.
-        </p>
+    <div className="mx-auto max-w-7xl space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="heading text-3xl">Active placements</h1>
+        </div>
       </div>
 
       {/* Coming-free summary */}
